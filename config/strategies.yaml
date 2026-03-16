@@ -1,0 +1,135 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  ATLAS TRADING AGENT — Strategy Configuration
+#  All strategies are loaded at runtime by core/engine.py.
+#  Set enabled: false to exclude a strategy from the run.
+# ─────────────────────────────────────────────────────────────────────────────
+
+strategies:
+
+  # ── 1. RSI Mean Reversion ──────────────────────────────────────────────────
+  rsi_mean_reversion:
+    enabled: true
+    description: "Buy oversold, sell overbought using RSI."
+    timeframe: "1h"
+    symbols:
+      - "BTC/USDT"
+      - "ETH/USDT"
+      - "SOL/USDT"
+    risk_per_trade: 1.0        # % of equity risked per trade
+    max_positions: 2
+    parameters:
+      period: 14
+      oversold: 30
+      overbought: 70
+      # Exit when RSI crosses back through these mid-levels
+      exit_oversold: 50
+      exit_overbought: 50
+
+  # ── 2. EMA Crossover ──────────────────────────────────────────────────────
+  ema_crossover:
+    enabled: true
+    description: "MACD-style EMA crossover with signal-line confirmation."
+    timeframe: "4h"
+    symbols:
+      - "BTC/USDT"
+      - "ETH/USDT"
+    risk_per_trade: 1.5
+    max_positions: 2
+    parameters:
+      fast: 12
+      slow: 26
+      signal: 9
+      # Require price to be above/below this EMA for trend-filter
+      trend_filter_ema: 200
+
+  # ── 3. Bollinger Band Mean Reversion ──────────────────────────────────────
+  bollinger_band_reversion:
+    enabled: true
+    description: "Enter when price touches a band; exit at the midline."
+    timeframe: "1h"
+    symbols:
+      - "BTC/USDT"
+      - "ETH/USDT"
+      - "BNB/USDT"
+    risk_per_trade: 1.0
+    max_positions: 3
+    parameters:
+      period: 20
+      std_dev: 2.0
+      # Require this minimum squeeze ratio before taking a trade
+      min_squeeze_ratio: 0.02
+
+  # ── 4. VWAP Bounce ────────────────────────────────────────────────────────
+  vwap_bounce:
+    enabled: true
+    description: "Intraday reversion to VWAP with volume confirmation."
+    timeframe: "15m"
+    symbols:
+      - "BTC/USDT"
+      - "ETH/USDT"
+    risk_per_trade: 1.0
+    max_positions: 2
+    parameters:
+      vwap_deviation_pct: 1.5   # Enter when price deviates this % from VWAP
+      volume_multiplier: 1.5    # Require volume to be this × the rolling mean
+      session_start_utc: "00:00"
+      session_end_utc: "23:59"
+
+  # ── 5. Multi-Timeframe Momentum ───────────────────────────────────────────
+  mtf_momentum:
+    enabled: true
+    description: "Align momentum across 3 timeframes before entering."
+    timeframes:
+      primary: "4h"
+      secondary: "1h"
+      confirmation: "15m"
+    symbols:
+      - "BTC/USDT"
+      - "ETH/USDT"
+      - "SOL/USDT"
+    risk_per_trade: 1.5
+    max_positions: 2
+    parameters:
+      momentum_period: 14
+      min_alignment: 3          # All 3 timeframes must agree
+      atr_multiplier: 2.0       # Stop-loss distance in ATR units
+      take_profit_ratio: 2.5    # Risk-reward ratio for take-profit
+
+  # ── 6. London Session Breakout ────────────────────────────────────────────
+  london_breakout:
+    enabled: true
+    description: "Trade the breakout of the London open range (08:00-10:00 UTC)."
+    timeframe: "5m"
+    symbols:
+      - "BTC/USDT"
+      - "ETH/USDT"
+    risk_per_trade: 1.5
+    max_positions: 1
+    parameters:
+      range_start_utc: "08:00"
+      range_end_utc:   "10:00"
+      trade_window_end_utc: "16:00"  # No new entries after this time
+      breakout_buffer_pct: 0.1        # % above/below range high/low to confirm breakout
+      atr_stop_multiplier: 1.5
+      min_range_size_pct: 0.3         # Skip if range is too tight
+
+  # ── 7. S&P 500 Opening Range Breakout ─────────────────────────────────────
+  sp500_orb:
+    enabled: true
+    description: "First 15-minute range breakout at NYSE open (09:30-09:45 ET)."
+    timeframe: "5m"
+    symbols:
+      # Crypto proxies that correlate with US equity open
+      - "BTC/USDT"
+    risk_per_trade: 1.0
+    max_positions: 1
+    parameters:
+      range_start_et: "09:30"
+      range_end_et:   "09:45"
+      trade_window_end_et: "11:00"   # Only trade the morning session
+      breakout_buffer_pct: 0.05
+      atr_stop_multiplier: 1.0
+      min_range_size_pct: 0.2
+      # Require SPY correlation to be above this threshold
+      # (calculated from last 20 bars of daily closes)
+      min_spy_correlation: 0.6

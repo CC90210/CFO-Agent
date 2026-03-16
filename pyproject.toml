@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "atlas-trading-agent"
+version = "0.1.0"
+description = "Atlas — Multi-agent AI trading system with backtesting, paper trading, and live execution"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "CC", email = "cc@oasisai.io" }]
+
+dependencies = [
+    # Exchange connectivity
+    "ccxt>=4.3.0",
+
+    # Data processing
+    "pandas>=2.2.0",
+    "numpy>=1.26.0",
+
+    # Technical analysis
+    "ta>=0.11.0",
+
+    # Vectorised backtesting
+    "vectorbt>=0.26.1",
+
+    # AI / Claude
+    "anthropic>=0.28.0",
+
+    # Config & environment
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0.1",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.3.0",
+
+    # Async networking
+    "aiohttp>=3.9.0",
+    "websockets>=12.0",
+
+    # Database
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=5.0.0",
+]
+
+[project.scripts]
+atlas = "main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*", "db*", "config*", "strategies*", "agents*", "backtesting*", "utils*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
