@@ -102,6 +102,10 @@ def in_memory_db(monkeypatch: pytest.MonkeyPatch):
 
     db_mod.init_db()
     yield db_mod
+    # Clean up all tables between tests
+    from db.models import Base
+    engine = db_mod.get_engine()
+    Base.metadata.drop_all(engine)
 
 
 class TestDatabase:
@@ -197,13 +201,13 @@ class TestModels:
         import db.database as db_mod
         from db.models import DailyPnL
 
-        today = datetime.date.today()
+        unique_date = datetime.date(2020, 1, 1)
         with db_mod.get_session() as session:
-            row = DailyPnL(date=today)
+            row = DailyPnL(date=unique_date)
             session.add(row)
 
         with db_mod.get_session() as session:
-            row = session.query(DailyPnL).filter(DailyPnL.date == today).one()
+            row = session.query(DailyPnL).filter(DailyPnL.date == unique_date).one()
             assert row.realized_pnl == pytest.approx(0.0)
             assert row.trades_count == 0
             assert row.daily_limit_hit is False

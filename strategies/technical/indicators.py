@@ -316,7 +316,16 @@ def adx(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
         dmn    — -DI (negative directional indicator)
 
     Requires df columns: high, low, close.
+
+    Note: the ta library's ADXIndicator requires at least 2 * period rows to
+    compute correctly.  When fewer rows are provided, a NaN-filled DataFrame
+    is returned so callers with their own _min_bars guards are unaffected.
     """
+    if len(df) < 2 * period:
+        return pd.DataFrame(
+            {"adx": np.nan, "dmp": np.nan, "dmn": np.nan},
+            index=df.index,
+        )
     ind = ta.trend.ADXIndicator(df["high"], df["low"], df["close"], window=period)
     return pd.DataFrame(
         {
