@@ -154,6 +154,87 @@ class LoggingSettings(BaseSettings):
         return path
 
 
+class FinanceSettings(BaseSettings):
+    """
+    Financial planning and tax settings for CC.
+
+    Override via .env using the FINANCE__ prefix (due to env_nested_delimiter="__"):
+    e.g. FINANCE__TAX_PROVINCE=ON
+    """
+
+    model_config = SettingsConfigDict(env_file=str(PROJECT_ROOT / ".env"), extra="ignore")
+
+    tax_province: str = Field(
+        default="ON",
+        description="Canadian province for provincial tax calculations (ON = Ontario).",
+    )
+    tax_year: int = Field(
+        default=2026,
+        description="Current or target tax year for calculations.",
+    )
+    tfsa_contribution_room: float = Field(
+        default=7000.0,
+        ge=0.0,
+        description="Available TFSA contribution room in CAD (2024+ = $7,000/year).",
+    )
+    rrsp_contribution_room: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Available RRSP deduction limit in CAD. Update from your CRA My Account.",
+    )
+    fhsa_contribution_room: float = Field(
+        default=8000.0,
+        ge=0.0,
+        description="Available FHSA contribution room in CAD ($8,000/year).",
+    )
+    risk_tolerance: str = Field(
+        default="MODERATE",
+        description="Default risk tolerance: CONSERVATIVE | MODERATE | AGGRESSIVE.",
+    )
+    monthly_savings_target: float = Field(
+        default=500.0,
+        ge=0.0,
+        description="Monthly savings/investment target in CAD.",
+    )
+    fire_target_annual_expenses: float = Field(
+        default=40000.0,
+        ge=0.0,
+        description="Estimated annual expenses for FIRE calculation (CAD).",
+    )
+    fire_withdrawal_rate: float = Field(
+        default=0.04,
+        ge=0.01,
+        le=0.10,
+        description="Safe withdrawal rate for FIRE calculation (default 4% — Trinity Study).",
+    )
+    monthly_income: float = Field(
+        default=2191.0,
+        ge=0.0,
+        description="CC's current MRR / monthly income in CAD. Update as revenue grows.",
+    )
+
+    @field_validator("risk_tolerance")
+    @classmethod
+    def validate_risk_tolerance(cls, v: str) -> str:
+        allowed = {"CONSERVATIVE", "MODERATE", "AGGRESSIVE"}
+        if v.upper() not in allowed:
+            raise ValueError(f"risk_tolerance must be one of {allowed}, got '{v}'")
+        return v.upper()
+
+    @field_validator("tax_province")
+    @classmethod
+    def validate_province(cls, v: str) -> str:
+        """Warn if province is not Ontario (only ON brackets are implemented)."""
+        if v.upper() != "ON":
+            import warnings
+            warnings.warn(
+                f"Tax province '{v}' is set but only Ontario (ON) brackets are "
+                "implemented. Tax calculations will use Ontario rates.",
+                stacklevel=2,
+            )
+        return v.upper()
+
+
 class Settings(BaseSettings):
     """
     Top-level settings object — the single source of truth for all
@@ -174,6 +255,7 @@ class Settings(BaseSettings):
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     ai: AISettings = Field(default_factory=AISettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
+    finance: FinanceSettings = Field(default_factory=FinanceSettings)
 
     # ── Convenience pass-throughs ─────────────────────────────────────────
     @property

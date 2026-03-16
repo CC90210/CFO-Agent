@@ -279,3 +279,203 @@ class DailyPnL(Base):
             f"<DailyPnL date={self.date} realized={self.realized_pnl:.2f} "
             f"trades={self.trades_count}>"
         )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  NetWorthSnapshot
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class NetWorthSnapshot(Base):
+    """
+    Point-in-time net worth snapshot for CC.
+
+    ``breakdown_json`` stores a category → value mapping, e.g.::
+
+        {
+            "Asset: Trading Portfolio": 8500.0,
+            "Asset: TFSA": 14000.0,
+            "Liability: Credit Card": 1200.0
+        }
+    """
+
+    __tablename__ = "net_worth_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+
+    total_assets: Mapped[float] = mapped_column(Float, nullable=False)
+    total_liabilities: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    net_worth: Mapped[float] = mapped_column(Float, nullable=False)
+
+    # Category → value breakdown (JSON)
+    breakdown_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=False),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<NetWorthSnapshot date={self.date} net_worth={self.net_worth:.2f}>"
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  TaxEvent
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TaxEvent(Base):
+    """
+    A single taxable event for CRA reporting.
+
+    ``event_type`` values:
+    - "capital_gain"   : Realised capital gain from asset disposition
+    - "capital_loss"   : Realised capital loss from asset disposition
+    - "business_income": Income classified as business income (100% inclusion)
+    - "tfsa_withdrawal": TFSA withdrawal (tax-free, tracked for room recovery)
+    - "rrsp_contribution": RRSP contribution (creates tax deduction)
+    """
+
+    __tablename__ = "tax_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    tax_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+
+    # Optional link to the trade that generated this event
+    trade_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("trades.id"), nullable=True, index=True
+    )
+
+    # Estimated tax impact in CAD (for planning purposes)
+    tax_impact_estimate: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=False),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<TaxEvent date={self.date} type={self.event_type} "
+            f"amount={self.amount:.2f} year={self.tax_year}>"
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Expense
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class Expense(Base):
+    """
+    A personal or business expense for CC's budget tracking.
+
+    ``category`` maps to ``finance.budget.ExpenseCategory`` values:
+    Housing | Food | Transport | Business | Entertainment |
+    Subscriptions | Savings | Investing | Other
+    """
+
+    __tablename__ = "expenses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    category: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # True when the expense is a deductible business expense
+    is_business_deductible: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
+
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=False),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<Expense date={self.date} {self.category} ${self.amount:.2f} "
+            f"'{self.description[:40]}'>"
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  FinancialGoal
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class FinancialGoal(Base):
+    """
+    A financial goal tracked over time.
+
+    ``status`` values: "active" | "completed" | "paused" | "abandoned"
+
+    Examples:
+    - name="TFSA Maxed 2026", target=7000, current=2400, status="active"
+    - name="Emergency Fund 6mo", target=13000, current=9200, status="active"
+    - name="First Home Down Payment", target=80000, current=8000, status="active"
+    """
+
+    __tablename__ = "financial_goals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    target_amount: Mapped[float] = mapped_column(Float, nullable=False)
+    current_amount: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+
+    # Optional target completion date for deadline-driven projections
+    target_date: Mapped[datetime.date | None] = mapped_column(Date, nullable=True)
+
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="active", index=True
+    )
+
+    # Notes or context for the goal
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=False),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=False),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    @property
+    def progress_pct(self) -> float:
+        """Percentage progress toward the goal (0.0–100.0)."""
+        if self.target_amount <= 0:
+            return 0.0
+        return round(min(100.0, self.current_amount / self.target_amount * 100), 1)
+
+    @property
+    def remaining(self) -> float:
+        """Amount still needed to reach the goal."""
+        return max(0.0, self.target_amount - self.current_amount)
+
+    def __repr__(self) -> str:
+        return (
+            f"<FinancialGoal '{self.name}' "
+            f"{self.progress_pct:.1f}% "
+            f"({self.current_amount:.0f}/{self.target_amount:.0f}) "
+            f"status={self.status}>"
+        )
