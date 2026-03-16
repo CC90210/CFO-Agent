@@ -8,15 +8,23 @@ Data sources (all free):
   - NewsAPI       : https://newsapi.org/v2/everything
   - CryptoPanic   : https://cryptopanic.com/api/v1/posts/
   - Fear & Greed  : https://api.alternative.me/fng/
+  - Yahoo Finance : per-symbol news via yfinance library
+  - CoinGecko     : trending coins list (no key required)
+  - EconomicCalendar: high-impact event detection (local)
 
 Recency weighting:
   Headlines from the last hour  → weight 1.0
   Headlines from the last day   → weight 0.5
   Headlines older than a day    → weight 0.2
+
+Economic calendar integration:
+  If a HIGH-impact event is within 24 hours, caution_multiplier is applied
+  to dampen conviction (the agent becomes more conservative).
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import time
@@ -26,6 +34,7 @@ from typing import Any
 import aiohttp
 
 from agents.base_agent import AgentSignal, BaseAnalystAgent, Direction
+from data.economic_calendar import EconomicCalendar
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +42,16 @@ logger = logging.getLogger(__name__)
 _CRYPTOPANIC_URL = "https://cryptopanic.com/api/v1/posts/"
 _FEAR_GREED_URL = "https://api.alternative.me/fng/?limit=1"
 _NEWSAPI_URL = "https://newsapi.org/v2/everything"
+_COINGECKO_TRENDING_URL = "https://api.coingecko.com/api/v3/search/trending"
 
 # Default request timeout (seconds)
 _HTTP_TIMEOUT = 10
+
+# When a HIGH-impact event is within 24h, reduce conviction by this factor
+_CAUTION_MULTIPLIER = 0.5
+
+# Cache TTL for trending list (10 minutes)
+_TRENDING_CACHE_TTL = 600.0
 
 
 class SentimentAnalyst(BaseAnalystAgent):
@@ -45,6 +61,7 @@ class SentimentAnalyst(BaseAnalystAgent):
     Expected market_data shape:
         {
             "asset_class": "crypto" | "stock",   # optional, default "crypto"
+            "coingecko_id": "bitcoin",            # optional, for trending check
             "extra_headlines": [                  # optional caller-supplied headlines
                 {"title": "...", "published_at": "ISO8601", "source": "..."},
             ]
@@ -54,6 +71,12 @@ class SentimentAnalyst(BaseAnalystAgent):
         NEWS_API_KEY      : NewsAPI key for stock/general news
         CRYPTOPANIC_KEY   : CryptoPanic API auth token
     """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._economic_calendar = EconomicCalendar()
+        # Simple module-level cache for trending data
+        self._trending_cache: tuple[float, list[str]] | None = None
 
     @property
     def name(self) -> str:
@@ -67,34 +90,54 @@ class SentimentAnalyst(BaseAnalystAgent):
         self,
         symbol: str,
         market_data: dict[str, Any],
-        context: dict[str, Any],
+        _context: dict[str, Any],
     ) -> AgentSignal:
         asset_class = market_data.get("asset_class", "crypto").lower()
         extra_headlines = market_data.get("extra_headlines", [])
+        coingecko_id = market_data.get("coingecko_id", "")
 
         headlines: list[dict[str, Any]] = list(extra_headlines)
         fear_greed_score: float | None = None
 
+        # Check economic calendar — are we near a HIGH-impact event?
+        high_impact_soon = self._economic_calendar.is_high_impact_event_within_hours(hours=24)
+        if high_impact_soon:
+            logger.warning(
+                "%s: HIGH-impact macro event within 24h — applying caution multiplier to %s",
+                self.name, symbol,
+            )
+
         async with aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=_HTTP_TIMEOUT)
         ) as session:
-            # Fetch from available sources concurrently
-            import asyncio
+            # Fetch from all available sources concurrently
             results = await asyncio.gather(
                 self._fetch_cryptopanic(session, symbol),
                 self._fetch_newsapi(session, symbol),
                 self._fetch_fear_greed(session) if asset_class == "crypto" else self._noop(),
+                self._fetch_yahoo_finance_news(symbol),
+                self._fetch_coingecko_trending(session, coingecko_id) if asset_class == "crypto" else self._noop(),
                 return_exceptions=True,
             )
 
-        cp_headlines, newsapi_headlines, fg_result = results
+        cp_headlines, newsapi_headlines, fg_result, yf_headlines, trending_result = results
 
         if isinstance(cp_headlines, list):
             headlines.extend(cp_headlines)
         if isinstance(newsapi_headlines, list):
             headlines.extend(newsapi_headlines)
+        if isinstance(yf_headlines, list):
+            headlines.extend(yf_headlines)
+
         if isinstance(fg_result, dict):
             fear_greed_score = fg_result.get("score")
+
+        # CoinGecko trending boost
+        is_trending = False
+        if isinstance(trending_result, dict):
+            is_trending = bool(trending_result.get("is_trending", False))
+            if is_trending:
+                logger.debug("%s is currently trending on CoinGecko", symbol)
 
         if not headlines and fear_greed_score is None:
             return AgentSignal.neutral(
@@ -105,6 +148,10 @@ class SentimentAnalyst(BaseAnalystAgent):
         # Score headlines by recency-weighted sentiment (simple heuristic)
         quant_sentiment = self._quant_sentiment_score(headlines)
 
+        # Apply CoinGecko trending boost (trending assets tend to see momentum)
+        if is_trending:
+            quant_sentiment = min(1.0, quant_sentiment + 0.1)
+
         # Incorporate Fear & Greed Index for crypto
         if fear_greed_score is not None:
             # Fear & Greed: 0 = extreme fear (bearish), 100 = extreme greed (bullish)
@@ -112,18 +159,24 @@ class SentimentAnalyst(BaseAnalystAgent):
             # Blend: 60% headline sentiment, 40% F&G
             quant_sentiment = 0.6 * quant_sentiment + 0.4 * fg_conviction
 
+        # Dampen conviction when a high-impact event is imminent
+        if high_impact_soon:
+            quant_sentiment *= _CAUTION_MULTIPLIER
+
         # Build a compact news brief for Claude
         headline_text = self._format_headlines_for_claude(headlines[:15])
 
         try:
             signal = await self._claude_analysis(
-                symbol, headline_text, quant_sentiment, fear_greed_score
+                symbol, headline_text, quant_sentiment, fear_greed_score,
+                high_impact_soon=high_impact_soon,
+                is_trending=is_trending,
             )
         except Exception as exc:
             logger.warning(
                 "%s: Claude unavailable (%s), using quant sentiment", self.name, exc
             )
-            signal = self._quant_signal(quant_sentiment, fear_greed_score)
+            signal = self._quant_signal(quant_sentiment, fear_greed_score, high_impact_soon)
 
         return signal
 
@@ -135,7 +188,6 @@ class SentimentAnalyst(BaseAnalystAgent):
         self, session: aiohttp.ClientSession, symbol: str
     ) -> list[dict[str, Any]]:
         """Fetch posts from CryptoPanic. Works without auth for public posts."""
-        # Strip market suffix if present (e.g. "BTC/USDT" → "BTC")
         clean_symbol = symbol.split("/")[0].split("-")[0].upper()
         params: dict[str, str] = {
             "currencies": clean_symbol,
@@ -220,6 +272,89 @@ class SentimentAnalyst(BaseAnalystAgent):
         except Exception as exc:
             logger.debug("Fear & Greed fetch failed: %s", exc)
             return {}
+
+    async def _fetch_yahoo_finance_news(self, symbol: str) -> list[dict[str, Any]]:
+        """
+        Fetch recent news from Yahoo Finance using the yfinance library.
+        Runs in an executor to avoid blocking the event loop.
+
+        Normalises output to the same headline dict shape used by other fetchers.
+        """
+        try:
+            import yfinance as yf  # lazy import — optional dependency
+        except ImportError:
+            logger.debug("yfinance not installed — Yahoo Finance news unavailable")
+            return []
+
+        # Map crypto symbols to Yahoo Finance format (e.g. BTC/USDT → BTC-USD)
+        clean = symbol.split("/")[0].split("-")[0].upper()
+        yf_symbol = f"{clean}-USD" if "USDT" in symbol or "USD" in symbol else clean
+
+        def _blocking_fetch() -> list[dict[str, Any]]:
+            ticker = yf.Ticker(yf_symbol)
+            return ticker.news or []  # type: ignore[return-value]
+
+        try:
+            raw: list[dict[str, Any]] = await asyncio.get_event_loop().run_in_executor(
+                None, _blocking_fetch
+            )
+        except Exception as exc:
+            logger.debug("Yahoo Finance news fetch failed for %s: %s", yf_symbol, exc)
+            return []
+
+        headlines = []
+        for article in raw[:20]:
+            # Convert UNIX timestamp to ISO 8601 for consistent processing
+            ts = article.get("providerPublishTime", 0)
+            if ts:
+                published_at = datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+            else:
+                published_at = ""
+            headlines.append(
+                {
+                    "title": article.get("title", ""),
+                    "published_at": published_at,
+                    "source": article.get("publisher", "Yahoo Finance"),
+                }
+            )
+        return headlines
+
+    async def _fetch_coingecko_trending(
+        self,
+        session: aiohttp.ClientSession,
+        coingecko_id: str,
+    ) -> dict[str, Any]:
+        """
+        Check if a coin is currently in CoinGecko's trending list.
+        Returns {"is_trending": bool, "rank": int | None}.
+        """
+        if not coingecko_id:
+            return {"is_trending": False}
+
+        # Check module-level cache to avoid repeated API calls
+        now = time.monotonic()
+        if self._trending_cache is not None:
+            cached_at, trending_ids = self._trending_cache
+            if now - cached_at < _TRENDING_CACHE_TTL:
+                is_trending = coingecko_id.lower() in trending_ids
+                return {"is_trending": is_trending}
+
+        try:
+            async with session.get(_COINGECKO_TRENDING_URL) as resp:
+                if resp.status != 200:
+                    return {"is_trending": False}
+                data = await resp.json()
+                coins = data.get("coins", [])
+                trending_ids = [
+                    entry.get("item", {}).get("id", "").lower()
+                    for entry in coins
+                ]
+                self._trending_cache = (now, trending_ids)
+                is_trending = coingecko_id.lower() in trending_ids
+                return {"is_trending": is_trending}
+        except Exception as exc:
+            logger.debug("CoinGecko trending fetch failed: %s", exc)
+            return {"is_trending": False}
 
     async def _noop(self) -> dict[str, Any]:
         """Placeholder coroutine for non-crypto assets."""
@@ -309,6 +444,8 @@ class SentimentAnalyst(BaseAnalystAgent):
         headline_text: str,
         quant_sentiment: float,
         fear_greed: float | None,
+        high_impact_soon: bool = False,
+        is_trending: bool = False,
     ) -> AgentSignal:
         system_prompt = (
             "You are an elite market sentiment analyst. "
@@ -328,7 +465,13 @@ class SentimentAnalyst(BaseAnalystAgent):
             )
             fg_section = f"\nCrypto Fear & Greed Index: {fear_greed:.0f}/100 ({fg_label})"
 
-        user_message = f"""Analyse market sentiment for {symbol} from these recent headlines.{fg_section}
+        trending_note = "\nNOTE: This asset is currently trending on CoinGecko." if is_trending else ""
+        caution_note = (
+            "\nWARNING: A HIGH-impact macro event is scheduled within 24 hours. "
+            "Reduce conviction accordingly."
+        ) if high_impact_soon else ""
+
+        user_message = f"""Analyse market sentiment for {symbol} from these recent headlines.{fg_section}{trending_note}{caution_note}
 
 Headlines:
 {headline_text}
@@ -352,7 +495,7 @@ Respond with this exact JSON:
         parsed = self._parse_json_response(raw)
 
         if "raw" in parsed:
-            return self._quant_signal(quant_sentiment, fear_greed)
+            return self._quant_signal(quant_sentiment, fear_greed, high_impact_soon)
 
         direction_str = str(parsed.get("direction", "NEUTRAL")).upper()
         try:
@@ -376,16 +519,22 @@ Respond with this exact JSON:
                 "key_themes": parsed.get("key_themes", []),
                 "fear_greed_score": fear_greed,
                 "quant_sentiment": quant_sentiment,
+                "is_trending": is_trending,
+                "high_impact_event_soon": high_impact_soon,
             },
         )
 
     def _quant_signal(
-        self, quant_sentiment: float, fear_greed: float | None
+        self,
+        quant_sentiment: float,
+        fear_greed: float | None,
+        high_impact_soon: bool = False,
     ) -> AgentSignal:
         direction = self._direction_from_conviction(quant_sentiment)
         fg_note = f" Fear&Greed index: {fear_greed:.0f}." if fear_greed is not None else ""
+        caution_note = " HIGH-impact macro event within 24h — caution applied." if high_impact_soon else ""
         reasoning = (
-            f"Quant sentiment score: {quant_sentiment:+.2f}.{fg_note} "
+            f"Quant sentiment score: {quant_sentiment:+.2f}.{fg_note}{caution_note} "
             "Claude analysis unavailable — using lexical headline scoring."
         )
         confidence = min(0.6, abs(quant_sentiment))
@@ -395,5 +544,9 @@ Respond with this exact JSON:
             conviction=quant_sentiment,
             reasoning=reasoning,
             confidence=confidence,
-            metadata={"mode": "quant_fallback", "fear_greed_score": fear_greed},
+            metadata={
+                "mode": "quant_fallback",
+                "fear_greed_score": fear_greed,
+                "high_impact_event_soon": high_impact_soon,
+            },
         )
