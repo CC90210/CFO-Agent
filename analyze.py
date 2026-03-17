@@ -35,6 +35,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# Force UTF-8 output on Windows to support box-drawing characters.
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+
 # Ensure the project root is on sys.path when run as a script.
 _ROOT = Path(__file__).resolve().parent
 if str(_ROOT) not in sys.path:
