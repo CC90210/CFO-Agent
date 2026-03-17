@@ -172,12 +172,16 @@ async def _fetch_ohlcv(
             "Check the CCXT exchange list at https://github.com/ccxt/ccxt"
         )
 
-    exchange = exchange_class(
-        {
-            "apiKey": settings.exchange.exchange_api_key,
-            "secret": settings.exchange.exchange_secret,
-        }
-    )
+    _placeholders = {"", "your_exchange_api_key_here", "your_exchange_secret_here"}
+    init_params: dict[str, Any] = {"enableRateLimit": True}
+    api_key = settings.exchange.exchange_api_key
+    api_secret = settings.exchange.exchange_secret
+    if api_key and api_key not in _placeholders:
+        init_params["apiKey"] = api_key
+    if api_secret and api_secret not in _placeholders:
+        init_params["secret"] = api_secret
+
+    exchange = exchange_class(init_params)
 
     try:
         ohlcv: list[list[float]] = await exchange.fetch_ohlcv(
