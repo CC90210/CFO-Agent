@@ -197,7 +197,7 @@ async def _run_heartbeat(alert: AlertSender) -> None:
     try:
         portfolio_value = _get_portfolio_value()
         snapshot = PortfolioSnapshot(
-            timestamp=datetime.datetime.utcnow(),
+            timestamp=datetime.datetime.now(datetime.UTC),
             total_value=portfolio_value,
             available_balance=portfolio_value,
             unrealized_pnl=0.0,
@@ -426,7 +426,7 @@ async def _daily_task(
     """
     logger.info("Daily task '%s' registered (fires at 00:00 UTC).", name)
     while not shutdown_event.is_set():
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.UTC)
         # Calculate seconds until next midnight UTC
         tomorrow = (now + datetime.timedelta(days=1)).replace(
             hour=0, minute=0, second=0, microsecond=0
@@ -460,7 +460,7 @@ async def _weekly_task(
     """
     logger.info("Weekly task '%s' registered (fires Sunday 00:00 UTC).", name)
     while not shutdown_event.is_set():
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.UTC)
         # days_until_sunday: 0=Monday ... 6=Sunday (weekday() returns 0=Mon)
         days_until = (6 - now.weekday()) % 7
         if days_until == 0 and (now.hour > 0 or now.minute > 0):

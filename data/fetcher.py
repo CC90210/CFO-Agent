@@ -225,7 +225,7 @@ class MarketDataFetcher:
             "quote_volume": float(raw.get("quoteVolume") or 0.0),
             "timestamp": pd.Timestamp(raw["timestamp"], unit="ms", tz="UTC")
             if raw.get("timestamp")
-            else pd.Timestamp.utcnow(),
+            else pd.Timestamp.now(tz="UTC"),
         }
         # Cache as a 1-row DataFrame (reuses the same cache infrastructure)
         self._ticker_cache[cache_key] = _CacheEntry(pd.DataFrame([result]), ttl)
@@ -268,7 +268,7 @@ class MarketDataFetcher:
             "asks": asks,
             "spread": best_ask - best_bid,
             "mid_price": (best_bid + best_ask) / 2.0 if best_bid and best_ask else 0.0,
-            "timestamp": pd.Timestamp.utcnow(),
+            "timestamp": pd.Timestamp.now(tz="UTC"),
         }
 
     async def fetch_multiple_timeframes(
@@ -336,7 +336,7 @@ class MarketDataFetcher:
                     "bid": float(ticker.get("bid") or 0.0),
                     "ask": float(ticker.get("ask") or 0.0),
                     "volume": float(ticker.get("baseVolume") or 0.0),
-                    "timestamp": pd.Timestamp.utcnow(),
+                    "timestamp": pd.Timestamp.now(tz="UTC"),
                 }
                 await callback(payload)
             except asyncio.CancelledError:
@@ -370,7 +370,7 @@ class MarketDataFetcher:
         -------
         pd.DataFrame — complete history, deduplicated and sorted
         """
-        end_ts = end or pd.Timestamp.utcnow()
+        end_ts = end or pd.Timestamp.now(tz="UTC")
         since_ms = int(start.timestamp() * 1000)
         end_ms = int(end_ts.timestamp() * 1000)
         all_candles: list[list[Any]] = []

@@ -286,7 +286,7 @@ def _print_header(symbol: str, exchange_id: str, timeframe: str, market_data: di
     print(f"  Timeframe : {timeframe}")
     print(f"  Price     : ${price:,.4f}  ({sign}{change:.2f}% last candle)")
     print(f"  Range     : ${low:,.4f} — ${high:,.4f}  ({candles} candles fetched)")
-    print(f"  Timestamp : {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}")
+    print(f"  Timestamp : {datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
     print(_hr())
 
 

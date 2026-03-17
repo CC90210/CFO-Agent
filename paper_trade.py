@@ -108,7 +108,7 @@ def _render_dashboard(state: dict[str, Any]) -> str:
     agent_scores: dict[str, Any] = state.get("agent_scores", {})
     risk_score = state.get("risk_score", 0.0)
     debate_skipped = state.get("debate_skipped", False)
-    ts: datetime.datetime = state.get("timestamp", datetime.datetime.utcnow())
+    ts: datetime.datetime = state.get("timestamp", datetime.datetime.now(datetime.UTC))
 
     win_rate = (wins / trades_today * 100.0) if trades_today > 0 else 0.0
     daily_loss_str = f"-${abs(daily_pnl):,.2f}" if daily_pnl < 0 else f"+${daily_pnl:,.2f}"
@@ -219,7 +219,7 @@ def _load_state_from_db(start_value: float) -> dict[str, Any]:
     Returns a state dict ready to pass to ``_render_dashboard``.
     """
     today = datetime.date.today()
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.UTC)
 
     with get_session() as session:
         # Latest portfolio snapshot
@@ -289,7 +289,7 @@ def _load_state_from_db(start_value: float) -> dict[str, Any]:
         "agent_scores": {},       # populated by orchestrator callbacks in a full run
         "risk_score": 0.0,
         "debate_skipped": False,
-        "timestamp": datetime.datetime.utcnow(),
+        "timestamp": datetime.datetime.now(datetime.UTC),
     }
 
 

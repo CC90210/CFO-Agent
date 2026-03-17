@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from agents.base_agent import AgentSignal, BaseAnalystAgent, Direction
@@ -245,7 +245,7 @@ class PortfolioManager(BaseAnalystAgent):
                     "exit_price": exit_price,
                     "pnl_pct": pnl_pct,
                     "pnl_usd": pnl_usd,
-                    "closed_at": datetime.utcnow().isoformat(),
+                    "closed_at": datetime.now(UTC).isoformat(),
                 }
                 self.closed_trades.append(trade_record)
                 self.positions.pop(i)
@@ -279,7 +279,7 @@ class PortfolioManager(BaseAnalystAgent):
         """Generate current-day P&L summary."""
         closed_today = [
             t for t in self.closed_trades
-            if t.get("closed_at", "")[:10] == datetime.utcnow().strftime("%Y-%m-%d")
+            if t.get("closed_at", "")[:10] == datetime.now(UTC).strftime("%Y-%m-%d")
         ]
         unrealised = sum(
             p.get("unrealised_pnl_pct", 0) * p.get("size_usd", 0) / 100
@@ -295,7 +295,7 @@ class PortfolioManager(BaseAnalystAgent):
         pnl_pcts = [t.get("pnl_pct", 0) for t in closed_today]
 
         return DailyPnLSummary(
-            date=datetime.utcnow().strftime("%Y-%m-%d"),
+            date=datetime.now(UTC).strftime("%Y-%m-%d"),
             starting_equity=self.daily_start_equity,
             current_equity=self.equity,
             realised_pnl=realised,

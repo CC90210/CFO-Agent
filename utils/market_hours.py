@@ -100,7 +100,7 @@ class MarketHours:
 
         Parameters
         ----------
-        now : UTC datetime to evaluate; defaults to datetime.utcnow()
+        now : UTC datetime to evaluate; defaults to datetime.now(UTC)
 
         Returns
         -------
@@ -175,7 +175,7 @@ class MarketHours:
         Parameters
         ----------
         session : the session to query
-        now     : UTC reference time; defaults to datetime.utcnow()
+        now     : UTC reference time; defaults to datetime.now(UTC)
 
         Returns
         -------
@@ -221,7 +221,7 @@ class MarketHours:
         ----------
         exchange : one of 'NYSE', 'NASDAQ', 'LSE', 'TSX', 'ASX'
                    (case-insensitive)
-        now      : UTC reference time; defaults to datetime.utcnow()
+        now      : UTC reference time; defaults to datetime.now(UTC)
 
         Returns
         -------

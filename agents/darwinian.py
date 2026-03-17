@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from agents.base_agent import AgentSignal, BaseAnalystAgent, Direction
@@ -178,7 +178,7 @@ class DarwinianEvolutionEngine(BaseAnalystAgent):
             )
             record.trade_count += 1
             record.current_weight = new_weight
-            record.last_updated = datetime.utcnow()
+            record.last_updated = datetime.now(UTC)
 
             # Attribute P&L to agent (proportional to conviction used)
             attributed_pnl = trade_pnl_pct * abs(sig.conviction)
@@ -217,7 +217,7 @@ class DarwinianEvolutionEngine(BaseAnalystAgent):
 
         Returns a summary dict for logging.
         """
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         self._last_weekly_review = now
 
         # Agents with enough trade history
@@ -410,7 +410,7 @@ The new prompt should be concise (under 300 words) and directly actionable."""
             version=len(self._prompt_versions[agent_name]) + 1,
             prompt_text=prompt_text,
             sharpe_at_creation=sharpe_at_creation,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(UTC),
             active=True,
         )
         self._prompt_versions[agent_name].append(version)
@@ -442,7 +442,7 @@ The new prompt should be concise (under 300 words) and directly actionable."""
         """Return True if 7 days have passed since the last review."""
         if self._last_weekly_review is None:
             return True
-        return datetime.utcnow() - self._last_weekly_review >= timedelta(days=7)
+        return datetime.now(UTC) - self._last_weekly_review >= timedelta(days=7)
 
     # ------------------------------------------------------------------
     # Required by ABC

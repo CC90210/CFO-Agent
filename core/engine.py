@@ -555,7 +555,7 @@ class TradingEngine:
         total_value = self._risk.current_equity
 
         snapshot = PortfolioSnapshot(
-            timestamp=datetime.datetime.utcnow(),
+            timestamp=datetime.datetime.now(datetime.UTC),
             total_value=total_value,
             available_balance=total_value,  # TODO: subtract locked margin
             unrealized_pnl=0.0,

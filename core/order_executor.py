@@ -30,7 +30,7 @@ import asyncio
 import logging
 import random
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -87,7 +87,7 @@ class OrderRequest:
     price: float | None = None        # required for limit/stop/tp orders
     stop_price: float | None = None   # trigger price for stop orders
     trailing_offset: float | None = None  # % or price offset for trailing stop
-    client_order_id: str = field(default_factory=lambda: f"atlas_{int(datetime.utcnow().timestamp() * 1000)}")
+    client_order_id: str = field(default_factory=lambda: f"atlas_{int(datetime.now(UTC).timestamp() * 1000)}")
 
 
 @dataclass
@@ -405,7 +405,7 @@ class OrderExecutor:
                     size=float(p.get("contracts") or 0),
                     stop_loss=float(p.get("stopLossPrice") or 0),
                     take_profit=float(p.get("takeProfitPrice") or 0),
-                    entry_time=datetime.utcnow(),
+                    entry_time=datetime.now(UTC),
                     strategy="live_sync",
                     metadata=p,
                 )
@@ -458,7 +458,7 @@ class OrderExecutor:
                         fill_price=0.0,
                         fee=0.0,
                         mode=self.mode,
-                        timestamp=datetime.utcnow(),
+                        timestamp=datetime.now(UTC),
                         success=False,
                         error=str(exc),
                     )
@@ -478,7 +478,7 @@ class OrderExecutor:
                     fill_price=0.0,
                     fee=0.0,
                     mode=self.mode,
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(UTC),
                     success=False,
                     error=str(exc),
                 )
@@ -514,7 +514,7 @@ class OrderExecutor:
             fill_price=fill_price,
             fee=fee,
             mode=ExecutionMode.PAPER,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             success=True,
         )
         logger.debug(
@@ -564,7 +564,7 @@ class OrderExecutor:
             fill_price=fill_price,
             fee=fee,
             mode=ExecutionMode.LIVE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             success=order.get("status") in ("closed", "filled"),
             raw_response=order,
         )

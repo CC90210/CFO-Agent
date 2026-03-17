@@ -190,7 +190,7 @@ class TestModels:
         from db.models import PortfolioSnapshot
 
         ps = PortfolioSnapshot(
-            timestamp=datetime.datetime.utcnow(),
+            timestamp=datetime.datetime.now(datetime.UTC),
             total_value=10_500.0,
             drawdown_pct=-2.1,
             positions_json=[],

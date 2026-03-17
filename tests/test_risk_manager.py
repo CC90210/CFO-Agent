@@ -14,7 +14,7 @@ Tests verify every safety guarantee documented in risk_manager.py:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -69,7 +69,7 @@ def _make_position(
         size=size,
         stop_loss=entry_price * 0.95,
         take_profit=entry_price * 1.10,
-        entry_time=datetime.utcnow(),
+        entry_time=datetime.now(UTC),
         strategy="test_strategy",
     )
 
@@ -492,7 +492,7 @@ class TestPositionTracking:
             size=0.01,
             stop_loss=63_000.0,
             take_profit=71_000.0,
-            entry_time=datetime.utcnow(),
+            entry_time=datetime.now(UTC),
             strategy="test",
         )
         rm.register_open_position(pos)
@@ -510,7 +510,7 @@ class TestPositionTracking:
             size=0.01,
             stop_loss=63_000.0,
             take_profit=71_000.0,
-            entry_time=datetime.utcnow(),
+            entry_time=datetime.now(UTC),
             strategy="test",
         )
         rm.register_open_position(pos)

@@ -27,7 +27,7 @@ import csv
 import logging
 import math
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -483,7 +483,7 @@ class BacktestEngine:
         fig.tight_layout()
 
         if filename is None:
-            ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
             filename = f"equity_{result.strategy_name}_{ts}.png"
         out_path = self.log_dir / filename
         fig.savefig(out_path, dpi=150, bbox_inches="tight")
@@ -498,7 +498,7 @@ class BacktestEngine:
         Returns the path to the saved file.
         """
         if filename is None:
-            ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
             filename = f"trades_{result.strategy_name}_{ts}.csv"
         out_path = self.log_dir / filename
 

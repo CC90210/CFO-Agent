@@ -39,7 +39,7 @@ import logging
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
-from datetime import datetime
+from datetime import UTC, datetime
 
 import numpy as np
 import pandas as pd
@@ -321,7 +321,7 @@ class MonteCarloSimulator:
         fig.tight_layout()
 
         if filename is None:
-            ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
             filename = f"monte_carlo_{ts}.png"
         out_path = self.log_dir / filename
         fig.savefig(out_path, dpi=150, bbox_inches="tight")
