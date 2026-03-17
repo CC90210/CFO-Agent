@@ -53,9 +53,9 @@ class EMACrossoverStrategy(BaseStrategy):
         macd_slow: int = 26,
         macd_signal: int = 9,
         adx_period: int = 14,
-        adx_threshold: float = 25.0,
+        adx_threshold: float = 20.0,
         atr_period: int = 14,
-        atr_stop_mult: float = 2.0,
+        atr_stop_mult: float = 3.0,
         rr_ratio: float = 3.0,
         volume_period: int = 20,
     ) -> None:
@@ -91,9 +91,9 @@ class EMACrossoverStrategy(BaseStrategy):
         atr_series = atr(df, self.atr_period)
         avg_vol = df["volume"].rolling(self.volume_period).mean()
 
-        # Current and previous bar values
-        f_now, f_prev = fast_ema.iloc[-1], fast_ema.iloc[-2]
-        s_now, s_prev = slow_ema.iloc[-1], slow_ema.iloc[-2]
+        # Current, previous, and 2-bars-ago values for confirmation
+        f_now, f_prev, f_prev2 = fast_ema.iloc[-1], fast_ema.iloc[-2], fast_ema.iloc[-3]
+        s_now, s_prev, s_prev2 = slow_ema.iloc[-1], slow_ema.iloc[-2], slow_ema.iloc[-3]
         hist_now = macd_df["histogram"].iloc[-1]
         adx_now = adx_df["adx"].iloc[-1]
         atr_now = atr_series.iloc[-1]
@@ -101,9 +101,9 @@ class EMACrossoverStrategy(BaseStrategy):
         avg_vol_now = avg_vol.iloc[-1]
         entry_price = close.iloc[-1]
 
-        # Detect crossover on this bar
-        crossed_up = (f_prev <= s_prev) and (f_now > s_now)
-        crossed_down = (f_prev >= s_prev) and (f_now < s_now)
+        # Confirmation bar: crossover happened on PREVIOUS bar, current bar confirms
+        crossed_up = (f_prev2 <= s_prev2) and (f_prev > s_prev) and (f_now > s_now)
+        crossed_down = (f_prev2 >= s_prev2) and (f_prev < s_prev) and (f_now < s_now)
 
         # ADX filter — reject signals in ranging markets
         trending = adx_now >= self.adx_threshold

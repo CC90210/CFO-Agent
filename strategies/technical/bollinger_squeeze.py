@@ -63,7 +63,7 @@ class BollingerSqueezeStrategy(BaseStrategy):
         kc_ema_period: int = 20,
         kc_atr_period: int = 10,
         kc_mult: float = 2.0,
-        squeeze_lookback: int = 126,
+        squeeze_lookback: int = 60,
         breakout_vol_mult: float = 2.0,
         atr_period: int = 14,
         atr_tp_mult: float = 2.0,
@@ -192,27 +192,29 @@ class BollingerSqueezeStrategy(BaseStrategy):
     def should_exit(self, df: pd.DataFrame, position: Position) -> bool:
         """
         Exit if:
-          - Price re-enters the Bollinger Bands (breakout failure), OR
+          - Price closes inside Bollinger Bands for 2 consecutive bars (confirmed failure), OR
           - Trailing stop is set and price reverses past it.
         """
-        if not self._min_rows(df, self.bb_period + 2):
+        if not self._min_rows(df, self.bb_period + 3):
             return False
 
         close = df["close"]
         bb = bollinger_bands(close, self.bb_period, self.bb_std)
         close_now = close.iloc[-1]
-        bb_upper = bb.upper.iloc[-1]
-        bb_lower = bb.lower.iloc[-1]
+        close_prev = close.iloc[-2]
+        bb_upper_now = bb.upper.iloc[-1]
+        bb_upper_prev = bb.upper.iloc[-2]
+        bb_lower_now = bb.lower.iloc[-1]
+        bb_lower_prev = bb.lower.iloc[-2]
 
         if position.side == Direction.LONG:
-            # Breakout failure: price drops back inside the bands
-            if close_now < bb_upper:
+            # Require 2 consecutive closes inside band to confirm failure
+            if close_now < bb_upper_now and close_prev < bb_upper_prev:
                 return True
-            # Trailing stop
             if position.trailing_stop and close_now <= position.trailing_stop:
                 return True
         else:
-            if close_now > bb_lower:
+            if close_now > bb_lower_now and close_prev > bb_lower_prev:
                 return True
             if position.trailing_stop and close_now >= position.trailing_stop:
                 return True

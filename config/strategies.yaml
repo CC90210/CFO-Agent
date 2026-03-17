@@ -19,11 +19,12 @@ strategies:
     max_positions: 2
     parameters:
       period: 14
-      oversold: 30
-      overbought: 70
+      oversold: 25              # Deeper oversold catches stronger reversals
+      overbought: 75            # Higher overbought threshold for stronger signals
       # Exit when RSI crosses back through these mid-levels
       exit_oversold: 50
       exit_overbought: 50
+      atr_stop_mult: 2.5        # Wider stops to survive noise (was 1.5)
 
   # ── 2. EMA Crossover ──────────────────────────────────────────────────────
   ema_crossover:
@@ -41,6 +42,8 @@ strategies:
       signal: 9
       # Require price to be above/below this EMA for trend-filter
       trend_filter_ema: 200
+      adx_threshold: 20          # Lower ADX catches early-trend breakouts (was 25)
+      atr_stop_mult: 3.0         # Wider stops for trend trades (was 2.0)
 
   # ── 3. Bollinger Band Mean Reversion ──────────────────────────────────────
   bollinger_squeeze:
@@ -93,8 +96,8 @@ strategies:
     parameters:
       momentum_period: 14
       min_alignment: 3          # All 3 timeframes must agree
-      atr_multiplier: 2.0       # Stop-loss distance in ATR units
-      take_profit_ratio: 2.5    # Risk-reward ratio for take-profit
+      atr_multiplier: 2.5       # Stop-loss distance in ATR units (was 2.0)
+      take_profit_ratio: 3.0    # Risk-reward ratio for take-profit (was 2.5)
 
   # ── 6. London Session Breakout ────────────────────────────────────────────
   london_breakout:

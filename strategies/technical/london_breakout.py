@@ -60,7 +60,7 @@ class LondonBreakoutStrategy(BaseStrategy):
         asian_end_hour: int = 7,
         breakout_start_hour: int = 7,
         breakout_end_hour: int = 9,
-        breakout_vol_mult: float = 1.5,
+        breakout_vol_mult: float = 1.2,
         min_range_atr_ratio: float = 0.3,
         max_range_atr_ratio: float = 2.0,
         tp_range_mult: float = 1.5,
@@ -181,8 +181,8 @@ class LondonBreakoutStrategy(BaseStrategy):
         if not self._min_rows(df, 2):
             return False
         current_ts: pd.Timestamp = df.index[-1]
-        # London session ends at 14:00 UTC — time stop
-        return current_ts.hour >= 14
+        # London session extends to US equity open — time stop at 16:00 UTC
+        return current_ts.hour >= 16
 
     # ------------------------------------------------------------------
     # Helpers

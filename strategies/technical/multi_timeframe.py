@@ -65,7 +65,7 @@ class MultiTimeframeStrategy(BaseStrategy):
         ltf_rsi_entry_long: float = 40.0,
         ltf_rsi_entry_short: float = 60.0,
         atr_period: int = 14,
-        atr_stop_mult: float = 2.0,
+        atr_stop_mult: float = 2.5,
         rr_ratio: float = 3.0,
         min_confluence: int = 2,
         htf_resample_rule: str = "4h",

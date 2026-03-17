@@ -55,7 +55,7 @@ class VWAPBounceStrategy(BaseStrategy):
         self,
         rsi_period: int = 14,
         atr_period: int = 14,
-        atr_stop_mult: float = 0.5,
+        atr_stop_mult: float = 1.2,
         atr_tp_mult: float = 1.5,
         volume_period: int = 20,
         volume_mult: float = 1.2,

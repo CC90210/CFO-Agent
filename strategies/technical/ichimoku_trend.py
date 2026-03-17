@@ -168,12 +168,13 @@ class IchimokuTrendStrategy(BaseStrategy):
         long_met = sum(long_conditions)
         short_met = sum(short_conditions)
 
-        if long_met == 5:
+        # Allow 4/5 conditions (Chikou confirmation can lag)
+        if long_met >= 4:
             direction = Direction.LONG
-        elif short_met == 5:
+        elif short_met >= 4:
             direction = Direction.SHORT
         else:
-            return None  # Not all conditions met — no signal
+            return None  # Not enough conditions met — no signal
 
         entry_price = close_now
         stop_loss = kijun_now  # Kijun acts as dynamic S/R
@@ -247,10 +248,12 @@ class IchimokuTrendStrategy(BaseStrategy):
         cloud_top = max(senkou_a, senkou_b)
         cloud_bottom = min(senkou_a, senkou_b)
 
+        # Require price to penetrate 50% into the cloud, not just touch the edge
+        cloud_mid = (cloud_top + cloud_bottom) / 2.0
         if position.side == Direction.LONG:
-            return close_now <= cloud_top  # Price has entered the cloud from above
+            return close_now <= cloud_mid  # Price has penetrated deep into cloud
         else:
-            return close_now >= cloud_bottom  # Price has entered the cloud from below
+            return close_now >= cloud_mid  # Price has penetrated deep into cloud
 
     # ------------------------------------------------------------------
     # Conviction scoring

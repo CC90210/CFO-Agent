@@ -282,7 +282,8 @@ class TestRSIMeanReversionStrategy:
         from strategies.technical.rsi_mean_reversion import RSIMeanReversionStrategy
 
         df = _make_oversold_data()
-        strategy = RSIMeanReversionStrategy()
+        # Use RSI=30 thresholds matching the synthetic test data (prod default=25)
+        strategy = RSIMeanReversionStrategy(rsi_oversold=30.0, rsi_overbought=70.0)
 
         # Start a few bars AFTER _min_bars to avoid ta library edge-case crashes
         # when exactly `window` bars are passed to ADXIndicator.

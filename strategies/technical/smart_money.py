@@ -102,11 +102,11 @@ class SmartMoneyStrategy(BaseStrategy):
         self,
         swing_lookback: int = 10,        # bars each side to detect swing highs/lows
         ob_lookback: int = 50,           # bars to search for order blocks
-        fvg_min_size_atr_ratio: float = 0.1,  # minimum FVG size as ratio of ATR
+        fvg_min_size_atr_ratio: float = 0.3,  # minimum FVG size as ratio of ATR (filter noise)
         bos_lookback: int = 100,         # bars to look back for structure events
-        ob_entry_tolerance: float = 0.002,    # 0.2% — price proximity to OB zone
+        ob_entry_tolerance: float = 0.008,    # 0.8% — institutional zones are wide
         atr_period: int = 14,
-        atr_stop_mult: float = 1.0,      # stop just beyond OB (1x ATR buffer)
+        atr_stop_mult: float = 2.0,      # stop beyond OB (2x ATR buffer for breathing room)
         rr_ratio: float = 3.0,
         volume_period: int = 20,
     ) -> None:

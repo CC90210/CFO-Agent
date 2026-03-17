@@ -54,15 +54,15 @@ class RSIMeanReversionStrategy(BaseStrategy):
     def __init__(
         self,
         rsi_period: int = 14,
-        rsi_oversold: float = 30.0,
-        rsi_overbought: float = 70.0,
+        rsi_oversold: float = 25.0,
+        rsi_overbought: float = 75.0,
         rsi_exit: float = 50.0,
         bb_period: int = 20,
         bb_std: float = 2.0,
         adx_period: int = 14,
         adx_max: float = 25.0,
         atr_period: int = 14,
-        atr_stop_mult: float = 1.5,
+        atr_stop_mult: float = 2.5,
         volume_period: int = 20,
         volume_mult: float = 1.5,
     ) -> None:
@@ -133,10 +133,11 @@ class RSIMeanReversionStrategy(BaseStrategy):
 
         if direction == Direction.LONG:
             stop_loss = entry_price - stop_dist
-            take_profit = bb_mid  # revert to mean
+            # Target full BB width reversion, not just midline
+            take_profit = bb_mid + (bb_upper - bb_mid) * 0.5
         else:
             stop_loss = entry_price + stop_dist
-            take_profit = bb_mid
+            take_profit = bb_mid - (bb_mid - bb_lower) * 0.5
 
         # Ensure take_profit > 0 and makes directional sense
         if direction == Direction.LONG and take_profit <= entry_price:
