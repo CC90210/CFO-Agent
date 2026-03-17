@@ -27,9 +27,14 @@ from typing import Any
 
 import yaml
 
+import pandas as pd
+
 from config.settings import settings
+from core.order_executor import ExecutionMode, OrderExecutor, OrderType
+from core.position_sizer import PositionSizer
 from db.database import get_session, init_db, health_check
-from db.models import DailyPnL, PortfolioSnapshot, Signal, Trade
+from db.models import DailyPnL, PortfolioSnapshot, Signal as DBSignal
+from strategies.base import BaseStrategy, Direction, Signal as StrategySignal, StrategyRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +179,18 @@ class TradingEngine:
         # Lazy-import ccxt to avoid slow startup when not needed
         self._exchange: Any | None = None  # ccxt.Exchange instance
 
+        # Strategy instances (populated during setup)
+        self._strategy_instances: dict[str, BaseStrategy] = {}
+
+        # Execution subsystems
+        exec_mode = ExecutionMode.PAPER if mode == TradingMode.PAPER else ExecutionMode.LIVE
+        if mode != TradingMode.BACKTEST:
+            self._executor = OrderExecutor(mode=exec_mode)
+            self._sizer = PositionSizer()
+        else:
+            self._executor = None  # type: ignore[assignment]
+            self._sizer = None  # type: ignore[assignment]
+
         logger.info(
             "TradingEngine initialised | mode=%s exchange=%s strategies=%s",
             mode.name,
@@ -264,6 +281,15 @@ class TradingEngine:
 
         logger.info("Total strategies loaded: %d", len(self._strategies))
 
+        # Build strategy instances from the registry
+        StrategyRegistry.discover()
+        for name in self._strategies:
+            try:
+                self._strategy_instances[name] = StrategyRegistry.build(name)
+                logger.info("Strategy instance created: %s", name)
+            except KeyError:
+                logger.warning("Strategy '%s' not in registry — analysis will be skipped.", name)
+
     # ── Exchange connection ────────────────────────────────────────────────
 
     async def _connect_exchange(self) -> None:
@@ -282,10 +308,14 @@ class TradingEngine:
         if exchange_class is None:
             raise ValueError(f"Unknown exchange: {self.exchange_id}")
 
-        init_kwargs: dict[str, Any] = {
-            "apiKey": settings.exchange.exchange_api_key,
-            "secret": settings.exchange.exchange_secret,
-        }
+        _placeholders = {"", "your_exchange_api_key_here", "your_exchange_secret_here"}
+        init_kwargs: dict[str, Any] = {"enableRateLimit": True}
+        api_key = settings.exchange.exchange_api_key
+        api_secret = settings.exchange.exchange_secret
+        if api_key and api_key not in _placeholders:
+            init_kwargs["apiKey"] = api_key
+        if api_secret and api_secret not in _placeholders:
+            init_kwargs["secret"] = api_secret
         if settings.exchange.exchange_passphrase:
             init_kwargs["password"] = settings.exchange.exchange_passphrase
 
@@ -479,75 +509,143 @@ class TradingEngine:
         strategy_config: dict[str, Any],
         symbol: str,
         ohlcv: list[list[float]],
-    ) -> Signal | None:
+    ) -> StrategySignal | None:
         """
         Run the strategy analysis and return a Signal if one is triggered.
 
-        This method is intentionally thin — all strategy logic lives in
-        the ``strategies/`` and ``agents/`` packages. Concrete
-        implementations will be registered here as the codebase grows.
-
-        Returns None when no actionable signal is produced.
+        Converts raw OHLCV to a DataFrame, delegates to the registered
+        strategy instance, and returns the Signal (or None).
         """
-        # TODO: route to the correct strategy module based on strategy_name
-        logger.debug("Analyzing %s / %s via strategy=%s", symbol, "ohlcv", strategy_name)
-        return None
+        strategy = self._strategy_instances.get(strategy_name)
+        if strategy is None:
+            logger.debug("No strategy instance for '%s' — skipping.", strategy_name)
+            return None
+
+        # Convert raw OHLCV list to the DataFrame format strategies expect
+        df = pd.DataFrame(
+            ohlcv,
+            columns=["timestamp", "open", "high", "low", "close", "volume"],
+        )
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
+        df = df.set_index("timestamp").sort_index()
+        for col in ("open", "high", "low", "close", "volume"):
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+        df = df.dropna(subset=["open", "high", "low", "close"])
+
+        if len(df) < 2:
+            return None
+
+        # Check entry condition then generate signal
+        if not strategy.should_enter(df):
+            return None
+
+        signal = strategy.analyze(df)
+        if signal is None:
+            return None
+
+        if signal.direction == Direction.FLAT:
+            return None
+
+        if abs(signal.conviction) < 0.3:
+            logger.debug(
+                "Signal for %s/%s conviction %.3f below 0.3 threshold — skipping.",
+                symbol, strategy_name, signal.conviction,
+            )
+            return None
+
+        # Enrich signal with symbol (strategies don't always set it)
+        signal.symbol = symbol
+        logger.info(
+            "Signal generated: %s %s %s conviction=%.3f",
+            strategy_name, signal.direction.value, symbol, signal.conviction,
+        )
+        return signal
 
     # ── Order execution ───────────────────────────────────────────────────
 
     async def _execute_signal(
         self,
-        signal: Signal,
+        signal: StrategySignal,
         strategy_config: dict[str, Any],
     ) -> None:
         """
-        Convert a Signal into an order.
+        Convert a StrategySignal into an order.
 
-        In PAPER mode, the order is simulated and only recorded to DB.
+        In PAPER mode, the order is simulated via OrderExecutor.
         In LIVE mode, the order is sent to the exchange via CCXT.
         """
-        if self.mode == TradingMode.PAPER:
-            logger.info(
-                "[PAPER] Would %s %s conviction=%.2f",
-                signal.direction,
-                signal.symbol,
-                signal.conviction,
-            )
-            # Mark signal as executed and write to DB
-            signal.executed = True
-            with get_session() as session:
-                session.merge(signal)
+        entry_price = signal.metadata.get("entry_price", 0.0)
+
+        # Calculate position size
+        size = self._sizer.calculate_position_size(
+            portfolio_value=self._risk.current_equity,
+            direction=signal.direction.value,
+            entry_price=entry_price,
+            stop_loss=signal.stop_loss,
+            conviction=signal.conviction,
+            avg_win_rate=0.55,  # conservative default; Darwinian agent refines this
+            avg_rr=2.0,
+        )
+
+        if size <= 0:
+            logger.info("PositionSizer returned size=0 for %s — trade skipped.", signal.symbol)
             return
 
-        # LIVE — requires CONFIRM_LIVE=true
-        if not settings.is_live:
+        if self.mode == TradingMode.LIVE and not settings.is_live:
             logger.warning(
                 "Live order blocked: PAPER_TRADE is still true or CONFIRM_LIVE is not set."
             )
             return
 
-        if self._exchange is None:
-            logger.error("Cannot execute live order: exchange not connected.")
-            return
-
+        mode_label = "PAPER" if self.mode == TradingMode.PAPER else "LIVE"
         logger.info(
-            "[LIVE] Executing %s %s conviction=%.2f",
-            signal.direction,
-            signal.symbol,
-            signal.conviction,
+            "[%s] Executing %s %s size=%.6f conviction=%.2f",
+            mode_label, signal.direction.value, signal.symbol, size, signal.conviction,
         )
-        # TODO: calculate position size from risk_per_trade and ATR stop
-        # TODO: place market/limit order via self._exchange.create_order(...)
+
+        record, position = await self._executor.execute_trade(
+            signal_symbol=signal.symbol,
+            signal_direction=signal.direction,
+            size=size,
+            entry_price=entry_price,
+            stop_loss=signal.stop_loss,
+            take_profit=signal.take_profit,
+            strategy_name=strategy_config.get("name", signal.strategy_name),
+        )
+
+        if position is not None:
+            self._risk.open_positions += 1
+
+        # Persist signal to DB
+        self._persist_signal(signal, executed=record.success if record else False)
 
     # ── Database helpers ───────────────────────────────────────────────────
 
-    async def _record_skipped_signal(self, signal: Signal, reason: str) -> None:
+    async def _record_skipped_signal(self, signal: StrategySignal, reason: str) -> None:
         """Persist a signal that was blocked by risk controls."""
-        signal.executed = False
-        signal.skip_reason = reason
-        with get_session() as session:
-            session.add(signal)
+        self._persist_signal(signal, executed=False, skip_reason=reason)
         logger.debug("Signal skipped [%s]: %s", signal.symbol, reason)
+
+    def _persist_signal(
+        self,
+        signal: StrategySignal,
+        executed: bool,
+        skip_reason: str = "",
+    ) -> None:
+        """Convert a StrategySignal dataclass to a DB Signal row and persist it."""
+        db_signal = DBSignal(
+            symbol=signal.symbol,
+            direction=signal.direction.value.lower(),
+            conviction=signal.conviction,
+            source_agent="engine",
+            strategy=signal.strategy_name,
+            timestamp=signal.timestamp,
+            executed=executed,
+            skip_reason=skip_reason or None,
+            reasoning=str(signal.metadata) if signal.metadata else None,
+        )
+        with get_session() as session:
+            session.add(db_signal)
 
     async def _write_snapshot(self) -> None:
         """Write a PortfolioSnapshot to the database."""
@@ -557,7 +655,7 @@ class TradingEngine:
         snapshot = PortfolioSnapshot(
             timestamp=datetime.datetime.now(datetime.UTC),
             total_value=total_value,
-            available_balance=total_value,  # TODO: subtract locked margin
+            available_balance=total_value * (1.0 - 0.2 * self._risk.open_positions),  # reserve ~20% per open position
             unrealized_pnl=0.0,
             realized_pnl_today=self._risk.daily_pnl,
             drawdown_pct=self._risk.drawdown_pct,

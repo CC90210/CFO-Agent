@@ -21,7 +21,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from agents.base_agent import AgentSignal, BaseAnalystAgent, Direction
@@ -69,7 +69,7 @@ class TradeDecision:
     reasoning_chain: list[str]
     agent_scores: list[dict[str, Any]]
     debate_verdict: DebateVerdict | None = None
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     metadata: dict[str, Any] = field(default_factory=dict)
 
 

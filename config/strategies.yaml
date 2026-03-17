@@ -43,7 +43,7 @@ strategies:
       trend_filter_ema: 200
 
   # ── 3. Bollinger Band Mean Reversion ──────────────────────────────────────
-  bollinger_band_reversion:
+  bollinger_squeeze:
     enabled: true
     description: "Enter when price touches a band; exit at the midline."
     timeframe: "1h"
@@ -76,9 +76,10 @@ strategies:
       session_end_utc: "23:59"
 
   # ── 5. Multi-Timeframe Momentum ───────────────────────────────────────────
-  mtf_momentum:
+  multi_timeframe:
     enabled: true
     description: "Align momentum across 3 timeframes before entering."
+    timeframe: "4h"
     timeframes:
       primary: "4h"
       secondary: "1h"
@@ -114,7 +115,7 @@ strategies:
       min_range_size_pct: 0.3         # Skip if range is too tight
 
   # ── 7. S&P 500 Opening Range Breakout ─────────────────────────────────────
-  sp500_orb:
+  opening_range:
     enabled: true
     description: "First 15-minute range breakout at NYSE open (09:30-09:45 ET)."
     timeframe: "5m"

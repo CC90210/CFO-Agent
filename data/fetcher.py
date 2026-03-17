@@ -115,10 +115,13 @@ class MarketDataFetcher:
             raise ValueError(f"Unknown CCXT exchange: '{eid}'")
 
         init_params: dict[str, Any] = {"enableRateLimit": True}
-        if settings.exchange.exchange_api_key:
-            init_params["apiKey"] = settings.exchange.exchange_api_key
-        if settings.exchange.exchange_secret:
-            init_params["secret"] = settings.exchange.exchange_secret
+        _placeholders = {"", "your_exchange_api_key_here", "your_exchange_secret_here"}
+        api_key = settings.exchange.exchange_api_key
+        api_secret = settings.exchange.exchange_secret
+        if api_key and api_key not in _placeholders:
+            init_params["apiKey"] = api_key
+        if api_secret and api_secret not in _placeholders:
+            init_params["secret"] = api_secret
 
         self._exchange: ccxt_async.Exchange = exchange_cls(init_params)
         if sandbox:
@@ -408,7 +411,8 @@ class MarketDataFetcher:
             return pd.DataFrame(columns=_OHLCV_COLUMNS)
 
         df = self._normalise_ohlcv(all_candles)
-        df = df[df["timestamp"] <= end_ts].drop_duplicates(subset=["timestamp"]).sort_values("timestamp")
+        df = df[df.index <= end_ts]
+        df = df[~df.index.duplicated(keep="last")].sort_index()
         logger.info("Historical download complete: %d candles for %s/%s", len(df), symbol, timeframe)
         return df
 

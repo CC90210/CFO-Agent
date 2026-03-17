@@ -54,7 +54,7 @@ class AgentPerformanceRecord:
     total_pnl_pct: float = 0.0
     squared_pnl_sum: float = 0.0    # for Sharpe calculation
     current_weight: float = 1.0
-    last_updated: datetime = field(default_factory=datetime.utcnow)
+    last_updated: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     @property
     def win_rate(self) -> float:
