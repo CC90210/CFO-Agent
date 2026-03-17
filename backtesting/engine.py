@@ -34,6 +34,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from core.regime_detector import RegimeDetector
+from core.trailing_stop import TrailingStopManager
 from strategies.base import BaseStrategy, Direction, Signal
 
 logger = logging.getLogger(__name__)
@@ -205,6 +207,8 @@ class BacktestEngine:
         risk_per_trade_pct: float = 0.015,
         slippage_enabled: bool = True,
         log_dir: Path | None = None,
+        regime_filter: bool = True,
+        trailing_stops: bool = False,  # Disabled by default — too aggressive for trend-followers; needs per-strategy tuning
     ) -> None:
         if initial_capital <= 0:
             raise ValueError("initial_capital must be positive")
@@ -217,6 +221,10 @@ class BacktestEngine:
         self.slippage_enabled = slippage_enabled
         self.log_dir = log_dir or (Path(__file__).resolve().parent.parent / "logs")
         self.log_dir.mkdir(parents=True, exist_ok=True)
+        self.regime_filter = regime_filter
+        self.trailing_stops = trailing_stops
+        self._regime_detector = RegimeDetector() if regime_filter else None
+        self._trailing_stop_mgr = TrailingStopManager(method="chandelier") if trailing_stops else None
 
     # ------------------------------------------------------------------
     # Public API
@@ -262,6 +270,15 @@ class BacktestEngine:
         entry_commission = 0.0
         entry_signal: Signal | None = None
 
+        # Trailing stop state (per-position)
+        highest_since_entry = 0.0
+        lowest_since_entry = float("inf")
+
+        # Regime detection cache (recomputed every 20 bars to avoid overhead)
+        _regime_check_interval = 20
+        _last_regime_weight: float = 1.0
+        _regime_size_mult: float = 1.0
+
         for i in range(len(df)):
             bar = df.iloc[i]
             timestamp = df.index[i]
@@ -270,10 +287,36 @@ class BacktestEngine:
             visible_df = df.iloc[: i + 1]
 
             if in_position:
+                # ── Update trailing stop state ──
+                highest_since_entry = max(highest_since_entry, bar["high"])
+                lowest_since_entry = min(lowest_since_entry, bar["low"])
+
+                # ── Compute dynamic trailing stop ──
+                active_stop = entry_signal.stop_loss if entry_signal else 0.0
+                if self._trailing_stop_mgr and entry_signal:
+                    from strategies.technical.indicators import atr as atr_fn
+                    if len(visible_df) >= 16:
+                        atr_series = atr_fn(visible_df, 14)
+                        current_atr = float(atr_series.iloc[-1])
+                        if current_atr > 0:
+                            ts_result = self._trailing_stop_mgr.update(
+                                current_price=bar["close"],
+                                current_atr=current_atr,
+                                direction=position_side.value,
+                                entry_price=entry_price,
+                                highest_since_entry=highest_since_entry,
+                                lowest_since_entry=lowest_since_entry,
+                            )
+                            # Ratchet stop: only tighten, never loosen
+                            if position_side == Direction.LONG:
+                                active_stop = max(active_stop, ts_result.stop_price)
+                            else:
+                                active_stop = min(active_stop, ts_result.stop_price)
+
                 # ── Check exits first (stop-loss / take-profit hit intrabar) ──
                 exit_reason = self._check_intrabar_exits(
                     bar, position_side, entry_price,
-                    entry_signal.stop_loss if entry_signal else 0.0,
+                    active_stop,
                     entry_signal.take_profit if entry_signal else 0.0,
                 )
 
@@ -297,7 +340,7 @@ class BacktestEngine:
                 if exit_reason is not None:
                     # Determine fill price
                     if exit_reason == "stop_loss":
-                        raw_exit_price = entry_signal.stop_loss if entry_signal else bar["close"]
+                        raw_exit_price = active_stop if active_stop > 0 else bar["close"]
                         raw_exit_price = float(np.clip(raw_exit_price, bar["low"], bar["high"]))
                     elif exit_reason == "take_profit":
                         raw_exit_price = entry_signal.take_profit if entry_signal else bar["close"]
@@ -347,8 +390,17 @@ class BacktestEngine:
                     entry_signal = None
 
             if not in_position:
-                # ── Check for entry ──
-                if strategy.should_enter(visible_df):
+                # ── Regime detection (every _regime_check_interval bars) ──
+                if self._regime_detector and i % _regime_check_interval == 0 and len(visible_df) >= 30:
+                    regime_result = self._regime_detector.detect(visible_df)
+                    strategy_weights = regime_result.strategy_weights()
+                    _last_regime_weight = strategy_weights.get(strategy.name, 1.0)
+                    _regime_size_mult = regime_result.size_multiplier()
+
+                # ── Regime gate: skip if strategy is heavily penalised ──
+                if _last_regime_weight <= 0.5:
+                    pass  # Skip entry — regime suppresses this strategy
+                elif strategy.should_enter(visible_df):
                     signal = strategy.analyze(visible_df)
 
                     if (
@@ -356,15 +408,18 @@ class BacktestEngine:
                         and signal.direction != Direction.FLAT
                         and abs(signal.conviction) >= 0.3
                     ):
+                        # Scale conviction by regime weight
+                        signal.conviction = signal.conviction * _last_regime_weight
+
                         vol_z = (bar["volume"] - vol_mean) / vol_std
                         fill_entry = self._apply_slippage(
                             bar["close"], signal.direction, vol_z, is_exit=False
                         )
 
-                        # Position sizing: risk fixed % of equity
+                        # Position sizing: risk fixed % of equity, scaled by regime
                         stop_dist = abs(fill_entry - signal.stop_loss)
                         if stop_dist > 0:
-                            risk_amount = equity * self.risk_per_trade_pct
+                            risk_amount = equity * self.risk_per_trade_pct * _regime_size_mult
                             position_size = risk_amount / stop_dist
                         else:
                             position_size = 0.0
@@ -376,6 +431,9 @@ class BacktestEngine:
                             entry_price = fill_entry
                             entry_time = timestamp
                             entry_signal = signal
+                            # Reset trailing stop state for new position
+                            highest_since_entry = bar["high"]
+                            lowest_since_entry = bar["low"]
 
             equity_curve.append((timestamp, equity))
 
