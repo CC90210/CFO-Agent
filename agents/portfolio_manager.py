@@ -151,10 +151,21 @@ class PortfolioManager(BaseAnalystAgent):
 
         size_usd = self.equity * size_pct
 
-        # Stop loss / take profit based on ATR (or default 1.5% / 3.0%)
+        # Stop loss / take profit based on ATR with adaptive R:R
         atr_pct = stats.get("atr_pct", 1.5)
         stop_pct = atr_pct * 1.5   # 1.5x ATR for stop
-        target_pct = atr_pct * 3.0 # 3.0x ATR for target (2:1 R/R)
+
+        # Adaptive R:R — lower win rate demands higher reward per trade
+        if win_rate < 0.40:
+            rr_target = 3.5   # Need big wins to compensate for frequent losses
+        elif win_rate < 0.50:
+            rr_target = 3.0   # Standard conservative R:R
+        elif win_rate < 0.60:
+            rr_target = 2.0   # Can afford tighter targets
+        else:
+            rr_target = 1.5   # High win rate — take profits faster
+
+        target_pct = atr_pct * rr_target * 1.5  # ATR × R:R × stop multiplier
 
         if verdict.direction == Direction.LONG:
             stop_price = current_price * (1 - stop_pct / 100)
