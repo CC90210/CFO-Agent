@@ -168,13 +168,14 @@ class IchimokuTrendStrategy(BaseStrategy):
         long_met = sum(long_conditions)
         short_met = sum(short_conditions)
 
-        # Allow 4/5 conditions (Chikou confirmation can lag)
-        if long_met >= 4:
+        # Require all 5 conditions — Ichimoku is a complete system,
+        # partial signals generate excessive false positives
+        if long_met == 5:
             direction = Direction.LONG
-        elif short_met >= 4:
+        elif short_met == 5:
             direction = Direction.SHORT
         else:
-            return None  # Not enough conditions met — no signal
+            return None  # Not all conditions met — no signal
 
         entry_price = close_now
         stop_loss = kijun_now  # Kijun acts as dynamic S/R
