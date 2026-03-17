@@ -32,6 +32,7 @@ import pandas as pd
 from config.settings import settings
 from core.order_executor import ExecutionMode, OrderExecutor, OrderType
 from core.position_sizer import PositionSizer
+from core.regime_detector import RegimeDetector, MarketRegime
 from db.database import get_session, init_db, health_check
 from db.models import DailyPnL, PortfolioSnapshot, Signal as DBSignal
 from strategies.base import BaseStrategy, Direction, Signal as StrategySignal, StrategyRegistry
@@ -190,6 +191,10 @@ class TradingEngine:
         else:
             self._executor = None  # type: ignore[assignment]
             self._sizer = None  # type: ignore[assignment]
+
+        # Market regime awareness
+        self._regime_detector = RegimeDetector()
+        self._current_regime: MarketRegime = MarketRegime.CHOPPY
 
         logger.info(
             "TradingEngine initialised | mode=%s exchange=%s strategies=%s",
@@ -535,6 +540,20 @@ class TradingEngine:
         if len(df) < 2:
             return None
 
+        # Detect market regime and apply strategy-specific weight adjustment
+        regime_result = self._regime_detector.detect(df)
+        self._current_regime = regime_result.regime
+        strategy_weights = regime_result.strategy_weights()
+        regime_weight = strategy_weights.get(strategy_name, 1.0)
+
+        # If regime strongly disfavours this strategy, skip it entirely
+        if regime_weight <= 0.5:
+            logger.debug(
+                "Strategy %s suppressed by %s regime (weight=%.2f)",
+                strategy_name, regime_result.regime.value, regime_weight,
+            )
+            return None
+
         # Check entry condition then generate signal
         if not strategy.should_enter(df):
             return None
@@ -545,6 +564,11 @@ class TradingEngine:
 
         if signal.direction == Direction.FLAT:
             return None
+
+        # Scale conviction by regime weight — strategies the regime favours
+        # get boosted conviction, disfavoured ones get penalised
+        signal.conviction = signal.conviction * regime_weight
+        signal.conviction = max(-1.0, min(1.0, signal.conviction))
 
         if abs(signal.conviction) < 0.3:
             logger.debug(

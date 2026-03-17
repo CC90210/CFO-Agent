@@ -33,15 +33,17 @@ from agents.base_agent import AgentSignal, BaseAnalystAgent, Direction
 
 logger = logging.getLogger(__name__)
 
-# Darwinian update constants
-_WIN_MULTIPLIER = 1.05
-_LOSS_MULTIPLIER = 0.95
+# Darwinian update constants — more aggressive than before to adapt faster
+# to changing market conditions (was 1.05/0.95, too slow to penalise losers)
+_WIN_MULTIPLIER = 1.08
+_LOSS_MULTIPLIER = 0.90
 _MAX_WEIGHT = 2.5
 _MIN_WEIGHT = 0.3
 
 # Weekly review threshold — rewrite the worst agent's prompt if its
-# rolling Sharpe falls below this value
-_REWRITE_SHARPE_THRESHOLD = 0.2
+# rolling Sharpe falls below this value (lowered from 0.2 to 0.0 —
+# any agent that can't break even should be rewritten)
+_REWRITE_SHARPE_THRESHOLD = 0.0
 
 
 @dataclass
