@@ -36,9 +36,10 @@ from agents.technical_analyst import TechnicalAnalyst
 
 logger = logging.getLogger(__name__)
 
-# When the absolute value of the consensus conviction exceeds this threshold,
-# skip the debate and go straight to risk assessment.
-_SKIP_DEBATE_THRESHOLD = 0.75
+# When the absolute value of the consensus conviction exceeds this threshold
+# AND no agents disagree, skip the debate and go straight to risk assessment.
+# Lowered from 0.75 to catch conflicting signals that previously slipped through.
+_SKIP_DEBATE_THRESHOLD = 0.60
 
 
 @dataclass
@@ -162,8 +163,13 @@ class Orchestrator:
         )
 
         # ── Step 3: Debate or fast-path ────────────────────────────
+        # Always debate if agents disagree on direction (even if consensus is high)
+        has_bulls = any(s.direction == Direction.LONG for s in weighted_signals)
+        has_bears = any(s.direction == Direction.SHORT for s in weighted_signals)
+        signals_conflict = has_bulls and has_bears
+
         debate_verdict: DebateVerdict | None = None
-        if abs(consensus) >= _SKIP_DEBATE_THRESHOLD:
+        if abs(consensus) >= _SKIP_DEBATE_THRESHOLD and not signals_conflict:
             # Strong agreement — skip debate
             reasoning_chain.append(
                 f"Step 4: Consensus {consensus:+.2f} >= {_SKIP_DEBATE_THRESHOLD} threshold "
@@ -208,7 +214,9 @@ class Orchestrator:
 
         # ── Step 4: Risk assessment ─────────────────────────────────
         current_price = self._extract_current_price(market_data)
-        proposed_trade_size = self._compute_proposed_size(final_conviction, current_price)
+        proposed_trade_size = self._compute_proposed_size(
+            final_conviction, current_price, final_confidence
+        )
 
         risk_market_data = {
             "portfolio": self.portfolio_manager.build_portfolio_state(),
@@ -394,12 +402,18 @@ class Orchestrator:
     def _weighted_consensus(self, signals: list[AgentSignal]) -> float:
         """
         Compute Darwinian-weight-adjusted consensus conviction.
-        Neutral signals contribute 0 to the sum but their weight still
-        dilutes the final average (they suppress strong directional bets).
+
+        NEUTRAL signals are excluded from the consensus calculation —
+        an uncertain agent should not dilute a clear directional signal
+        from confident agents.
         """
         total_weight = 0.0
         weighted_sum = 0.0
         for sig in signals:
+            # Skip NEUTRAL signals — they add no directional information
+            # and would only dilute the consensus of directional agents
+            if sig.direction == Direction.NEUTRAL:
+                continue
             agent_weight = float(sig.metadata.get("agent_weight", 1.0))
             effective = agent_weight * sig.confidence
             weighted_sum += sig.conviction * effective
@@ -419,14 +433,20 @@ class Orchestrator:
             return float(ohlcv[-1].get("close", 0))
         return float(market_data.get("current_price", 0))
 
-    def _compute_proposed_size(self, conviction: float, current_price: float) -> float:
+    def _compute_proposed_size(
+        self, conviction: float, current_price: float, confidence: float = 0.5,
+    ) -> float:
         """
         Quick preliminary size estimate (actual sizing happens in PortfolioManager).
         Used only to give the RiskAgent a ballpark figure.
+
+        Size is scaled by conviction × confidence — high conviction but low
+        confidence should result in smaller positions.
         """
         from config.settings import settings
         max_risk_usd = self.portfolio_manager.equity * settings.risk.per_trade_risk_pct / 100
-        conviction_scalar = abs(conviction)
+        # Conviction × confidence prevents oversizing on uncertain calls
+        conviction_scalar = abs(conviction) * max(confidence, 0.1)
         return max_risk_usd * conviction_scalar
 
     def _build_historical_stats(self, symbol: str) -> dict[str, float]:

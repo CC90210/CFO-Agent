@@ -127,11 +127,15 @@ class PortfolioManager(BaseAnalystAgent):
         # Half-Kelly position size as fraction of equity
         kelly_f = self._half_kelly(win_rate, avg_win_pct, avg_loss_pct)
 
-        # Scale by conviction and risk assessment
-        conviction_scalar = abs(verdict.conviction)
+        # Scale by conviction × confidence — high conviction with low confidence
+        # should produce smaller sizes than high conviction with high confidence
+        conviction_scalar = abs(verdict.conviction) * max(verdict.confidence, 0.1)
         risk_multiplier = risk_assessment.recommended_size_pct
 
-        raw_size_pct = kelly_f * conviction_scalar * risk_multiplier
+        # Short positions carry higher tail risk — reduce by 15%
+        direction_scalar = 0.85 if verdict.direction == Direction.SHORT else 1.0
+
+        raw_size_pct = kelly_f * conviction_scalar * risk_multiplier * direction_scalar
 
         # Hard cap: never risk more than per_trade_risk_pct
         max_pct = settings.risk.per_trade_risk_pct / 100.0
