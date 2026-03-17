@@ -247,6 +247,9 @@ class RegimeResult:
                 "london_breakout": 1.1,
                 "opening_range": 1.0,
                 "smart_money": 1.1,
+                "order_flow_imbalance": 0.7,  # Reversal strategy — penalised in trends
+                "zscore_mean_reversion": 0.6,  # Mean reversion dangerous in trends
+                "volume_profile": 1.1,  # Breakout mode works in trends
             }
         elif self.regime == MarketRegime.BEAR_TREND:
             return {
@@ -259,6 +262,9 @@ class RegimeResult:
                 "london_breakout": 0.9,
                 "opening_range": 0.8,
                 "smart_money": 1.0,
+                "order_flow_imbalance": 0.6,  # Catching knives is dangerous
+                "zscore_mean_reversion": 0.5,  # Mean reversion trap in bear trends
+                "volume_profile": 1.0,  # Neutral — breakout shorts can work
             }
         elif self.regime == MarketRegime.HIGH_VOL:
             return {
@@ -271,6 +277,9 @@ class RegimeResult:
                 "london_breakout": 0.6,
                 "opening_range": 0.5,
                 "smart_money": 0.6,
+                "order_flow_imbalance": 0.5,  # Too noisy for flow analysis
+                "zscore_mean_reversion": 0.4,  # Extreme vol invalidates z-score
+                "volume_profile": 0.6,  # Profiles less reliable in chaos
             }
         else:  # CHOPPY
             return {
@@ -283,4 +292,7 @@ class RegimeResult:
                 "london_breakout": 1.1,
                 "opening_range": 1.1,
                 "smart_money": 1.0,
+                "order_flow_imbalance": 1.3,  # Flow analysis excels in ranges
+                "zscore_mean_reversion": 1.3,  # Statistical reversion thrives
+                "volume_profile": 1.2,  # VA mean reversion is ideal in ranges
             }

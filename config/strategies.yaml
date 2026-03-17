@@ -137,3 +137,91 @@ strategies:
       # Require SPY correlation to be above this threshold
       # (calculated from last 20 bars of daily closes)
       min_spy_correlation: 0.6
+
+  # ── 8. Smart Money Concepts ──────────────────────────────────────────────
+  smart_money:
+    enabled: true
+    description: "Order blocks, fair value gaps, and liquidity sweeps."
+    timeframe: "4h"
+    symbols:
+      - "BTC/USDT"
+      - "ETH/USDT"
+    risk_per_trade: 1.0
+    max_positions: 2
+    parameters:
+      ob_tolerance_pct: 0.8
+      fvg_min_atr_ratio: 0.3
+      atr_stop_mult: 2.0
+
+  # ── 9. Ichimoku Cloud Trend ─────────────────────────────────────────────
+  ichimoku_trend:
+    enabled: true
+    description: "Full Ichimoku 5-condition entry with cloud exit."
+    timeframe: "4h"
+    symbols:
+      - "BTC/USDT"
+      - "ETH/USDT"
+    risk_per_trade: 1.5
+    max_positions: 2
+    parameters:
+      tenkan_period: 9
+      kijun_period: 26
+      senkou_b_period: 52
+      displacement: 26
+
+  # ── 10. Order Flow Imbalance ────────────────────────────────────────────
+  order_flow_imbalance:
+    enabled: true
+    description: "CVD divergence + absorption candles for institutional flow detection."
+    timeframe: "1h"
+    symbols:
+      - "BTC/USDT"
+      - "ETH/USDT"
+    risk_per_trade: 1.0
+    max_positions: 2
+    parameters:
+      cvd_window: 20
+      adx_max: 30.0
+      atr_stop_mult: 2.0
+      rr_ratio: 3.0
+      volume_mult: 1.5
+
+  # ── 11. Z-Score Mean Reversion ──────────────────────────────────────────
+  zscore_mean_reversion:
+    enabled: true
+    description: "Statistical Z-score reversion with multi-timeframe confirmation."
+    timeframe: "1h"
+    symbols:
+      - "BTC/USDT"
+      - "ETH/USDT"
+      - "SOL/USDT"
+    risk_per_trade: 1.0
+    max_positions: 2
+    parameters:
+      zscore_period: 50
+      zscore_entry: 2.0
+      zscore_htf_entry: 1.5
+      rsi_oversold: 30.0
+      rsi_overbought: 70.0
+      adx_max: 25.0
+      atr_stop_mult: 2.5
+      volume_mult: 1.5
+
+  # ── 12. Volume Profile / Value Area ─────────────────────────────────────
+  volume_profile:
+    enabled: true
+    description: "Institutional volume profile — fade outside Value Area, breakout with POC trend."
+    timeframe: "1h"
+    symbols:
+      - "BTC/USDT"
+      - "ETH/USDT"
+    risk_per_trade: 1.0
+    max_positions: 2
+    parameters:
+      profile_window: 100
+      profile_bins: 50
+      rsi_oversold: 35.0
+      rsi_overbought: 65.0
+      atr_stop_mult: 1.5
+      volume_mult: 1.5
+      breakout_vol_mult: 2.0

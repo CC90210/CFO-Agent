@@ -30,6 +30,9 @@ from strategies.technical import london_breakout  # noqa: F401
 from strategies.technical import opening_range  # noqa: F401
 from strategies.technical import ichimoku_trend  # noqa: F401
 from strategies.technical import smart_money  # noqa: F401
+from strategies.technical import volume_profile  # noqa: F401
+from strategies.technical import order_flow_imbalance  # noqa: F401
+from strategies.technical import zscore_mean_reversion  # noqa: F401
 
 __all__ = [
     "rsi",
