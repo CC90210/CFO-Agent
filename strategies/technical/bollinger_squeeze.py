@@ -74,8 +74,8 @@ class BollingerSqueezeStrategy(BaseStrategy):
         squeeze_percentile: float = 10.0,
         exhaustion_vol_mult: float = 2.0,
         atr_period: int = 14,
-        atr_stop_mult: float = 1.5,
-        atr_tp_mult: float = 2.5,
+        atr_stop_mult: float = 2.0,
+        atr_tp_mult: float = 5.0,
         volume_period: int = 20,
     ) -> None:
         self.bb_period = bb_period

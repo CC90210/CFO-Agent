@@ -192,6 +192,7 @@ async def _cmd_backtest(args: argparse.Namespace) -> int:
     engine._backtest_start = args.start  # type: ignore[attr-defined]
     engine._backtest_end = args.end  # type: ignore[attr-defined]
     engine._backtest_capital = args.capital  # type: ignore[attr-defined]
+    engine._backtest_symbol = args.symbol  # type: ignore[attr-defined]
 
     await engine.start()
     return 0
