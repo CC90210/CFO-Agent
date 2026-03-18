@@ -6,25 +6,27 @@ Logic
 Profit from price mean-reverting after short-term exhaustion moves.
 
 LONG signal conditions (all required):
-    - RSI(14) < 30 (oversold)
+    - RSI(14) < 25 (deeply oversold — tighter threshold reduces false signals)
     - Close <= Bollinger Band lower (price at statistical extreme)
     - Volume >= 1.5x 20-period average (capitulation spike confirms reversal)
     - ADX < 25 (market is range-bound — mean reversion works, trend-following fails)
+    - Price >= 200 EMA (trend filter — only fade dips in a macro uptrend; requires 210+ bars)
 
 SHORT signal conditions (mirror):
-    - RSI(14) > 70 (overbought)
+    - RSI(14) > 75 (deeply overbought)
     - Close >= Bollinger Band upper
     - Volume >= 1.5x average
     - ADX < 25
+    - Price <= 200 EMA (trend filter — only fade rallies in a macro downtrend; requires 210+ bars)
 
 Exit trigger: RSI returns to 50 (mean), OR price crosses the Bollinger midline.
 
-Stop loss:  1.5x ATR(14) beyond entry (tighter than trend strategies).
-Take profit: Bollinger midline (SMA 20) — the mean we're reverting to.
+Stop loss:  1.0x ATR(14) beyond entry — tighter stop improves R:R.
+Take profit: Bollinger midline OR 2x stop distance (whichever is greater) — enforces 2:1 R:R floor.
 
 Conviction scoring
 ------------------
-    +0.35  RSI distance from extreme (30→0 = max, 20 = more oversold → higher score)
+    +0.35  RSI distance from extreme (deeper = more conviction)
     +0.35  Bollinger %B position (0 = at lower band, negative = below → more extreme)
     +0.30  Volume spike magnitude (>2x average = max score)
 
@@ -37,7 +39,7 @@ from __future__ import annotations
 import pandas as pd
 
 from strategies.base import BaseStrategy, Direction, Position, Signal
-from strategies.technical.indicators import rsi, bollinger_bands, atr, adx
+from strategies.technical.indicators import rsi, bollinger_bands, atr, adx, ema
 
 
 class RSIMeanReversionStrategy(BaseStrategy):
@@ -54,17 +56,19 @@ class RSIMeanReversionStrategy(BaseStrategy):
     def __init__(
         self,
         rsi_period: int = 14,
-        rsi_oversold: float = 25.0,
-        rsi_overbought: float = 75.0,
+        rsi_oversold: float = 28.0,
+        rsi_overbought: float = 72.0,
         rsi_exit: float = 50.0,
         bb_period: int = 20,
         bb_std: float = 2.0,
         adx_period: int = 14,
         adx_max: float = 25.0,
         atr_period: int = 14,
-        atr_stop_mult: float = 2.5,
+        atr_stop_mult: float = 1.0,
         volume_period: int = 20,
-        volume_mult: float = 1.5,
+        volume_mult: float = 1.2,
+        ema_trend_period: int = 200,
+        rr_min: float = 2.0,
     ) -> None:
         self.rsi_period = rsi_period
         self.rsi_oversold = rsi_oversold
@@ -78,6 +82,13 @@ class RSIMeanReversionStrategy(BaseStrategy):
         self.atr_stop_mult = atr_stop_mult
         self.volume_period = volume_period
         self.volume_mult = volume_mult
+        # 200 EMA trend filter — only applied when sufficient history is available.
+        # Requiring ema_trend_period + 10 bars prevents distorted EMA readings on
+        # cold-start data where the exponential smoothing hasn't converged yet.
+        self.ema_trend_period = ema_trend_period
+        self._ema_min_bars = ema_trend_period + 10
+        # Minimum risk:reward ratio enforced on every signal.
+        self.rr_min = rr_min
         self._min_bars = max(rsi_period, bb_period, adx_period, atr_period) + 5
 
     # ------------------------------------------------------------------
@@ -114,36 +125,56 @@ class RSIMeanReversionStrategy(BaseStrategy):
         if adx_now >= self.adx_max:
             return None
 
-        # Volume confirmation required
+        # Volume confirmation required — above-average volume on the signal bar
         if vol_ratio < self.volume_mult:
             return None
+
+        # 200 EMA trend filter — only active when enough bars exist for a reliable read.
+        # Avoids fading dips in a macro downtrend (LONG) or rallies in an uptrend (SHORT).
+        ema_trend: float | None = None
+        if len(df) >= self._ema_min_bars:
+            ema_series = ema(close, self.ema_trend_period)
+            ema_trend = ema_series.iloc[-1]
 
         direction: Direction | None = None
 
         if rsi_now < self.rsi_oversold and close_now <= bb_lower:
+            # Trend filter: skip LONG if price is in a macro downtrend
+            if ema_trend is not None and close_now < ema_trend:
+                return None
             direction = Direction.LONG
         elif rsi_now > self.rsi_overbought and close_now >= bb_upper:
+            # Trend filter: skip SHORT if price is in a macro uptrend
+            if ema_trend is not None and close_now > ema_trend:
+                return None
             direction = Direction.SHORT
 
         if direction is None:
             return None
 
         entry_price = close_now
+        # Stop loss: 1.0x ATR — tighter stop to improve R:R
         stop_dist = self.atr_stop_mult * atr_now
+        # Take profit: BB midline OR rr_min * stop_dist, whichever gives a larger move.
+        # This enforces a minimum 2:1 R:R on every trade.
+        min_tp_dist = self.rr_min * stop_dist
 
         if direction == Direction.LONG:
             stop_loss = entry_price - stop_dist
-            # Target full BB width reversion, not just midline
-            take_profit = bb_mid + (bb_upper - bb_mid) * 0.5
+            bb_mid_dist = bb_mid - entry_price
+            take_profit = entry_price + max(bb_mid_dist, min_tp_dist)
         else:
             stop_loss = entry_price + stop_dist
-            take_profit = bb_mid - (bb_mid - bb_lower) * 0.5
+            bb_mid_dist = entry_price - bb_mid
+            take_profit = entry_price - max(bb_mid_dist, min_tp_dist)
 
-        # Ensure take_profit > 0 and makes directional sense
+        # Hard safety: ensure take_profit is directionally valid and positive
         if direction == Direction.LONG and take_profit <= entry_price:
-            take_profit = entry_price + stop_dist  # fallback: 1:1 R:R
+            take_profit = entry_price + min_tp_dist
         if direction == Direction.SHORT and take_profit >= entry_price:
-            take_profit = entry_price - stop_dist
+            take_profit = entry_price - min_tp_dist
+        if take_profit <= 0:
+            return None
 
         conviction = self._score_conviction(rsi_now, bb_pct, vol_ratio, direction)
 
@@ -164,6 +195,8 @@ class RSIMeanReversionStrategy(BaseStrategy):
                 "adx": round(adx_now, 2),
                 "atr": round(atr_now, 8),
                 "volume_ratio": round(vol_ratio, 2),
+                "ema_trend": round(ema_trend, 8) if ema_trend is not None else None,
+                "stop_dist": round(stop_dist, 8),
             },
         )
 

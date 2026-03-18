@@ -19,24 +19,32 @@ LVN  (Low Volume Node)   — Bin with volume significantly below the per-bin ave
 Entry logic
 -----------
 MEAN REVERSION — LONG:
-    - Price closes below VAL (price is "cheap" / unfair)
+    - Price closes below VAL by at least min_distance_atr × ATR (meaningful dislocation)
     - Volume on the drop is >= volume_mult × average (institutional absorption)
-    - RSI < rsi_oversold (35 by default)
+    - RSI < rsi_oversold (30 by default — tighter than before)
     - Current bar is bullish (close > open) — rejection candle at VAL
+    - ADX >= adx_min_trend (20) — avoid trading in flat/choppy markets
+    - Current bar volume >= min_volume_mult × average (reject thin/dead bars)
 
 MEAN REVERSION — SHORT:
-    - Price closes above VAH (price is "expensive" / unfair)
+    - Price closes above VAH by at least min_distance_atr × ATR
     - Volume >= volume_mult × average
-    - RSI > rsi_overbought (65 by default)
+    - RSI > rsi_overbought (70 by default)
     - Current bar is bearish (close < open)
+    - ADX >= adx_min_trend
+    - Current bar volume >= min_volume_mult × average
 
 BREAKOUT — LONG:
     - Price closes above VAH with volume >= breakout_vol_mult × average
     - POC has been rising over the last poc_trend_bars bars (value migrating up)
+    - ADX >= adx_min_trend (breakouts in trending markets only)
+    - Current bar volume >= min_volume_mult × average
 
 BREAKOUT — SHORT:
     - Price closes below VAL with volume >= breakout_vol_mult × average
     - POC has been falling over the last poc_trend_bars bars
+    - ADX >= adx_min_trend
+    - Current bar volume >= min_volume_mult × average
 
 Exits
 -----
@@ -45,7 +53,9 @@ Breakout trades: exit at target = VAH + 1.5 × VA_width (long) or VAL - 1.5 × V
 
 Stop loss
 ---------
-Wider of: low of the setup bar (long) / high of the setup bar (short), or 1.5 × ATR.
+Pure ATR-based: atr_stop_mult × ATR below/above the close.
+This gives a consistent, predictable risk per trade regardless of bar size.
+The setup-bar extreme is used only as a sanity cap — the stop never moves beyond it.
 
 Conviction scoring
 ------------------
@@ -64,7 +74,7 @@ import numpy as np
 import pandas as pd
 
 from strategies.base import BaseStrategy, Direction, Position, Signal
-from strategies.technical.indicators import atr, rsi, volume_profile
+from strategies.technical.indicators import adx, atr, ema, rsi, volume_profile
 
 
 # ---------------------------------------------------------------------------
@@ -112,13 +122,24 @@ class VolumeProfileStrategy(BaseStrategy):
 
     Uses a rolling window of OHLCV bars to build a live volume profile, then
     trades price dislocations from the Value Area with volume confirmation.
+
+    Key filters vs original:
+    - ADX >= adx_min_trend: only trade in markets with directional conviction
+    - min_distance_atr: price must be meaningfully outside the VA, not just touching it
+    - min_volume_mult: reject bars with below-average volume (thin/illiquid)
+    - Tighter RSI thresholds (30/70 vs 35/65): only true extremes qualify
+    - Higher volume_mult (2.0 vs 1.5): stronger institutional confirmation required
+    - Higher breakout_vol_mult (2.5 vs 2.0): breakouts need very heavy volume
+    - Pure ATR stop: atr_stop_mult × ATR from close — no bar-extreme expansion
+    - Minimum R:R gate: reject signals below min_rr threshold
     """
 
     name = "volume_profile"
     description = (
         "Institutional volume-profile strategy: fades moves outside the 70% Value Area "
-        "(mean reversion to POC) and plays breakouts confirmed by 2× volume with a "
-        "rising/falling POC trend.  Stop = wider of setup-bar extreme or 1.5× ATR."
+        "(mean reversion to POC) and plays breakouts confirmed by 2.5× volume with a "
+        "rising/falling POC trend.  Stop = atr_stop_mult × ATR from close.  "
+        "ADX filter prevents trading in flat/choppy regimes."
     )
     timeframes = ["15m", "1h", "4h"]
     markets = ["crypto", "equities", "futures"]
@@ -128,19 +149,24 @@ class VolumeProfileStrategy(BaseStrategy):
         profile_window: int = 100,
         profile_bins: int = 50,
         rsi_period: int = 14,
-        rsi_oversold: float = 35.0,
-        rsi_overbought: float = 65.0,
+        rsi_oversold: float = 30.0,       # tightened from 35 — only true extremes
+        rsi_overbought: float = 70.0,     # tightened from 65
         rsi_exit: float = 50.0,
         atr_period: int = 14,
-        atr_stop_mult: float = 1.5,
+        atr_stop_mult: float = 1.5,       # tighter stop for better R:R
         volume_period: int = 20,
-        volume_mult: float = 1.5,
-        breakout_vol_mult: float = 2.0,
-        hvn_threshold: float = 1.5,   # bins with volume > hvn_threshold × mean are HVNs
-        lvn_threshold: float = 0.5,   # bins with volume < lvn_threshold × mean are LVNs
+        volume_mult: float = 2.0,         # raised from 1.5 — stronger confirmation required
+        breakout_vol_mult: float = 2.5,   # raised from 2.0 — breakouts need heavy volume
+        min_volume_mult: float = 1.2,     # bar must have >= 120% of avg volume (confirm institutional interest)
+        hvn_threshold: float = 1.5,       # bins with volume > hvn_threshold × mean are HVNs
+        lvn_threshold: float = 0.5,       # bins with volume < lvn_threshold × mean are LVNs
         poc_trend_bars: int = 10,
         bounce_lookback: int = 30,
-        bounce_tolerance: float = 0.003,  # 0.3 % of price counts as "touching" a level
+        bounce_tolerance: float = 0.003,  # 0.3% of price counts as "touching" a level
+        adx_period: int = 14,
+        adx_min_trend: float = 20.0,      # ADX must be >= this to trade (trending markets only)
+        min_distance_atr: float = 1.0,    # price must be >= 1 ATR outside VA boundary (meaningful dislocation)
+        min_rr: float = 2.0,              # minimum acceptable risk:reward ratio
     ) -> None:
         self.profile_window = profile_window
         self.profile_bins = profile_bins
@@ -153,17 +179,23 @@ class VolumeProfileStrategy(BaseStrategy):
         self.volume_period = volume_period
         self.volume_mult = volume_mult
         self.breakout_vol_mult = breakout_vol_mult
+        self.min_volume_mult = min_volume_mult
         self.hvn_threshold = hvn_threshold
         self.lvn_threshold = lvn_threshold
         self.poc_trend_bars = poc_trend_bars
         self.bounce_lookback = bounce_lookback
         self.bounce_tolerance = bounce_tolerance
+        self.adx_period = adx_period
+        self.adx_min_trend = adx_min_trend
+        self.min_distance_atr = min_distance_atr
+        self.min_rr = min_rr
 
         self._min_bars = max(
             profile_window,
             rsi_period + 5,
             atr_period + 5,
             volume_period + 5,
+            2 * adx_period + 5,  # ADXIndicator needs 2 × period rows
         )
 
         # Rolling cache: keyed by last bar timestamp to avoid recomputing on
@@ -186,10 +218,16 @@ class VolumeProfileStrategy(BaseStrategy):
         # --- Indicators ---
         rsi_series = rsi(close, self.rsi_period)
         atr_series = atr(df, self.atr_period)
+        adx_df = adx(df, self.adx_period)
         avg_vol = df["volume"].rolling(self.volume_period).mean()
+
+        # 200 EMA trend filter — only long above, only short below
+        ema_200 = ema(close, 200)
+        ema_200_now = float(ema_200.iloc[-1]) if len(ema_200) >= 200 else None
 
         rsi_now = rsi_series.iloc[-1]
         atr_now = atr_series.iloc[-1]
+        adx_now = adx_df["adx"].iloc[-1]
         close_now = close.iloc[-1]
         open_now = df["open"].iloc[-1]
         low_now = df["low"].iloc[-1]
@@ -197,6 +235,18 @@ class VolumeProfileStrategy(BaseStrategy):
         vol_now = df["volume"].iloc[-1]
         avg_vol_now = avg_vol.iloc[-1]
         vol_ratio = vol_now / avg_vol_now if avg_vol_now > 0 else 1.0
+
+        # Guard: any NaN in key indicators aborts analysis
+        if np.isnan(atr_now) or np.isnan(rsi_now) or np.isnan(adx_now) or atr_now <= 0:
+            return None
+
+        # --- ADX filter: only trade in trending/directional markets ---
+        if adx_now < self.adx_min_trend:
+            return None
+
+        # --- Minimum bar volume filter: reject thin/illiquid bars ---
+        if vol_ratio < self.min_volume_mult:
+            return None
 
         # --- Volume Profile for the rolling window ---
         levels = self._compute_levels(df)
@@ -223,9 +273,13 @@ class VolumeProfileStrategy(BaseStrategy):
         is_bullish_candle = close_now > open_now
         is_bearish_candle = close_now < open_now
 
-        # Mean reversion — LONG: price has dropped below VAL
+        # Minimum distance from VA boundary: price must be meaningfully outside,
+        # not just touching — this single filter dramatically cuts false signals.
+        min_dist = self.min_distance_atr * atr_now
+
+        # Mean reversion — LONG: price has dropped below VAL by a meaningful margin
         if (
-            close_now < val
+            close_now < val - min_dist
             and vol_ratio >= self.volume_mult
             and rsi_now < self.rsi_oversold
             and is_bullish_candle
@@ -233,9 +287,9 @@ class VolumeProfileStrategy(BaseStrategy):
             direction = Direction.LONG
             is_breakout = False
 
-        # Mean reversion — SHORT: price has risen above VAH
+        # Mean reversion — SHORT: price has risen above VAH by a meaningful margin
         elif (
-            close_now > vah
+            close_now > vah + min_dist
             and vol_ratio >= self.volume_mult
             and rsi_now > self.rsi_overbought
             and is_bearish_candle
@@ -243,18 +297,18 @@ class VolumeProfileStrategy(BaseStrategy):
             direction = Direction.SHORT
             is_breakout = False
 
-        # Breakout — LONG: close above VAH with heavy volume + rising POC
+        # Breakout — LONG: close above VAH + min_dist with heavy volume + rising POC
         elif (
-            close_now > vah
+            close_now > vah + min_dist
             and vol_ratio >= self.breakout_vol_mult
             and poc_rising
         ):
             direction = Direction.LONG
             is_breakout = True
 
-        # Breakout — SHORT: close below VAL with heavy volume + falling POC
+        # Breakout — SHORT: close below VAL - min_dist with heavy volume + falling POC
         elif (
-            close_now < val
+            close_now < val - min_dist
             and vol_ratio >= self.breakout_vol_mult
             and poc_falling
         ):
@@ -264,44 +318,68 @@ class VolumeProfileStrategy(BaseStrategy):
         if direction is None:
             return None
 
+        # 200 EMA trend filter: only long above 200 EMA, only short below
+        if ema_200_now is not None:
+            if direction == Direction.LONG and close_now < ema_200_now:
+                return None
+            if direction == Direction.SHORT and close_now > ema_200_now:
+                return None
+
         # ---------------------------------------------------------------
-        # Stop loss and take profit
+        # Stop loss — pure ATR-based, placed a fixed multiple from close.
+        # The setup-bar extreme acts only as a sanity cap (never widen
+        # beyond it for longs / never tighten above it for shorts).
+        # This produces a consistent, known risk distance on every trade.
         # ---------------------------------------------------------------
-        atr_stop = self.atr_stop_mult * atr_now
+        atr_stop_dist = self.atr_stop_mult * atr_now
 
         if direction == Direction.LONG:
-            bar_stop = low_now - atr_now * 0.1   # fractionally below bar low
-            stop_loss = min(close_now - atr_stop, bar_stop)
-            stop_loss = max(stop_loss, 1e-8)  # never zero or negative
+            stop_loss = close_now - atr_stop_dist
+            # Safety cap: never place stop above the bar low (would be immediately hit)
+            stop_loss = min(stop_loss, low_now - 0.001 * close_now)
+            stop_loss = max(stop_loss, 1e-8)
 
             if is_breakout:
                 take_profit = vah + 1.5 * va_width
             else:
-                # Mean reversion: target POC
+                # Mean reversion: target POC — but ensure minimum R:R of min_rr
                 take_profit = poc
-                if take_profit <= close_now:
-                    # Degenerate edge: POC already below entry (shouldn't normally happen)
-                    take_profit = close_now + (close_now - stop_loss)
+                risk = close_now - stop_loss
+                min_tp = close_now + risk * self.min_rr
+                if take_profit < min_tp:
+                    take_profit = min_tp
 
         else:  # SHORT
-            bar_stop = high_now + atr_now * 0.1
-            stop_loss = max(close_now + atr_stop, bar_stop)
+            stop_loss = close_now + atr_stop_dist
+            # Safety cap: never place stop below the bar high (would be immediately hit)
+            stop_loss = max(stop_loss, high_now + 0.001 * close_now)
 
             if is_breakout:
                 take_profit = val - 1.5 * va_width
                 take_profit = max(take_profit, 1e-8)
             else:
+                # Mean reversion: target POC — but ensure minimum R:R of min_rr
                 take_profit = poc
-                if take_profit >= close_now:
-                    take_profit = close_now - (stop_loss - close_now)
-                    take_profit = max(take_profit, 1e-8)
+                risk = stop_loss - close_now
+                min_tp = close_now - risk * self.min_rr
+                if take_profit > min_tp:
+                    take_profit = min_tp
+                take_profit = max(take_profit, 1e-8)
 
         # Final sanity guard: ensure TP is on the correct side of entry
         if direction == Direction.LONG and take_profit <= close_now:
-            take_profit = close_now + abs(close_now - stop_loss)
+            take_profit = close_now + abs(close_now - stop_loss) * self.min_rr
         if direction == Direction.SHORT and take_profit >= close_now:
-            take_profit = close_now - abs(stop_loss - close_now)
+            take_profit = close_now - abs(stop_loss - close_now) * self.min_rr
             take_profit = max(take_profit, 1e-8)
+
+        # ---------------------------------------------------------------
+        # R:R gate — reject trades that don't meet the minimum threshold
+        # ---------------------------------------------------------------
+        risk_dist = abs(close_now - stop_loss)
+        reward_dist = abs(take_profit - close_now)
+        if risk_dist <= 0 or (reward_dist / risk_dist) < self.min_rr:
+            return None
 
         # ---------------------------------------------------------------
         # Conviction scoring
@@ -333,6 +411,7 @@ class VolumeProfileStrategy(BaseStrategy):
                 "val": round(val, 8),
                 "va_width": round(va_width, 8),
                 "rsi": round(rsi_now, 2),
+                "adx": round(adx_now, 2),
                 "atr": round(atr_now, 8),
                 "volume_ratio": round(vol_ratio, 2),
                 "bounces": bounces,

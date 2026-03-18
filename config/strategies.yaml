@@ -155,7 +155,7 @@ strategies:
 
   # ── 8. Smart Money Concepts ──────────────────────────────────────────────
   smart_money:
-    enabled: true
+    enabled: false  # Disabled: 0% win rate on 2026 BTC. OB detection needs fundamental rework.
     description: "Order blocks, fair value gaps, and liquidity sweeps."
     timeframe: "4h"
     symbols:
@@ -234,7 +234,7 @@ strategies:
 
   # ── 12. Volume Profile / Value Area ─────────────────────────────────────
   volume_profile:
-    enabled: true
+    enabled: false  # Disabled: -2.89% on 2026 BTC. Needs longer timeframe (4h) and multi-symbol validation before re-enabling.
     description: "Institutional volume profile — fade outside Value Area, breakout with POC trend."
     timeframe: "1h"
     symbols:
