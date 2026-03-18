@@ -306,8 +306,11 @@ class BacktestEngine:
             bar = df.iloc[i]
             timestamp = df.index[i]
 
-            # Only show the strategy data up to and including this bar
-            visible_df = df.iloc[: i + 1]
+            # Only show the strategy data up to and including this bar.
+            # Use a rolling window to limit the slice size and avoid passing
+            # the entire history to indicators on every bar.
+            _window = min(i + 1, 500)  # 500-bar lookback is enough for any indicator
+            visible_df = df.iloc[max(0, i + 1 - _window): i + 1]
 
             if in_position:
                 # ── Update trailing stop state ──
