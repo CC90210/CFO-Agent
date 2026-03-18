@@ -23,7 +23,6 @@ regardless of Kelly output.
 from __future__ import annotations
 
 import logging
-import math
 
 logger = logging.getLogger("atlas.sizer")
 
@@ -37,6 +36,8 @@ _DEFAULT_RR_RATIO: float = 3.0          # risk-reward ratio used for TP calculat
 _MAKER_FEE_PCT: float = 0.001           # 0.10 %
 _TAKER_FEE_PCT: float = 0.001           # 0.10 %
 _MAX_KELLY_FRACTION: float = 0.25       # cap full Kelly at 25% before halving
+_SHORT_DIRECTION_DISCOUNT: float = 0.85  # 15% size reduction for shorts (higher tail risk)
+_REGIME_SIZE_FLOOR: float = 0.3          # minimum regime multiplier
 
 
 # ---------------------------------------------------------------------------
@@ -89,6 +90,8 @@ class PositionSizer:
         avg_win_rate: float,
         avg_rr: float,
         use_market_order: bool = True,
+        regime_multiplier: float = 1.0,
+        sentiment_multiplier: float = 1.0,
     ) -> float:
         """
         Return the recommended position size in base-asset units.
@@ -97,20 +100,24 @@ class PositionSizer:
         1. Reject if |conviction| < MIN_CONVICTION.
         2. Compute the half-Kelly fraction from win_rate and avg_rr.
         3. Scale by |conviction|.
-        4. Compute the max units given the portfolio allocation.
-        5. Cap by the risk-based size (stop-loss distance × portfolio risk budget).
-        6. Subtract estimated entry + exit fees so the true risk stays within budget.
+        4. Apply direction discount (shorts get 15% reduction for tail risk).
+        5. Apply regime and sentiment multipliers.
+        6. Compute the max units given the portfolio allocation.
+        7. Cap by the risk-based size (stop-loss distance × portfolio risk budget).
+        8. Subtract estimated entry + exit fees so the true risk stays within budget.
 
         Parameters
         ----------
-        portfolio_value  : total equity in quote currency
-        direction        : "LONG" or "SHORT"
-        entry_price      : expected fill price in quote currency
-        stop_loss        : stop-loss price in quote currency
-        conviction       : signal conviction in [-1.0, 1.0]; sign encodes direction
-        avg_win_rate     : fraction of historical trades that were winners [0, 1]
-        avg_rr           : average win/loss ratio of historical trades (e.g. 2.0)
-        use_market_order : True ⇒ taker fee; False ⇒ maker fee
+        portfolio_value      : total equity in quote currency
+        direction            : "LONG" or "SHORT"
+        entry_price          : expected fill price in quote currency
+        stop_loss            : stop-loss price in quote currency
+        conviction           : signal conviction in [-1.0, 1.0]; sign encodes direction
+        avg_win_rate         : fraction of historical trades that were winners [0, 1]
+        avg_rr               : average win/loss ratio of historical trades (e.g. 2.0)
+        use_market_order     : True ⇒ taker fee; False ⇒ maker fee
+        regime_multiplier    : 0.0–1.0 from RegimeDetector.size_multiplier()
+        sentiment_multiplier : 0.0–1.0 from SentimentEngine.risk_modifier
 
         Returns
         -------
@@ -140,6 +147,17 @@ class PositionSizer:
 
         # ── Conviction scaling ─────────────────────────────────────────────────
         allocation_pct = kelly * abs(conviction)
+
+        # ── Direction discount — shorts carry higher tail risk ─────────────────
+        dir_upper = direction.upper() if isinstance(direction, str) else "LONG"
+        direction_scalar = _SHORT_DIRECTION_DISCOUNT if dir_upper == "SHORT" else 1.0
+        allocation_pct *= direction_scalar
+
+        # ── Regime and sentiment scaling ───────────────────────────────────────
+        regime_mult = max(_REGIME_SIZE_FLOOR, min(1.0, regime_multiplier))
+        sentiment_mult = max(0.1, min(1.0, sentiment_multiplier))
+        allocation_pct *= regime_mult * sentiment_mult
+
         allocation_value = portfolio_value * allocation_pct
 
         # ── Units from allocation ──────────────────────────────────────────────
@@ -151,7 +169,7 @@ class PositionSizer:
             logger.warning("entry_price == stop_loss, cannot size position")
             return 0.0
 
-        # Default per-trade risk budget: 1% of portfolio (conservative; the
+        # Per-trade risk budget: 1% of portfolio (conservative; the
         # risk manager will further cap with its own per_trade_risk_pct).
         risk_budget = portfolio_value * 0.01
         units_from_risk = risk_budget / stop_distance
@@ -169,11 +187,13 @@ class PositionSizer:
             return 0.0
 
         logger.debug(
-            "PositionSizer: kelly=%.4f conviction=%.3f alloc_pct=%.4f "
-            "raw=%.6f fee_adj=%.6f",
+            "PositionSizer: kelly=%.4f conviction=%.3f dir=%s "
+            "regime=%.2f sentiment=%.2f raw=%.6f fee_adj=%.6f",
             kelly,
             conviction,
-            allocation_pct,
+            dir_upper,
+            regime_mult,
+            sentiment_mult,
             raw_size,
             adjusted_size,
         )

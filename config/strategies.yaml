@@ -15,6 +15,13 @@ strategies:
       - "BTC/USDT"
       - "ETH/USDT"
       - "SOL/USDT"
+      - "BNB/USDT"
+      - "XRP/USDT"
+      - "ADA/USDT"
+      - "AVAX/USDT"
+      - "LINK/USDT"
+      - "DOT/USDT"
+      - "DOGE/USDT"
     risk_per_trade: 1.0        # % of equity risked per trade
     max_positions: 2
     parameters:
@@ -34,6 +41,11 @@ strategies:
     symbols:
       - "BTC/USDT"
       - "ETH/USDT"
+      - "SOL/USDT"
+      - "BNB/USDT"
+      - "XRP/USDT"
+      - "AVAX/USDT"
+      - "LINK/USDT"
     risk_per_trade: 1.5
     max_positions: 2
     parameters:
@@ -91,6 +103,9 @@ strategies:
       - "BTC/USDT"
       - "ETH/USDT"
       - "SOL/USDT"
+      - "BNB/USDT"
+      - "AVAX/USDT"
+      - "LINK/USDT"
     risk_per_trade: 1.5
     max_positions: 2
     parameters:
@@ -146,6 +161,8 @@ strategies:
     symbols:
       - "BTC/USDT"
       - "ETH/USDT"
+      - "SOL/USDT"
+      - "BNB/USDT"
     risk_per_trade: 1.0
     max_positions: 2
     parameters:
@@ -161,6 +178,9 @@ strategies:
     symbols:
       - "BTC/USDT"
       - "ETH/USDT"
+      - "SOL/USDT"
+      - "BNB/USDT"
+      - "AVAX/USDT"
     risk_per_trade: 1.5
     max_positions: 2
     parameters:
@@ -195,6 +215,11 @@ strategies:
       - "BTC/USDT"
       - "ETH/USDT"
       - "SOL/USDT"
+      - "BNB/USDT"
+      - "XRP/USDT"
+      - "ADA/USDT"
+      - "AVAX/USDT"
+      - "LINK/USDT"
     risk_per_trade: 1.0
     max_positions: 2
     parameters:

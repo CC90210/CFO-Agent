@@ -178,7 +178,7 @@ class TradeProtocol:
         """
         import time
         start = time.monotonic()
-        result = ProtocolResult(symbol=symbol)
+        result = ProtocolResult(symbol=symbol, verdict=ProtocolVerdict.SKIP)
 
         # ── Step 1: REGIME CHECK ──────────────────────────────────────
         regime_result = self._step_regime_check(df)

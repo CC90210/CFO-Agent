@@ -14,6 +14,11 @@ Order Blocks (OB):
     zone to fill institutional sell orders.
     A bullish OB is the last bearish candle before a bullish displacement.
 
+    Displacement requirement: 2 consecutive opposing candles (relaxed from 3) whose
+    combined range covers at least 1.5× ATR, AND average volume of those candles
+    must exceed 1.2× the 20-period average volume.  This catches real institutional
+    moves while filtering low-conviction noise.
+
 Fair Value Gaps (FVG):
     A 3-candle pattern where candle 1's high is lower than candle 3's low (bullish FVG)
     or candle 1's low is higher than candle 3's high (bearish FVG).  The "gap" in the
@@ -34,7 +39,14 @@ Strategy flow:
     5. SHORT: Wait for price to return to the bearish OB / FVG zone.
 
 Stop loss: Below the OB's low (LONG) or above OB's high (SHORT).
-Take profit: Previous swing high (LONG) or swing low (SHORT), OR 3:1 R:R.
+Take profit: Primary = R:R ratio (default 3:1). Swing point used only when it
+             exists above entry (LONG) / below entry (SHORT) AND delivers at
+             least 2:1 R:R — ensures every trade has a reachable target.
+
+Exit triggers (any one fires):
+    1. CHoCH against position direction (structural flip = thesis dead).
+    2. OB mitigation — price closes through OB zone (zone fails = thesis dead).
+    3. Time-based stop — 50 bars without TP hit (opportunity cost exit).
 
 Conviction scoring
 ------------------
@@ -100,15 +112,19 @@ class SmartMoneyStrategy(BaseStrategy):
 
     def __init__(
         self,
-        swing_lookback: int = 10,        # bars each side to detect swing highs/lows
+        swing_lookback: int = 5,         # bars each side — reduced from 10 (4h: 10=40h too long, 5=20h)
         ob_lookback: int = 50,           # bars to search for order blocks
-        fvg_min_size_atr_ratio: float = 0.3,  # minimum FVG size as ratio of ATR (filter noise)
+        fvg_min_size_atr_ratio: float = 0.15,  # reduced from 0.3 — small FVGs inside OBs are valid
         bos_lookback: int = 100,         # bars to look back for structure events
-        ob_entry_tolerance: float = 0.008,    # 0.8% — institutional zones are wide
+        ob_entry_tolerance: float = 0.015,    # widened from 0.8% to 1.5% — institutional zones are wide
         atr_period: int = 14,
         atr_stop_mult: float = 2.0,      # stop beyond OB (2x ATR buffer for breathing room)
         rr_ratio: float = 3.0,
         volume_period: int = 20,
+        min_rr_for_swing_tp: float = 2.0,  # swing TP only used if it delivers at least this R:R
+        displacement_atr_mult: float = 1.5,  # OB displacement must cover this × ATR total range
+        displacement_vol_mult: float = 1.2,  # displacement candles avg vol > this × rolling avg vol
+        time_stop_bars: int = 50,        # exit if TP not reached within this many bars
     ) -> None:
         self.swing_lookback = swing_lookback
         self.ob_lookback = ob_lookback
@@ -119,6 +135,10 @@ class SmartMoneyStrategy(BaseStrategy):
         self.atr_stop_mult = atr_stop_mult
         self.rr_ratio = rr_ratio
         self.volume_period = volume_period
+        self.min_rr_for_swing_tp = min_rr_for_swing_tp
+        self.displacement_atr_mult = displacement_atr_mult
+        self.displacement_vol_mult = displacement_vol_mult
+        self.time_stop_bars = time_stop_bars
         self._min_bars = max(ob_lookback, bos_lookback, swing_lookback * 2, atr_period) + 10
 
     # ------------------------------------------------------------------
@@ -152,7 +172,7 @@ class SmartMoneyStrategy(BaseStrategy):
             return None
 
         # Step 2: Find the most recent unmitigated Order Block aligned with bias
-        order_blocks = self._detect_order_blocks(df)
+        order_blocks = self._detect_order_blocks(df, atr_series, avg_vol)
         relevant_obs = [
             ob for ob in order_blocks
             if ob.direction == bias and not ob.mitigated
@@ -192,29 +212,34 @@ class SmartMoneyStrategy(BaseStrategy):
 
         if bias == Direction.LONG:
             stop_loss = target_ob.low - buffer
-            # Take profit: previous swing high
+            risk = entry_price - stop_loss
+
+            # Primary TP: always guarantee a reachable R:R target
+            take_profit = entry_price + risk * self.rr_ratio
+
+            # Bonus: use swing high only if it provides at least min_rr_for_swing_tp
             swing_highs = self._swing_highs(df)
-            if swing_highs:
-                candidates = [sh for sh in swing_highs if sh > entry_price]
-                tp_swing = max(candidates) if candidates else None
-                if tp_swing:
+            candidates = [sh for sh in swing_highs if sh > entry_price]
+            if candidates:
+                tp_swing = min(candidates)  # nearest swing high above entry
+                swing_rr = (tp_swing - entry_price) / risk if risk > 0 else 0.0
+                if swing_rr >= self.min_rr_for_swing_tp:
                     take_profit = tp_swing
-                else:
-                    take_profit = entry_price + (entry_price - stop_loss) * self.rr_ratio
-            else:
-                take_profit = entry_price + (entry_price - stop_loss) * self.rr_ratio
         else:
             stop_loss = target_ob.high + buffer
+            risk = stop_loss - entry_price
+
+            # Primary TP: always guarantee a reachable R:R target
+            take_profit = entry_price - risk * self.rr_ratio
+
+            # Bonus: use swing low only if it provides at least min_rr_for_swing_tp
             swing_lows = self._swing_lows(df)
-            if swing_lows:
-                candidates = [sl for sl in swing_lows if sl < entry_price]
-                tp_swing = min(candidates) if candidates else None
-                if tp_swing:
+            candidates = [sl for sl in swing_lows if sl < entry_price]
+            if candidates:
+                tp_swing = max(candidates)  # nearest swing low below entry
+                swing_rr = (entry_price - tp_swing) / risk if risk > 0 else 0.0
+                if swing_rr >= self.min_rr_for_swing_tp:
                     take_profit = tp_swing
-                else:
-                    take_profit = entry_price - (stop_loss - entry_price) * self.rr_ratio
-            else:
-                take_profit = entry_price - (stop_loss - entry_price) * self.rr_ratio
 
         # Conviction
         ob_vol_ratio = target_ob.volume / avg_vol_now if avg_vol_now > 0 else 1.0
@@ -250,22 +275,41 @@ class SmartMoneyStrategy(BaseStrategy):
 
     def should_exit(self, df: pd.DataFrame, position: Position) -> bool:
         """
-        Exit when:
-          - A CHoCH forms against the position direction, OR
-          - Price closes back above/below the OB (mitigation = OB invalidated)
+        Exit when ANY of the following triggers fires:
+          1. CHoCH forms against position direction (structural flip — thesis dead).
+          2. OB mitigation — price closes through the OB zone (zone fails).
+          3. Time-based stop — position open more than time_stop_bars bars.
         """
         if not self._min_rows(df, self.bos_lookback + 5):
             return False
 
-        structure_events = self._detect_structure(df)
-        if not structure_events:
-            return False
+        close_now = df["close"].iloc[-1]
 
-        last_event = structure_events[-1]
-        if position.side == Direction.LONG:
-            return "CHoCH_bearish" in last_event.kind
-        else:
-            return "CHoCH_bullish" in last_event.kind
+        # Trigger 1: CHoCH against position
+        structure_events = self._detect_structure(df)
+        if structure_events:
+            last_event = structure_events[-1]
+            if position.side == Direction.LONG and "CHoCH_bearish" in last_event.kind:
+                return True
+            if position.side == Direction.SHORT and "CHoCH_bullish" in last_event.kind:
+                return True
+
+        # Trigger 2: OB mitigation — price closed through the zone (OB invalidated)
+        ob_high = position.metadata.get("ob_high")
+        ob_low = position.metadata.get("ob_low")
+        if ob_high is not None and ob_low is not None:
+            if position.side == Direction.LONG and close_now < ob_low:
+                return True
+            if position.side == Direction.SHORT and close_now > ob_high:
+                return True
+
+        # Trigger 3: Time-based stop — find how many bars since entry
+        if df.index[-1] > position.entry_time:
+            bars_since_entry = (df.index >= position.entry_time).sum()
+            if bars_since_entry > self.time_stop_bars:
+                return True
+
+        return False
 
     # ------------------------------------------------------------------
     # Structure detection
@@ -316,14 +360,23 @@ class SmartMoneyStrategy(BaseStrategy):
     # Order Block detection
     # ------------------------------------------------------------------
 
-    def _detect_order_blocks(self, df: pd.DataFrame) -> list[OrderBlock]:
+    def _detect_order_blocks(
+        self,
+        df: pd.DataFrame,
+        atr_series: pd.Series,
+        avg_vol_series: pd.Series,
+    ) -> list[OrderBlock]:
         """
         Detect Order Blocks: the last opposing candle before a displacement move.
 
-        Bearish OB: last bullish candle before 3+ consecutive bearish candles
-                    (institutional distribution zone).
-        Bullish OB: last bearish candle before 3+ consecutive bullish candles
-                    (institutional accumulation zone).
+        Bearish OB: last bullish candle before 2+ consecutive bearish candles
+                    whose combined range >= displacement_atr_mult × ATR AND whose
+                    average volume >= displacement_vol_mult × rolling avg volume.
+        Bullish OB: last bearish candle before 2+ consecutive bullish candles
+                    with the same size/volume requirements.
+
+        Using 2 candles (relaxed from 3) with mandatory ATR + volume filters
+        catches real institutional displacement while rejecting random noise.
         """
         blocks: list[OrderBlock] = []
         working = df.iloc[-self.ob_lookback :]
@@ -332,17 +385,40 @@ class SmartMoneyStrategy(BaseStrategy):
         highs = working["high"].values
         lows = working["low"].values
         volumes = working["volume"].values
+
+        # Align ATR and avg_vol to the working slice
+        atr_vals = atr_series.reindex(working.index).values
+        avg_vol_vals = avg_vol_series.reindex(working.index).values
+
         n = len(working)
 
-        for i in range(1, n - 3):
+        for i in range(1, n - 2):
             ts = working.index[i]
-            # Bullish displacement: 3 consecutive bullish candles after a bearish candle
-            if closes[i] < opens[i]:  # bearish candle (potential bullish OB)
-                if all(closes[i + k] > opens[i + k] for k in range(1, 4)):
-                    # Check if it's been mitigated (price returned to zone)
+            atr_val = atr_vals[i]
+            avg_vol = avg_vol_vals[i]
+
+            # Need valid indicator values
+            if atr_val != atr_val or avg_vol != avg_vol:  # NaN guard
+                continue
+
+            # Bullish displacement: 2 consecutive bullish candles after a bearish candle
+            if closes[i] < opens[i]:  # bearish candle — potential bullish OB
+                if i + 2 < n and all(closes[i + k] > opens[i + k] for k in range(1, 3)):
+                    # Size filter: combined range of displacement candles >= 1.5× ATR
+                    disp_range = (
+                        max(highs[i + 1], highs[i + 2]) - min(lows[i + 1], lows[i + 2])
+                    )
+                    if disp_range < self.displacement_atr_mult * atr_val:
+                        continue
+
+                    # Volume filter: avg volume of displacement candles > 1.2× rolling avg
+                    disp_avg_vol = (volumes[i + 1] + volumes[i + 2]) / 2.0
+                    if avg_vol > 0 and disp_avg_vol < self.displacement_vol_mult * avg_vol:
+                        continue
+
                     zone_high = highs[i]
                     zone_low = lows[i]
-                    prices_after = closes[i + 3 :]
+                    prices_after = closes[i + 2 :]
                     mitigated = any(zone_low <= p <= zone_high for p in prices_after)
                     blocks.append(
                         OrderBlock(
@@ -355,12 +431,24 @@ class SmartMoneyStrategy(BaseStrategy):
                         )
                     )
 
-            # Bearish displacement: 3 consecutive bearish candles after a bullish candle
-            elif closes[i] > opens[i]:  # bullish candle (potential bearish OB)
-                if all(closes[i + k] < opens[i + k] for k in range(1, 4)):
+            # Bearish displacement: 2 consecutive bearish candles after a bullish candle
+            elif closes[i] > opens[i]:  # bullish candle — potential bearish OB
+                if i + 2 < n and all(closes[i + k] < opens[i + k] for k in range(1, 3)):
+                    # Size filter: combined range of displacement candles >= 1.5× ATR
+                    disp_range = (
+                        max(highs[i + 1], highs[i + 2]) - min(lows[i + 1], lows[i + 2])
+                    )
+                    if disp_range < self.displacement_atr_mult * atr_val:
+                        continue
+
+                    # Volume filter: avg volume of displacement candles > 1.2× rolling avg
+                    disp_avg_vol = (volumes[i + 1] + volumes[i + 2]) / 2.0
+                    if avg_vol > 0 and disp_avg_vol < self.displacement_vol_mult * avg_vol:
+                        continue
+
                     zone_high = highs[i]
                     zone_low = lows[i]
-                    prices_after = closes[i + 3 :]
+                    prices_after = closes[i + 2 :]
                     mitigated = any(zone_low <= p <= zone_high for p in prices_after)
                     blocks.append(
                         OrderBlock(
