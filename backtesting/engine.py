@@ -198,6 +198,15 @@ class BacktestEngine:
     log_dir : Path | None
         Where to save equity curve PNGs and CSV exports. Defaults to
         ``<project_root>/logs/``.
+    scale_out_tiers : list[tuple[float, float]]
+        Ordered list of (rr_multiple, fraction_of_original_size_to_close) pairs.
+        Default is [(1.0, 0.30), (2.0, 0.30)] meaning:
+          - Tier 1: close 30 % of original size at 1× risk-reward
+          - Tier 2: close 30 % of original size at 2× risk-reward
+          - Remainder (40 %) rides the trailing stop or full stop/signal exit
+        Pass an empty list to disable scale-out entirely (all-or-nothing behaviour).
+        After tier 1 hits, the stop for the remaining position is promoted to
+        break-even (entry price) to make the trade risk-free.
     """
 
     def __init__(
@@ -209,6 +218,7 @@ class BacktestEngine:
         log_dir: Path | None = None,
         regime_filter: bool = True,
         trailing_stops: bool = False,  # Disabled by default — too aggressive for trend-followers; needs per-strategy tuning
+        scale_out_tiers: list[tuple[float, float]] | None = None,
     ) -> None:
         if initial_capital <= 0:
             raise ValueError("initial_capital must be positive")
@@ -225,6 +235,10 @@ class BacktestEngine:
         self.trailing_stops = trailing_stops
         self._regime_detector = RegimeDetector() if regime_filter else None
         self._trailing_stop_mgr = TrailingStopManager(method="chandelier") if trailing_stops else None
+        # Default two-tier scale-out: 30 % at 1R, 30 % at 2R, 40 % rides stop
+        self.scale_out_tiers: list[tuple[float, float]] = (
+            scale_out_tiers if scale_out_tiers is not None else [(1.0, 0.30), (2.0, 0.30)]
+        )
 
     # ------------------------------------------------------------------
     # Public API
@@ -266,9 +280,18 @@ class BacktestEngine:
         position_side: Direction = Direction.FLAT
         entry_price = 0.0
         entry_time: datetime = df.index[0]
-        position_size = 0.0
-        entry_commission = 0.0
+        position_size = 0.0          # original full size at entry
+        remaining_size = 0.0         # units still open after partial exits
+        entry_commission = 0.0       # commission on the original full entry
         entry_signal: Signal | None = None
+
+        # Scale-out state (reset on every new entry)
+        # tier_hit[k] is True once the k-th tier target has been reached
+        tier_hit: list[bool] = []
+        # Computed target prices for each tier (set at entry)
+        tier_targets: list[float] = []
+        # break-even stop: promoted to entry price after tier 1 hits
+        breakeven_stop: float = 0.0
 
         # Trailing stop state (per-position)
         highest_since_entry = 0.0
@@ -292,7 +315,12 @@ class BacktestEngine:
                 lowest_since_entry = min(lowest_since_entry, bar["low"])
 
                 # ── Compute dynamic trailing stop ──
-                active_stop = entry_signal.stop_loss if entry_signal else 0.0
+                # Start from the signal stop or the break-even stop (whichever is
+                # more protective after tier 1 has been hit).
+                base_stop = entry_signal.stop_loss if entry_signal else 0.0
+                active_stop = max(base_stop, breakeven_stop) if position_side == Direction.LONG \
+                    else (min(base_stop, breakeven_stop) if breakeven_stop > 0 else base_stop)
+
                 if self._trailing_stop_mgr and entry_signal:
                     from strategies.technical.indicators import atr as atr_fn
                     if len(visible_df) >= 16:
@@ -313,9 +341,108 @@ class BacktestEngine:
                             else:
                                 active_stop = min(active_stop, ts_result.stop_price)
 
-                # ── Check exits first (stop-loss / take-profit hit intrabar) ──
+                # ── Scale-out tier processing ──
+                # Evaluate each configured tier on this bar before checking full exit.
+                # Partial closes generate their own TradeLog entries and reduce
+                # remaining_size. After tier 1 hits the stop is promoted to break-even.
+                vol_z_so = (bar["volume"] - vol_mean) / vol_std
+
+                for k, (rr_mult, orig_fraction) in enumerate(self.scale_out_tiers):
+                    if tier_hit[k]:
+                        continue
+
+                    # Target price for this tier
+                    target = tier_targets[k]
+                    if target <= 0:
+                        continue
+
+                    tier_reached = (
+                        (position_side == Direction.LONG and bar["high"] >= target) or
+                        (position_side == Direction.SHORT and bar["low"] <= target)
+                    )
+                    if not tier_reached:
+                        continue
+
+                    # Size to close for this tier (fraction of the *original* full size)
+                    close_size = position_size * orig_fraction
+                    # Never close more than what is still open
+                    close_size = min(close_size, remaining_size)
+                    if close_size <= 0:
+                        continue
+
+                    fill_tier = self._apply_slippage(
+                        float(np.clip(target, bar["low"], bar["high"])),
+                        position_side, vol_z_so, is_exit=True,
+                    )
+
+                    # Commission is prorated: entry_commission was on full size,
+                    # so each partial exit pays its proportional share of entry fees.
+                    tier_entry_comm = entry_commission * (close_size / position_size)
+                    tier_exit_comm = fill_tier * close_size * self.commission_pct
+
+                    if position_side == Direction.LONG:
+                        tier_gross = (fill_tier - entry_price) * close_size
+                    else:
+                        tier_gross = (entry_price - fill_tier) * close_size
+
+                    tier_net = tier_gross - tier_entry_comm - tier_exit_comm
+                    tier_entry_val = entry_price * close_size
+                    tier_pnl_pct = tier_net / tier_entry_val * 100.0 if tier_entry_val else 0.0
+
+                    equity += tier_net
+                    remaining_size -= close_size
+                    tier_hit[k] = True
+
+                    trades.append(TradeLog(
+                        trade_id=trade_id,
+                        symbol=strategy.name,
+                        strategy=strategy.name,
+                        side=position_side,
+                        entry_time=entry_time,
+                        entry_price=entry_price,
+                        exit_time=timestamp,
+                        exit_price=fill_tier,
+                        size=close_size,
+                        gross_pnl=tier_gross,
+                        commission_paid=tier_entry_comm + tier_exit_comm,
+                        net_pnl=tier_net,
+                        pnl_pct=tier_pnl_pct,
+                        duration=timestamp - entry_time,
+                        exit_reason=f"scale_out_t{k + 1}",
+                    ))
+                    trade_id += 1
+
+                    # After tier 1 hits: promote stop to break-even so the
+                    # remaining position becomes risk-free.
+                    if k == 0:
+                        if position_side == Direction.LONG:
+                            breakeven_stop = max(breakeven_stop, entry_price)
+                            active_stop = max(active_stop, breakeven_stop)
+                        else:
+                            # For SHORT, break-even is a ceiling (stop above entry is tighter)
+                            breakeven_stop = entry_price
+                            active_stop = min(active_stop, breakeven_stop) if active_stop > 0 else breakeven_stop
+
+                    logger.debug(
+                        "Scale-out tier %d hit: closed %.6f units at %.4f "
+                        "(rr=%.1f×, remaining=%.6f)",
+                        k + 1, close_size, fill_tier, rr_mult, remaining_size,
+                    )
+
+                    # If nothing remains after this tier, close the position fully
+                    if remaining_size <= 0:
+                        in_position = False
+                        entry_signal = None
+                        break
+
+                if not in_position:
+                    # Position was fully consumed by scale-out tiers this bar
+                    equity_curve.append((timestamp, equity))
+                    continue
+
+                # ── Check full exits (stop-loss / take-profit hit intrabar) ──
                 exit_reason = self._check_intrabar_exits(
-                    bar, position_side, entry_price,
+                    bar, position_side,
                     active_stop,
                     entry_signal.take_profit if entry_signal else 0.0,
                 )
@@ -327,7 +454,7 @@ class BacktestEngine:
                         symbol=strategy.name,
                         side=position_side,
                         entry_price=entry_price,
-                        size=position_size,
+                        size=remaining_size,
                         stop_loss=entry_signal.stop_loss if entry_signal else 0.0,
                         take_profit=entry_signal.take_profit if entry_signal else 0.0,
                         entry_time=entry_time,
@@ -353,15 +480,17 @@ class BacktestEngine:
                         raw_exit_price, position_side, vol_z, is_exit=True
                     )
 
-                    # P&L calculation
+                    # P&L on the remaining open size only.
+                    # Entry commission is prorated to whatever fraction is left.
+                    remaining_entry_comm = entry_commission * (remaining_size / position_size)
                     if position_side == Direction.LONG:
-                        gross_pnl = (fill_exit - entry_price) * position_size
+                        gross_pnl = (fill_exit - entry_price) * remaining_size
                     else:
-                        gross_pnl = (entry_price - fill_exit) * position_size
+                        gross_pnl = (entry_price - fill_exit) * remaining_size
 
-                    exit_commission = fill_exit * position_size * self.commission_pct
-                    net_pnl = gross_pnl - entry_commission - exit_commission
-                    entry_value = entry_price * position_size
+                    exit_commission = fill_exit * remaining_size * self.commission_pct
+                    net_pnl = gross_pnl - remaining_entry_comm - exit_commission
+                    entry_value = entry_price * remaining_size
                     pnl_pct = net_pnl / entry_value * 100.0 if entry_value else 0.0
 
                     equity += net_pnl
@@ -375,9 +504,9 @@ class BacktestEngine:
                         entry_price=entry_price,
                         exit_time=timestamp,
                         exit_price=fill_exit,
-                        size=position_size,
+                        size=remaining_size,
                         gross_pnl=gross_pnl,
-                        commission_paid=entry_commission + exit_commission,
+                        commission_paid=remaining_entry_comm + exit_commission,
                         net_pnl=net_pnl,
                         pnl_pct=pnl_pct,
                         duration=timestamp - entry_time,
@@ -434,22 +563,40 @@ class BacktestEngine:
                             # Reset trailing stop state for new position
                             highest_since_entry = bar["high"]
                             lowest_since_entry = bar["low"]
+                            # Initialise scale-out state for this new position
+                            remaining_size = position_size
+                            breakeven_stop = 0.0
+                            tier_hit = [False] * len(self.scale_out_tiers)
+                            # Pre-compute target prices from entry and stop distance
+                            _risk = abs(fill_entry - signal.stop_loss)
+                            if position_side == Direction.LONG:
+                                tier_targets = [
+                                    fill_entry + rr * _risk
+                                    for rr, _ in self.scale_out_tiers
+                                ]
+                            else:
+                                tier_targets = [
+                                    fill_entry - rr * _risk
+                                    for rr, _ in self.scale_out_tiers
+                                ]
 
             equity_curve.append((timestamp, equity))
 
-        # Close any open position at end of data
+        # Close any open position at end of data (applies to remaining_size only)
         if in_position and entry_signal is not None:
             last_bar = df.iloc[-1]
             last_ts = df.index[-1]
             fill_exit = last_bar["close"]
             if position_side == Direction.LONG:
-                gross_pnl = (fill_exit - entry_price) * position_size
+                gross_pnl = (fill_exit - entry_price) * remaining_size
             else:
-                gross_pnl = (entry_price - fill_exit) * position_size
+                gross_pnl = (entry_price - fill_exit) * remaining_size
 
-            exit_commission = fill_exit * position_size * self.commission_pct
-            net_pnl = gross_pnl - entry_commission - exit_commission
-            entry_value = entry_price * position_size
+            # Prorate the original entry commission to the fraction still open
+            remaining_entry_comm = entry_commission * (remaining_size / position_size) if position_size > 0 else 0.0
+            exit_commission = fill_exit * remaining_size * self.commission_pct
+            net_pnl = gross_pnl - remaining_entry_comm - exit_commission
+            entry_value = entry_price * remaining_size
             pnl_pct = net_pnl / entry_value * 100.0 if entry_value else 0.0
             equity += net_pnl
 
@@ -463,9 +610,9 @@ class BacktestEngine:
                     entry_price=entry_price,
                     exit_time=last_ts,
                     exit_price=fill_exit,
-                    size=position_size,
+                    size=remaining_size,
                     gross_pnl=gross_pnl,
-                    commission_paid=entry_commission + exit_commission,
+                    commission_paid=remaining_entry_comm + exit_commission,
                     net_pnl=net_pnl,
                     pnl_pct=pnl_pct,
                     duration=last_ts - entry_time,
@@ -645,7 +792,6 @@ class BacktestEngine:
     def _check_intrabar_exits(
         bar: pd.Series,
         side: Direction,
-        entry_price: float,
         stop_loss: float,
         take_profit: float,
     ) -> str | None:
