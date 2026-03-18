@@ -31,6 +31,7 @@ import pandas as pd
 
 from config.settings import settings
 from core.correlation_tracker import CorrelationTracker
+from core.strategy_health import StrategyHealthMonitor
 from core.momentum_classifier import MomentumClassifier
 from core.order_executor import ExecutionMode, OrderExecutor, OrderType
 from core.playbook import TradingPlaybook
@@ -213,6 +214,9 @@ class TradingEngine:
         # Momentum classifier — detects market phase (MARKUP, DISTRIBUTION, etc.)
         self._momentum = MomentumClassifier()
 
+        # Darwinian strategy health — auto-disables underperformers
+        self._health_monitor = StrategyHealthMonitor()
+
         # Correlation tracking — feeds dynamic correlation data to the risk layer
         self._correlation_tracker = CorrelationTracker()
         # Mirror of the latest correlation matrix; pushed to RiskManager every 10 ticks
@@ -271,6 +275,13 @@ class TradingEngine:
         # 4. Restore risk state from DB
         await self._restore_risk_state()
 
+        # 5. Initialize strategy health monitor (Darwinian auto-disable)
+        try:
+            self._health_monitor.refresh()
+            logger.info("Strategy health monitor initialized.")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Strategy health monitor init failed (no trades yet?): %s", exc)
+
         logger.info("Engine setup complete.")
 
     async def _teardown(self) -> None:
@@ -309,11 +320,21 @@ class TradingEngine:
 
         logger.info("Total strategies loaded: %d", len(self._strategies))
 
-        # Build strategy instances from the registry
+        # Build strategy instances from the registry, passing YAML parameters
         StrategyRegistry.discover()
         for name in self._strategies:
             try:
-                self._strategy_instances[name] = StrategyRegistry.build(name)
+                yaml_params = self._strategies[name].get("parameters", {})
+                # Try passing YAML params to constructor; fall back to defaults
+                # if param names don't match (YAML uses short names, constructors
+                # use prefixed names like rsi_period vs period).
+                try:
+                    self._strategy_instances[name] = StrategyRegistry.build(name, **yaml_params)
+                except TypeError:
+                    self._strategy_instances[name] = StrategyRegistry.build(name)
+                    logger.debug(
+                        "Strategy %s: YAML params don't match constructor — using defaults", name
+                    )
                 logger.info("Strategy instance created: %s", name)
             except KeyError:
                 logger.warning("Strategy '%s' not in registry — analysis will be skipped.", name)
@@ -512,6 +533,15 @@ class TradingEngine:
         timeframe: str,
     ) -> None:
         """Process a single symbol for a single strategy."""
+        # 0. Darwinian health gate — skip disabled/cooldown strategies
+        health_result = self._health_monitor.should_trade(strategy_name)
+        if not health_result.allowed:
+            logger.info(
+                "Strategy %s blocked by health monitor: %s",
+                strategy_name, health_result.reason,
+            )
+            return
+
         # 1. Fetch OHLCV
         ohlcv = await self._fetch_ohlcv(symbol, timeframe)
         if ohlcv is None or len(ohlcv) < 2:
@@ -793,8 +823,11 @@ class TradingEngine:
         meta = signal.metadata or {}
         sentiment_mult = meta.get("sentiment_risk_modifier", 1.0)
         playbook_mult = meta.get("playbook_size_mult", 1.0)
-        # Combine playbook and regime into one regime multiplier
-        regime_mult = playbook_mult
+        # Health monitor size multiplier (e.g. 0.5 during probation)
+        health_result = self._health_monitor.should_trade(signal.strategy_name)
+        health_mult = health_result.size_multiplier if health_result.allowed else 0.0
+        # Combine playbook, regime, and health into one regime multiplier
+        regime_mult = playbook_mult * health_mult
 
         # Calculate position size via Kelly-based sizer
         size = self._sizer.calculate_position_size(
@@ -853,6 +886,12 @@ class TradingEngine:
 
         # Persist signal to DB
         self._persist_signal(signal, executed=record.success if record else False)
+
+        # Refresh strategy health after trade (updates Darwinian metrics)
+        try:
+            self._health_monitor.refresh()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Health monitor refresh failed: %s", exc)
 
     # ── Database helpers ───────────────────────────────────────────────────
 

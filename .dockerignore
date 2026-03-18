@@ -1,0 +1,85 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# .dockerignore — files excluded from the Docker build context
+#
+# Rules
+# -----
+# - Secrets and local config are never baked into the image.
+# - Generated / cache files bloat the image and slow builds.
+# - Test infrastructure is not needed at runtime.
+# - The live SQLite database is mounted as a volume, not baked in.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Secrets & environment ────────────────────────────────────────────────────
+.env
+.env.*
+*.pem
+*.key
+*.crt
+
+# ── Python cache ─────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Build artifacts ───────────────────────────────────────────────────────────
+*.egg-info/
+dist/
+build/
+*.whl
+
+# ── Git & CI ─────────────────────────────────────────────────────────────────
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# ── AI agent memory & project notes ─────────────────────────────────────────
+.claude/
+memory/
+CLAUDE.md
+GEMINI.md
+ANTIGRAVITY.md
+
+# ── Local database (mounted as a named volume at runtime) ────────────────────
+trading_agent.db
+trading_agent.db-shm
+trading_agent.db-wal
+
+# ── Log files (mounted as a named volume at runtime) ─────────────────────────
+logs/*.log
+logs/*.csv
+
+# ── Test suite ───────────────────────────────────────────────────────────────
+tests/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.coverage
+
+# ── Docs & IDE ───────────────────────────────────────────────────────────────
+docs/
+*.md
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+
+# ── Jupyter ───────────────────────────────────────────────────────────────────
+*.ipynb
+.ipynb_checkpoints/
+
+# ── Docker files themselves ───────────────────────────────────────────────────
+# (Not strictly needed but avoids confusion when iterating on these files.)
+Dockerfile
+docker-compose.yml
+.dockerignore
+deploy/

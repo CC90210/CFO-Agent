@@ -1,0 +1,87 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Atlas Trading Agent — Docker Compose (Production)
+#
+# Services
+# --------
+#   atlas-trader  — The main trading agent (paper_trade.py by default)
+#
+# Volumes
+# -------
+#   atlas-logs    — Persistent log directory (logs/paper_trade.log etc.)
+#   atlas-db      — Persistent SQLite database (trading_agent.db)
+#
+# Usage
+# -----
+#   cp .env.example .env   # fill in your API keys
+#   docker compose up -d   # start detached
+#   docker compose logs -f # tail logs
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  atlas-trader:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: atlas-trader:latest
+    container_name: atlas-trader
+
+    # Load all secrets from the .env file — never bake them into the image.
+    env_file:
+      - .env
+
+    # Override specific env vars for the container environment.
+    # DATABASE_URL points to the mounted volume path inside the container.
+    environment:
+      - TZ=UTC
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=sqlite:////app/data/trading_agent.db
+
+    # Persistent storage
+    volumes:
+      # SQLite database — survives container restarts and rebuilds.
+      - atlas-db:/app/data
+
+      # Log files — survives container restarts.
+      - atlas-logs:/app/logs
+
+      # Mount the strategies config so tuning params can be edited without
+      # rebuilding the image (read-only inside the container).
+      - ./config/strategies.yaml:/app/config/strategies.yaml:ro
+
+    # Restart automatically on crash or host reboot.
+    restart: always
+
+    # Memory cap — keeps the agent from consuming the entire host on a Pi or VPS.
+    # vectorbt and pandas can be greedy; 512 MB is sufficient for paper trading.
+    mem_limit: 512m
+    memswap_limit: 512m
+
+    # Logging — rotate so disk usage stays bounded on a long-running host.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Allow the init system inside the container to handle signals correctly.
+    init: true
+
+    # Health check from the Dockerfile is inherited; the compose file adds a
+    # dependency ordering hook for any future services that depend on the agent.
+    healthcheck:
+      test: ["CMD", "python", "-c", "from config.settings import settings; from core.engine import TradingEngine"]
+      interval: 60s
+      timeout: 15s
+      start_period: 30s
+      retries: 3
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Named volumes — Docker manages the physical paths on the host.
+# On a Mac Mini / Raspberry Pi these land under /var/lib/docker/volumes/.
+# ─────────────────────────────────────────────────────────────────────────────
+volumes:
+  atlas-db:
+    name: atlas-db
+  atlas-logs:
+    name: atlas-logs

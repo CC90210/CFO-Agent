@@ -5,41 +5,57 @@ Walk-forward testing is the gold standard for validating a strategy because it
 mimics what would actually happen in live trading: you optimise on past data,
 then trade the future. You NEVER optimise on the period you test.
 
-How it works
-------------
-Given N months of data with train_ratio=0.7 and n_splits=5:
+Two complementary APIs are provided:
 
-  Window 1: train=[0, 70%], test=[70%, 86%]   ← ~16% per window (30%/~5 windows)
-  Window 2: train=[16%, 86%], test=[86%, 100%]
-  ...each window slides forward by step_size
+1. WalkForwardValidator (fixed-bar windows)
+   -----------------------------------------
+   Splits data into rolling windows of fixed bar counts (train_bars + test_bars),
+   sliding by step_bars each iteration. No parameter grid search — the strategy is
+   used as-is. Ideal for quickly checking whether a strategy generalises across
+   time periods without overfitting.
 
-The aggregate of ALL out-of-sample (test) windows is the "true" expected
-performance. If in-sample Sharpe >> out-of-sample Sharpe, the strategy is
-overfit.
+   Usage::
 
-Overfitting score: ratio of in-sample to out-of-sample Sharpe.
-  < 1.5  — no significant overfitting
-  1.5-3.0 — moderate overfitting — reduce parameter count
-  > 3.0  — severe overfitting — do not trade live
+       from backtesting.walk_forward import WalkForwardValidator
+       from strategies.technical.ema_crossover import EmaCrossoverStrategy
 
-Usage
------
-    from backtesting.walk_forward import WalkForwardValidator
-    from strategies.technical.ema_crossover import EmaCrossoverStrategy
+       validator = WalkForwardValidator(train_bars=500, test_bars=100, step_bars=50)
+       result = validator.validate(df, EmaCrossoverStrategy())
+       print(validator.summary(result))
 
-    validator = WalkForwardValidator(train_ratio=0.7, n_splits=5)
-    result = validator.validate(
-        strategy_cls=EmaCrossoverStrategy,
-        data=df,
-        param_grid={"fast_period": [5, 8, 10], "slow_period": [20, 26, 50]},
-    )
-    print(result.summary())
+2. WalkForwardOptimiser (train-ratio + parameter grid search)
+   -----------------------------------------------------------
+   Optimises strategy parameters on each training window and validates on the
+   out-of-sample test window. Surfaces the best parameter combination across
+   all windows and quantifies overfitting via the in-sample vs out-of-sample
+   Sharpe ratio.
+
+   Usage::
+
+       from backtesting.walk_forward import WalkForwardOptimiser
+       from strategies.technical.ema_crossover import EmaCrossoverStrategy
+
+       optimiser = WalkForwardOptimiser(train_ratio=0.7, n_splits=5)
+       result = optimiser.validate(
+           strategy_cls=EmaCrossoverStrategy,
+           data=df,
+           param_grid={"fast_period": [5, 8, 10], "slow_period": [20, 26, 50]},
+       )
+       print(result.summary())
+
+Overfitting interpretation
+--------------------------
+Score < 1.5  — no significant overfitting
+Score 1.5–3.0 — moderate — reduce parameter count or add regularisation
+Score > 3.0  — severe — do NOT deploy live
 """
 
 from __future__ import annotations
 
 import itertools
 import logging
+import math
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -54,14 +70,311 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Result dataclasses
+# WalkForwardValidator dataclasses (fixed-bar-window API)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class WalkForwardWindow:
+    """
+    Performance metrics for a single fixed-bar walk-forward window.
+
+    Both train (in-sample) and test (out-of-sample) metrics are recorded so
+    callers can inspect how closely train performance predicts test performance.
+    """
+
+    window_id: int
+    train_start: datetime
+    train_end: datetime
+    test_start: datetime
+    test_end: datetime
+    train_return: float
+    test_return: float
+    train_win_rate: float
+    test_win_rate: float
+    train_pf: float       # profit factor
+    test_pf: float
+    train_trades: int
+    test_trades: int
+
+
+@dataclass
+class WalkForwardResult:
+    """
+    Aggregated result from WalkForwardValidator across all fixed-bar windows.
+
+    Key metrics
+    -----------
+    avg_oos_return         : mean out-of-sample return per window
+    avg_oos_win_rate       : mean out-of-sample win rate
+    avg_oos_pf             : mean out-of-sample profit factor
+    train_test_correlation : Pearson correlation between per-window train and
+                             test returns. Positive = in-sample predicts OOS.
+    overfitting_score      : 0 = no overfitting, 1 = completely overfit.
+                             Derived from (avg_train - avg_oos) / max(|avg_train|, 1e-9).
+    worst_oos_window       : window with the lowest out-of-sample return
+    recommendation         : "DEPLOY", "CAUTION", or "DO_NOT_DEPLOY"
+    """
+
+    strategy_name: str
+    windows: list[WalkForwardWindow]
+    avg_oos_return: float
+    avg_oos_win_rate: float
+    avg_oos_pf: float
+    train_test_correlation: float
+    overfitting_score: float
+    worst_oos_window: WalkForwardWindow
+    recommendation: str   # "DEPLOY" | "CAUTION" | "DO_NOT_DEPLOY"
+
+
+# ---------------------------------------------------------------------------
+# WalkForwardValidator (fixed-bar-window)
+# ---------------------------------------------------------------------------
+
+
+class WalkForwardValidator:
+    """
+    Walk-forward validation using fixed-bar rolling windows.
+
+    Splits the dataset into overlapping train+test slices of fixed length,
+    advancing by step_bars each iteration. No parameter grid search is
+    performed; the strategy instance is used as-is in every window.
+
+    Parameters
+    ----------
+    train_bars : int
+        Number of bars in each training (in-sample) window.
+    test_bars : int
+        Number of bars in each test (out-of-sample) window.
+    step_bars : int
+        How many bars to advance the window each iteration.
+        Defaults to test_bars (non-overlapping test windows).
+    initial_capital : float
+        Starting capital passed to BacktestEngine for each window run.
+    commission_pct : float
+        Commission rate (fraction) passed to BacktestEngine.
+    """
+
+    def __init__(
+        self,
+        train_bars: int = 500,
+        test_bars: int = 100,
+        step_bars: int = 50,
+        initial_capital: float = 10_000.0,
+        commission_pct: float = 0.001,
+    ) -> None:
+        if train_bars < 30:
+            raise ValueError("train_bars must be at least 30")
+        if test_bars < 10:
+            raise ValueError("test_bars must be at least 10")
+        if step_bars < 1:
+            raise ValueError("step_bars must be at least 1")
+
+        self.train_bars = train_bars
+        self.test_bars = test_bars
+        self.step_bars = step_bars
+        self.initial_capital = initial_capital
+        self.commission_pct = commission_pct
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def validate(
+        self,
+        df: pd.DataFrame,
+        strategy: BaseStrategy,
+    ) -> WalkForwardResult:
+        """
+        Run walk-forward validation on ``df`` using ``strategy``.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Full OHLCV dataset with a DatetimeIndex (UTC).
+            Must have at least train_bars + test_bars rows.
+        strategy : BaseStrategy
+            Concrete strategy instance used for every window.
+
+        Returns
+        -------
+        WalkForwardResult
+        """
+        df = df.sort_index().copy()
+        n = len(df)
+        window_size = self.train_bars + self.test_bars
+
+        if n < window_size:
+            raise ValueError(
+                f"DataFrame has only {n} rows but train_bars + test_bars = {window_size}. "
+                "Provide more data or reduce window sizes."
+            )
+
+        engine = BacktestEngine(
+            initial_capital=self.initial_capital,
+            commission_pct=self.commission_pct,
+            regime_filter=True,
+        )
+
+        windows: list[WalkForwardWindow] = []
+        window_id = 0
+        start = 0
+
+        while start + window_size <= n:
+            train_slice = df.iloc[start : start + self.train_bars]
+            test_slice = df.iloc[start + self.train_bars : start + window_size]
+
+            logger.info(
+                "Walk-forward window %d: train %s→%s (%d bars), test %s→%s (%d bars)",
+                window_id,
+                train_slice.index[0].date(),
+                train_slice.index[-1].date(),
+                len(train_slice),
+                test_slice.index[0].date(),
+                test_slice.index[-1].date(),
+                len(test_slice),
+            )
+
+            train_result = engine.run(train_slice, strategy)
+            test_result = engine.run(test_slice, strategy)
+
+            windows.append(
+                WalkForwardWindow(
+                    window_id=window_id,
+                    train_start=_to_dt(train_slice.index[0]),
+                    train_end=_to_dt(train_slice.index[-1]),
+                    test_start=_to_dt(test_slice.index[0]),
+                    test_end=_to_dt(test_slice.index[-1]),
+                    train_return=train_result.total_return,
+                    test_return=test_result.total_return,
+                    train_win_rate=train_result.win_rate,
+                    test_win_rate=test_result.win_rate,
+                    train_pf=train_result.profit_factor,
+                    test_pf=test_result.profit_factor,
+                    train_trades=train_result.total_trades,
+                    test_trades=test_result.total_trades,
+                )
+            )
+
+            window_id += 1
+            start += self.step_bars
+
+        if not windows:
+            raise RuntimeError(
+                "No walk-forward windows could be constructed. "
+                "Increase dataset size or reduce train_bars/test_bars."
+            )
+
+        return self._aggregate(strategy.name, windows)
+
+    def summary(self, result: WalkForwardResult) -> str:
+        """Return a formatted multi-line walk-forward validation report."""
+        worst = result.worst_oos_window
+        corr_label = (
+            "positive (IS predicts OOS)"
+            if result.train_test_correlation >= 0
+            else "negative (IS does NOT predict OOS)"
+        )
+
+        lines = [
+            "=" * 66,
+            f"  Atlas Walk-Forward Validation — {result.strategy_name}",
+            f"  Windows: {len(result.windows)}",
+            "=" * 66,
+            "",
+            "  Out-of-sample aggregate",
+            f"    Avg OOS return       : {result.avg_oos_return * 100:>+.2f}% per window",
+            f"    Avg OOS win rate     : {result.avg_oos_win_rate * 100:.1f}%",
+            f"    Avg OOS profit factor: {result.avg_oos_pf:.3f}",
+            "",
+            "  Robustness",
+            f"    Train/test corr      : {result.train_test_correlation:>+.3f}  ({corr_label})",
+            f"    Overfitting score    : {result.overfitting_score:.3f}  (0=none, 1=complete)",
+            f"    Recommendation       : {result.recommendation}",
+            "",
+            "  Worst OOS window",
+            f"    Window ID            : {worst.window_id}",
+            f"    Test period          : {worst.test_start:%Y-%m-%d} → {worst.test_end:%Y-%m-%d}",
+            f"    OOS return           : {worst.test_return * 100:>+.2f}%",
+            f"    OOS trades           : {worst.test_trades}",
+            "",
+            "  Per-window breakdown",
+            f"  {'ID':>3}  {'Train return':>13}  {'Test return':>11}  "
+            f"{'Test WR':>8}  {'Test PF':>8}  {'Test trades':>11}",
+            "  " + "-" * 62,
+        ]
+        for w in result.windows:
+            lines.append(
+                f"  {w.window_id:>3}  "
+                f"{w.train_return * 100:>+12.2f}%  "
+                f"{w.test_return * 100:>+10.2f}%  "
+                f"{w.test_win_rate * 100:>7.1f}%  "
+                f"{w.test_pf:>8.3f}  "
+                f"{w.test_trades:>11}"
+            )
+        lines.append("=" * 66)
+        return "\n".join(lines)
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    def _aggregate(
+        self, strategy_name: str, windows: list[WalkForwardWindow]
+    ) -> WalkForwardResult:
+        """Compute aggregate OOS metrics and build WalkForwardResult."""
+        oos_returns = [w.test_return for w in windows]
+        oos_win_rates = [w.test_win_rate for w in windows]
+        oos_pfs = [w.test_pf for w in windows]
+        train_returns = [w.train_return for w in windows]
+
+        avg_oos_return = float(np.mean(oos_returns))
+        avg_oos_win_rate = float(np.mean(oos_win_rates))
+        avg_oos_pf = float(np.mean(oos_pfs))
+
+        # Pearson correlation between per-window train return and test return
+        train_test_correlation = _safe_correlation(train_returns, oos_returns)
+
+        # Overfitting score: how much train return exceeds test return, normalised
+        avg_train = float(np.mean(train_returns))
+        denom = max(abs(avg_train), 1e-9)
+        raw_score = (avg_train - avg_oos_return) / denom
+        # Clamp to [0, 1]: 0 = no overfitting, 1 = complete overfitting
+        overfitting_score = float(np.clip(raw_score, 0.0, 1.0))
+
+        # Worst OOS window by test_return
+        worst = min(windows, key=lambda w: w.test_return)
+
+        # Recommendation thresholds
+        if overfitting_score < 0.3 and avg_oos_return > 0.0:
+            recommendation = "DEPLOY"
+        elif overfitting_score < 0.6:
+            recommendation = "CAUTION"
+        else:
+            recommendation = "DO_NOT_DEPLOY"
+
+        return WalkForwardResult(
+            strategy_name=strategy_name,
+            windows=windows,
+            avg_oos_return=avg_oos_return,
+            avg_oos_win_rate=avg_oos_win_rate,
+            avg_oos_pf=avg_oos_pf,
+            train_test_correlation=train_test_correlation,
+            overfitting_score=overfitting_score,
+            worst_oos_window=worst,
+            recommendation=recommendation,
+        )
+
+
+# ---------------------------------------------------------------------------
+# WalkForwardOptimiser dataclasses (train-ratio + parameter grid search API)
 # ---------------------------------------------------------------------------
 
 
 @dataclass
 class WindowResult:
     """
-    Performance metrics for a single walk-forward window.
+    Performance metrics for a single walk-forward window (optimisation API).
 
     in_sample_* metrics are computed on the training slice.
     out_sample_* metrics are computed on the held-out test slice.
@@ -88,9 +401,9 @@ class WindowResult:
 
 
 @dataclass
-class WalkForwardResult:
+class OptimisationResult:
     """
-    Aggregated walk-forward validation result across all windows.
+    Aggregated walk-forward optimisation result across all windows.
 
     The key metric is aggregate_sharpe — the Sharpe ratio computed from
     stitching together all out-of-sample equity curves. This is what you
@@ -114,10 +427,10 @@ class WalkForwardResult:
     most_common_params: dict[str, Any] = field(default_factory=dict)
 
     def summary(self) -> str:
-        """Return a formatted multi-line walk-forward report."""
+        """Return a formatted multi-line walk-forward optimisation report."""
         lines = [
             "=" * 60,
-            "  Atlas Walk-Forward Validation Report",
+            "  Atlas Walk-Forward Optimisation Report",
             f"  Windows: {len(self.windows)} | OOS trades: {self.total_oos_trades}",
             "=" * 60,
             "",
@@ -157,11 +470,11 @@ class WalkForwardResult:
 
 
 # ---------------------------------------------------------------------------
-# WalkForwardValidator
+# WalkForwardOptimiser
 # ---------------------------------------------------------------------------
 
 
-class WalkForwardValidator:
+class WalkForwardOptimiser:
     """
     Perform walk-forward optimisation and out-of-sample validation.
 
@@ -210,9 +523,9 @@ class WalkForwardValidator:
         data: pd.DataFrame,
         param_grid: dict[str, list[Any]] | None = None,
         **default_kwargs: Any,
-    ) -> WalkForwardResult:
+    ) -> OptimisationResult:
         """
-        Run walk-forward validation.
+        Run walk-forward optimisation.
 
         Parameters
         ----------
@@ -229,7 +542,7 @@ class WalkForwardValidator:
 
         Returns
         -------
-        WalkForwardResult
+        OptimisationResult
         """
         data = data.sort_index()
         windows = self._build_windows(data)
@@ -308,15 +621,14 @@ class WalkForwardValidator:
         overfitting_score = abs(avg_in) / abs(avg_out) if abs(avg_out) > 0.01 else float("inf")
 
         # Most common best params
-        from collections import Counter
         param_strs = [str(sorted(w.best_params.items())) for w in window_results]
         if param_strs:
             most_common_str = Counter(param_strs).most_common(1)[0][0]
-            most_common_params = dict(eval(most_common_str))  # safe: we built the string ourselves
+            most_common_params = dict(eval(most_common_str))  # safe: we built the string ourselves  # noqa: S307
         else:
             most_common_params = {}
 
-        return WalkForwardResult(
+        return OptimisationResult(
             windows=window_results,
             aggregate_sharpe=aggregate_result["sharpe"],
             aggregate_return=aggregate_result["total_return"],
@@ -401,11 +713,8 @@ class WalkForwardValidator:
         rows so that every bar appears in exactly one test window.
         """
         n = len(data)
-        # Total window length = n / n_splits * (1 + 1/(train_ratio/(1-train_ratio)))
-        # Simpler: compute based on n_splits sliding windows
         test_size = int(n * (1.0 - self.train_ratio) / 1.0)
         train_size = int(n * self.train_ratio)
-        # Slide: each window starts test_size later
         step = max(1, test_size)
 
         windows: list[tuple[pd.DataFrame, pd.DataFrame]] = []
@@ -439,8 +748,6 @@ class WalkForwardValidator:
         initial_capital: float,
     ) -> dict[str, float]:
         """Stitch OOS equity curves and compute aggregate metrics."""
-        import math
-
         if not equity_pieces:
             return {"sharpe": 0.0, "total_return": 0.0, "max_dd": 0.0, "win_rate": 0.0}
 
@@ -483,3 +790,43 @@ class WalkForwardValidator:
             "max_dd": max_dd,
             "win_rate": win_rate,
         }
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatibility alias
+# The original class was named WalkForwardValidator but implemented optimisation
+# with a param_grid. Code that imported WalkForwardValidator for optimisation
+# should migrate to WalkForwardOptimiser; this alias preserves imports in the
+# interim.
+# ---------------------------------------------------------------------------
+
+# (WalkForwardValidator is now the fixed-bar-window class above.
+#  The old optimiser API is available as WalkForwardOptimiser.)
+
+
+# ---------------------------------------------------------------------------
+# Private utilities
+# ---------------------------------------------------------------------------
+
+
+def _to_dt(ts: Any) -> datetime:
+    """Convert a pandas Timestamp (or datetime) to a plain datetime."""
+    if hasattr(ts, "to_pydatetime"):
+        return ts.to_pydatetime()
+    return ts  # type: ignore[return-value]
+
+
+def _safe_correlation(x: list[float], y: list[float]) -> float:
+    """
+    Pearson correlation between two lists.
+
+    Returns 0.0 when there are fewer than 2 data points or when either
+    series has zero variance (prevents division by zero).
+    """
+    if len(x) < 2 or len(y) < 2:
+        return 0.0
+    xa = np.array(x, dtype=float)
+    ya = np.array(y, dtype=float)
+    if xa.std() == 0.0 or ya.std() == 0.0:
+        return 0.0
+    return float(np.corrcoef(xa, ya)[0, 1])

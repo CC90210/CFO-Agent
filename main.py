@@ -146,6 +146,71 @@ def _build_parser() -> argparse.ArgumentParser:
         help="REQUIRED: explicit flag acknowledging that real money is at risk.",
     )
 
+    # ── walk-forward ──────────────────────────────────────────────────────────
+    wf = subparsers.add_parser(
+        "walk-forward",
+        help="Run walk-forward validation on a strategy (out-of-sample robustness test).",
+    )
+    wf.add_argument(
+        "--strategy",
+        required=True,
+        help="Strategy name (e.g. ema_crossover). Must be registered in StrategyRegistry.",
+    )
+    wf.add_argument(
+        "--symbol",
+        default="BTC/USDT",
+        help="Market symbol to fetch (default: BTC/USDT).",
+    )
+    wf.add_argument(
+        "--start",
+        default="2025-01-01",
+        metavar="YYYY-MM-DD",
+        help="Data start date (default: 2025-01-01).",
+    )
+    wf.add_argument(
+        "--end",
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="Data end date (default: today).",
+    )
+    wf.add_argument(
+        "--timeframe",
+        default="4h",
+        help="Candle timeframe (default: 4h).",
+    )
+    wf.add_argument(
+        "--exchange",
+        default=None,
+        help="CCXT exchange id (default: from .env).",
+    )
+    wf.add_argument(
+        "--train-bars",
+        type=int,
+        default=500,
+        metavar="N",
+        help="Bars in each training window (default: 500).",
+    )
+    wf.add_argument(
+        "--test-bars",
+        type=int,
+        default=100,
+        metavar="N",
+        help="Bars in each test (OOS) window (default: 100).",
+    )
+    wf.add_argument(
+        "--step-bars",
+        type=int,
+        default=50,
+        metavar="N",
+        help="Bars to advance the window each iteration (default: 50).",
+    )
+    wf.add_argument(
+        "--capital",
+        type=float,
+        default=10_000.0,
+        help="Starting capital per window in USDT (default: 10000).",
+    )
+
     # ── analyze ───────────────────────────────────────────────────────────────
     az = subparsers.add_parser(
         "analyze",
@@ -264,6 +329,109 @@ async def _cmd_live(args: argparse.Namespace) -> int:
     return 0
 
 
+async def _cmd_walk_forward(args: argparse.Namespace) -> int:
+    """
+    Handle the ``walk-forward`` sub-command.
+
+    Fetches OHLCV data, runs WalkForwardValidator with fixed-bar rolling windows,
+    and prints the full validation report including train/test correlation,
+    overfitting score, and a DEPLOY / CAUTION / DO_NOT_DEPLOY recommendation.
+    """
+    from config.settings import settings  # noqa: PLC0415
+    from backtesting.walk_forward import WalkForwardValidator  # noqa: PLC0415
+    from strategies.base import StrategyRegistry  # noqa: PLC0415
+
+    import pandas as pd  # noqa: PLC0415
+
+    exchange_id = args.exchange or settings.exchange.default_exchange
+    symbol: str = args.symbol
+    timeframe: str = args.timeframe
+
+    print(f"\nAtlas Walk-Forward Validation")
+    print(f"Strategy : {args.strategy}")
+    print(f"Symbol   : {symbol}")
+    print(f"Exchange : {exchange_id}")
+    print(f"Timeframe: {timeframe}")
+    print(f"Windows  : train={args.train_bars} bars, test={args.test_bars} bars, step={args.step_bars} bars")
+    print("─" * 60)
+
+    # Discover and build strategy
+    StrategyRegistry.discover()
+    try:
+        strategy = StrategyRegistry.build(args.strategy)
+    except KeyError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+
+    # Fetch historical data
+    try:
+        import ccxt.async_support as ccxt_async  # type: ignore[import]  # noqa: PLC0415
+
+        exchange_class = getattr(ccxt_async, exchange_id)
+        exchange = exchange_class(
+            {
+                "apiKey": settings.exchange.exchange_api_key,
+                "secret": settings.exchange.exchange_secret,
+            }
+        )
+
+        start_ts = int(pd.Timestamp(args.start, tz="UTC").timestamp() * 1000)
+        end_ts: int | None = (
+            int(pd.Timestamp(args.end, tz="UTC").timestamp() * 1000) if args.end else None
+        )
+
+        try:
+            # Fetch up to 2000 candles (sufficient for multiple WF windows)
+            ohlcv: list[list[float]] = await exchange.fetch_ohlcv(
+                symbol, timeframe, since=start_ts, limit=2000
+            )
+        finally:
+            await exchange.close()
+
+    except Exception as exc:
+        print(f"ERROR fetching market data: {exc}", file=sys.stderr)
+        return 1
+
+    if len(ohlcv) < args.train_bars + args.test_bars:
+        print(
+            f"ERROR: Only {len(ohlcv)} candles fetched but "
+            f"train_bars + test_bars = {args.train_bars + args.test_bars}. "
+            "Try an earlier --start date or reduce window sizes.",
+            file=sys.stderr,
+        )
+        return 1
+
+    df = pd.DataFrame(
+        ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"]
+    )
+    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
+    df.set_index("timestamp", inplace=True)
+
+    # Filter to requested date range if --end was specified
+    if end_ts is not None:
+        df = df[df.index <= pd.Timestamp(args.end, tz="UTC")]
+
+    print(f"Fetched  : {len(df)} candles ({df.index[0].date()} → {df.index[-1].date()})")
+    print()
+
+    # Run walk-forward validation
+    validator = WalkForwardValidator(
+        train_bars=args.train_bars,
+        test_bars=args.test_bars,
+        step_bars=args.step_bars,
+        initial_capital=args.capital,
+    )
+
+    try:
+        result = validator.validate(df, strategy)
+    except (ValueError, RuntimeError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+
+    print(validator.summary(result))
+    return 0
+
+
 async def _cmd_analyze(args: argparse.Namespace) -> int:
     """
     Handle the ``analyze`` sub-command.
@@ -363,6 +531,7 @@ def main() -> None:
         "paper-trade": _cmd_paper_trade,
         "live": _cmd_live,
         "analyze": _cmd_analyze,
+        "walk-forward": _cmd_walk_forward,
     }
 
     handler = dispatch.get(args.command)
