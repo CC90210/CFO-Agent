@@ -31,9 +31,12 @@ import pandas as pd
 
 from config.settings import settings
 from core.correlation_tracker import CorrelationTracker
+from core.momentum_classifier import MomentumClassifier
 from core.order_executor import ExecutionMode, OrderExecutor, OrderType
+from core.playbook import TradingPlaybook
 from core.position_sizer import PositionSizer
 from core.regime_detector import RegimeDetector, MarketRegime
+from core.sentiment_engine import SentimentEngine
 from core.trade_protocol import TradeProtocol, ProtocolVerdict
 from db.database import get_session, init_db, health_check
 from db.models import DailyPnL, PortfolioSnapshot, Signal as DBSignal
@@ -200,6 +203,15 @@ class TradingEngine:
 
         # Trade protocol — every signal passes through this before execution
         self._trade_protocol = TradeProtocol(regime_detector=self._regime_detector)
+
+        # Playbook — master decision matrix (regime, vol, session, streaks, drawdown)
+        self._playbook = TradingPlaybook()
+
+        # Sentiment engine — aggregates fear/greed, news, macro events
+        self._sentiment = SentimentEngine()
+
+        # Momentum classifier — detects market phase (MARKUP, DISTRIBUTION, etc.)
+        self._momentum = MomentumClassifier()
 
         # Correlation tracking — feeds dynamic correlation data to the risk layer
         self._correlation_tracker = CorrelationTracker()
@@ -411,9 +423,12 @@ class TradingEngine:
                     await asyncio.sleep(60)
                     continue
 
-                # Main tick — iterate all loaded strategies
-                for strategy_name, strategy_config in self._strategies.items():
-                    await self._tick(strategy_name, strategy_config)
+                # Main tick — run all strategies concurrently for speed
+                tick_tasks = [
+                    self._tick(name, cfg)
+                    for name, cfg in self._strategies.items()
+                ]
+                await asyncio.gather(*tick_tasks, return_exceptions=True)
 
                 # Sleep before next tick (use the shortest configured timeframe)
                 await asyncio.sleep(self._tick_interval_seconds())
@@ -436,9 +451,26 @@ class TradingEngine:
         # Delegate to the dedicated backtesting runner
         from backtesting.runner import BacktestRunner  # noqa: PLC0415
 
+        # Forward CLI overrides (set by main.py on the engine instance)
+        start = getattr(self, "_backtest_start", "2024-01-01")
+        end = getattr(self, "_backtest_end", None)
+        capital = getattr(self, "_backtest_capital", 10_000.0)
+        symbol_override = getattr(self, "_backtest_symbol", None)
+
+        # If the user passed --symbol, restrict every strategy to that symbol
+        strategies = self._strategies
+        if symbol_override:
+            strategies = {
+                name: {**cfg, "symbols": [symbol_override]}
+                for name, cfg in strategies.items()
+            }
+
         runner = BacktestRunner(
-            strategies=self._strategies,
+            strategies=strategies,
             exchange_id=self.exchange_id,
+            start_date=start,
+            end_date=end,
+            initial_capital=capital,
         )
         results = await runner.run()
         logger.info("Backtest complete. Results: %s", results)
@@ -459,124 +491,128 @@ class TradingEngine:
         symbols: list[str] = strategy_config.get("symbols", [])
         timeframe: str = strategy_config.get("timeframe", "1h")
 
-        for symbol in symbols:
-            try:
-                # 1. Fetch OHLCV
-                ohlcv = await self._fetch_ohlcv(symbol, timeframe)
-                if ohlcv is None or len(ohlcv) < 2:
-                    continue
-
-                # 2. Feed close prices into correlation tracker
-                close_series = pd.Series(
-                    [row[4] for row in ohlcv],  # index 4 = close price
-                    index=pd.to_datetime([row[0] for row in ohlcv], unit="ms", utc=True),
-                )
-                self._correlation_tracker.update_from_prices(symbol, close_series)
-
-                # 3. Every 10 ticks, rebuild the correlation matrix and push it
-                #    to the engine's mirror so downstream callers can access it
-                self._tick_count += 1
-                if self._tick_count % 10 == 0:
-                    matrix = self._correlation_tracker.get_correlation_matrix()
-                    self._correlations = {
-                        sym: {
-                            s: float(matrix.loc[sym, s])
-                            for s in matrix.columns
-                            if s != sym
-                        }
-                        for sym in matrix.index
-                    }
-                    logger.debug(
-                        "Correlation matrix refreshed for %d symbols (tick %d)",
-                        len(self._correlations),
-                        self._tick_count,
-                    )
-
-                # 4. Check for critical correlation alerts before analysis
-                alerts = self._correlation_tracker.check_alerts()
-                for alert in alerts:
-                    if alert.correlation >= 0.85:  # CRITICAL threshold
-                        logger.warning("Correlation alert: %s", alert.message)
-
-                # 5. Log effective position count when multiple positions are open
-                if self._risk.open_positions > 1:
-                    open_pos_list = [{"symbol": sym} for sym in self._correlations]
-                    effective_n = self._correlation_tracker.effective_position_count(
-                        open_pos_list
-                    )
-                    logger.info(
-                        "Open positions: %d | Effective (correlation-adjusted): %.2f",
-                        self._risk.open_positions,
-                        effective_n,
-                    )
-
-                # 6. Generate signal (placeholder — agents fill this in)
-                signal = await self._analyze(strategy_name, strategy_config, symbol, ohlcv)
-
-                if signal is None:
-                    continue
-
-                # 7. Pre-trade risk checks (kill-switch layer)
-                allowed, reason = self._risk.can_trade()
-                if not allowed:
-                    await self._record_skipped_signal(signal, reason)
-                    continue
-
-                # 8. Trade protocol — 10-step decision framework
-                #    Runs AFTER the kill-switch check as an additional gate.
-                signal_dict = {
-                    "direction": signal.direction.value,
-                    "conviction": signal.conviction,
-                    "strategy_name": signal.strategy_name,
-                    "stop_loss": signal.stop_loss,
-                    "take_profit": signal.take_profit,
-                }
-                # Re-convert ohlcv to DataFrame for the protocol — cheap and
-                # keeps _tick self-contained (avoids threading df out of _analyze).
-                protocol_df = pd.DataFrame(
-                    ohlcv,
-                    columns=["timestamp", "open", "high", "low", "close", "volume"],
-                )
-                protocol_df["timestamp"] = pd.to_datetime(
-                    protocol_df["timestamp"], unit="ms", utc=True
-                )
-                protocol_df = protocol_df.set_index("timestamp").sort_index()
-                for _col in ("open", "high", "low", "close", "volume"):
-                    protocol_df[_col] = pd.to_numeric(protocol_df[_col], errors="coerce")
-
-                protocol_result = self._trade_protocol.evaluate(
-                    symbol=symbol,
-                    df=protocol_df,
-                    signals=[signal_dict],
-                    current_equity=self._risk.current_equity,
-                    open_positions=self._risk.open_positions,
-                    daily_pnl_pct=self._risk.daily_loss_pct,
-                    max_drawdown_pct=self._risk.drawdown_pct,
-                )
-                logger.info("Protocol: %s", protocol_result.summary())
-
-                if protocol_result.verdict != ProtocolVerdict.PROCEED:
-                    await self._record_skipped_signal(
-                        signal, protocol_result.verdict.value
-                    )
-                    continue
-
-                # 9. Execute — pass the protocol's sizing recommendation so
-                #    _execute_signal can cap the sizer output if needed.
-                await self._execute_signal(
-                    signal,
-                    strategy_config,
-                    protocol_size_pct=protocol_result.position_size_pct,
-                )
-
-            except Exception as exc:  # noqa: BLE001
+        # Run all symbols concurrently for this strategy
+        symbol_tasks = [
+            self._tick_symbol(strategy_name, strategy_config, symbol, timeframe)
+            for symbol in symbols
+        ]
+        results = await asyncio.gather(*symbol_tasks, return_exceptions=True)
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
                 logger.error(
                     "Tick error [%s / %s]: %s",
-                    strategy_name,
-                    symbol,
-                    exc,
-                    exc_info=True,
+                    strategy_name, symbols[i], result,
                 )
+
+    async def _tick_symbol(
+        self,
+        strategy_name: str,
+        strategy_config: dict[str, Any],
+        symbol: str,
+        timeframe: str,
+    ) -> None:
+        """Process a single symbol for a single strategy."""
+        # 1. Fetch OHLCV
+        ohlcv = await self._fetch_ohlcv(symbol, timeframe)
+        if ohlcv is None or len(ohlcv) < 2:
+            return
+
+        # 2. Feed close prices into correlation tracker
+        close_series = pd.Series(
+            [row[4] for row in ohlcv],  # index 4 = close price
+            index=pd.to_datetime([row[0] for row in ohlcv], unit="ms", utc=True),
+        )
+        self._correlation_tracker.update_from_prices(symbol, close_series)
+
+        # 3. Every 10 ticks, rebuild the correlation matrix
+        self._tick_count += 1
+        if self._tick_count % 10 == 0:
+            matrix = self._correlation_tracker.get_correlation_matrix()
+            self._correlations = {
+                sym: {
+                    s: float(matrix.loc[sym, s])
+                    for s in matrix.columns
+                    if s != sym
+                }
+                for sym in matrix.index
+            }
+            logger.debug(
+                "Correlation matrix refreshed for %d symbols (tick %d)",
+                len(self._correlations),
+                self._tick_count,
+            )
+
+        # 4. Check for critical correlation alerts
+        alerts = self._correlation_tracker.check_alerts()
+        for alert in alerts:
+            if alert.correlation >= 0.85:
+                logger.warning("Correlation alert: %s", alert.message)
+
+        # 5. Log effective position count when multiple positions are open
+        if self._risk.open_positions > 1:
+            open_pos_list = [{"symbol": sym} for sym in self._correlations]
+            effective_n = self._correlation_tracker.effective_position_count(
+                open_pos_list
+            )
+            logger.info(
+                "Open positions: %d | Effective (correlation-adjusted): %.2f",
+                self._risk.open_positions,
+                effective_n,
+            )
+
+        # 6. Generate signal
+        signal = await self._analyze(strategy_name, strategy_config, symbol, ohlcv)
+        if signal is None:
+            return
+
+        # 7. Pre-trade risk checks (kill-switch layer)
+        allowed, reason = self._risk.can_trade()
+        if not allowed:
+            await self._record_skipped_signal(signal, reason)
+            return
+
+        # 8. Trade protocol — 10-step decision framework
+        signal_dict = {
+            "direction": signal.direction.value,
+            "conviction": signal.conviction,
+            "strategy_name": signal.strategy_name,
+            "stop_loss": signal.stop_loss,
+            "take_profit": signal.take_profit,
+        }
+        protocol_df = pd.DataFrame(
+            ohlcv,
+            columns=["timestamp", "open", "high", "low", "close", "volume"],
+        )
+        protocol_df["timestamp"] = pd.to_datetime(
+            protocol_df["timestamp"], unit="ms", utc=True
+        )
+        protocol_df = protocol_df.set_index("timestamp").sort_index()
+        for _col in ("open", "high", "low", "close", "volume"):
+            protocol_df[_col] = pd.to_numeric(protocol_df[_col], errors="coerce")
+
+        protocol_result = self._trade_protocol.evaluate(
+            symbol=symbol,
+            df=protocol_df,
+            signals=[signal_dict],
+            current_equity=self._risk.current_equity,
+            open_positions=self._risk.open_positions,
+            daily_pnl_pct=self._risk.daily_loss_pct,
+            max_drawdown_pct=self._risk.drawdown_pct,
+        )
+        logger.info("Protocol: %s", protocol_result.summary())
+
+        if protocol_result.verdict != ProtocolVerdict.PROCEED:
+            await self._record_skipped_signal(
+                signal, protocol_result.verdict.value
+            )
+            return
+
+        # 9. Execute — pass the protocol's sizing recommendation
+        await self._execute_signal(
+            signal,
+            strategy_config,
+            protocol_size_pct=protocol_result.position_size_pct,
+        )
 
     # ── Market data ────────────────────────────────────────────────────────
 
@@ -653,6 +689,28 @@ class TradingEngine:
             )
             return None
 
+        # ── Playbook gate — master decision matrix ────────────────────────
+        utc_hour = datetime.datetime.now(datetime.timezone.utc).hour
+        playbook_guidance = self._playbook.evaluate(
+            regime=regime_result.regime.value,
+            current_drawdown_pct=getattr(self._risk, "drawdown_pct", 0.0),
+            consecutive_losses=getattr(self._risk, "consecutive_losses", 0),
+            utc_hour=utc_hour,
+        )
+        if not playbook_guidance.should_trade:
+            logger.info(
+                "Playbook HALT for %s/%s: %s",
+                strategy_name, symbol,
+                "; ".join(playbook_guidance.active_rules),
+            )
+            return None
+
+        # ── Momentum phase context ────────────────────────────────────────
+        momentum_phase = self._momentum.classify(df)
+        logger.debug(
+            "Momentum [%s/%s]: %s", symbol, strategy_name, momentum_phase.summary()
+        )
+
         # Check entry condition then generate signal
         if not strategy.should_enter(df):
             return None
@@ -669,6 +727,23 @@ class TradingEngine:
         signal.conviction = signal.conviction * regime_weight
         signal.conviction = max(-1.0, min(1.0, signal.conviction))
 
+        # ── Sentiment adjustment — nudge conviction based on market mood ──
+        try:
+            sentiment_result = await self._sentiment.analyze(symbol)
+            signal.conviction = self._sentiment.apply_to_conviction(
+                signal.conviction, sentiment_result
+            )
+            # Store sentiment modifier for position sizing downstream
+            if not hasattr(signal, "metadata") or signal.metadata is None:
+                signal.metadata = {}
+            signal.metadata["sentiment_risk_modifier"] = sentiment_result.risk_modifier
+            signal.metadata["sentiment_score"] = sentiment_result.composite_score
+            signal.metadata["momentum_phase"] = momentum_phase.phase
+            signal.metadata["momentum_confidence"] = momentum_phase.confidence
+            signal.metadata["playbook_size_mult"] = playbook_guidance.size_multiplier
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Sentiment analysis failed for %s: %s", symbol, exc)
+
         if abs(signal.conviction) < 0.3:
             logger.debug(
                 "Signal for %s/%s conviction %.3f below 0.3 threshold — skipping.",
@@ -679,8 +754,10 @@ class TradingEngine:
         # Enrich signal with symbol (strategies don't always set it)
         signal.symbol = symbol
         logger.info(
-            "Signal generated: %s %s %s conviction=%.3f",
+            "Signal generated: %s %s %s conviction=%.3f phase=%s sentiment=%.2f",
             strategy_name, signal.direction.value, symbol, signal.conviction,
+            momentum_phase.phase,
+            signal.metadata.get("sentiment_score", 0.0) if signal.metadata else 0.0,
         )
         return signal
 
@@ -712,6 +789,13 @@ class TradingEngine:
         """
         entry_price = signal.metadata.get("entry_price", 0.0)
 
+        # Extract multipliers from signal metadata (set by _analyze)
+        meta = signal.metadata or {}
+        sentiment_mult = meta.get("sentiment_risk_modifier", 1.0)
+        playbook_mult = meta.get("playbook_size_mult", 1.0)
+        # Combine playbook and regime into one regime multiplier
+        regime_mult = playbook_mult
+
         # Calculate position size via Kelly-based sizer
         size = self._sizer.calculate_position_size(
             portfolio_value=self._risk.current_equity,
@@ -721,6 +805,8 @@ class TradingEngine:
             conviction=signal.conviction,
             avg_win_rate=0.55,  # conservative default; Darwinian agent refines this
             avg_rr=2.0,
+            regime_multiplier=regime_mult,
+            sentiment_multiplier=sentiment_mult,
         )
 
         # Cap by the protocol's sizing recommendation (convert pct → base units)
