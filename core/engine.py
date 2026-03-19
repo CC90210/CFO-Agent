@@ -719,12 +719,13 @@ class TradingEngine:
             return None
 
         # ── Playbook gate — master decision matrix ────────────────────────
+        from core.playbook import detect_session
         utc_hour = datetime.datetime.now(datetime.timezone.utc).hour
         playbook_guidance = self._playbook.evaluate(
             regime=regime_result.regime.value,
+            session=detect_session(utc_hour).value,
             current_drawdown_pct=getattr(self._risk, "drawdown_pct", 0.0),
             consecutive_losses=getattr(self._risk, "consecutive_losses", 0),
-            utc_hour=utc_hour,
         )
         if not playbook_guidance.should_trade:
             logger.info(

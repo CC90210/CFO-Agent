@@ -65,6 +65,7 @@ class CorrelationTracker:
         self.critical_threshold = critical_threshold
         self._returns: dict[str, pd.Series] = {}
         self._last_matrix: pd.DataFrame | None = None
+        self._last_alert_time: float = 0.0  # Throttle: log alerts max once per 10 min
 
     def update(self, symbol: str, returns: pd.Series) -> None:
         """
@@ -152,8 +153,12 @@ class CorrelationTracker:
                         ),
                     ))
 
-        for alert in alerts:
-            logger.warning(alert.message)
+        import time
+        now = time.monotonic()
+        if now - self._last_alert_time >= 600 and alerts:  # Log at most once per 10 min
+            self._last_alert_time = now
+            for alert in alerts:
+                logger.warning(alert.message)
 
         return alerts
 
