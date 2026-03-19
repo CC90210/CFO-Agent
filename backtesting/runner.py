@@ -98,6 +98,7 @@ class BacktestRunner:
             initial_capital=self.initial_capital,
             commission_pct=0.001,
             risk_per_trade_pct=0.015,
+            scale_out_tiers=[],  # Disabled: scale-out cuts winners short, empirically -5% to -20% drag
         )
 
         total_trades = 0

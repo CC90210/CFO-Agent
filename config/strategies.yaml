@@ -2,6 +2,11 @@
 #  ATLAS TRADING AGENT — Strategy Configuration
 #  All strategies are loaded at runtime by core/engine.py.
 #  Set enabled: false to exclude a strategy from the run.
+#
+#  TUNING NOTE (2026-03-19): Scale-out tiers DISABLED in backtest engine.
+#  Empirical finding: default scale-out (30% at 1R, 30% at 2R) causes -5% to
+#  -20% return drag vs no scale-out. Multi-TF went from -16.67% to +21.16%
+#  on BNB by removing scale-out alone.
 # ─────────────────────────────────────────────────────────────────────────────
 
 strategies:
@@ -12,27 +17,19 @@ strategies:
     description: "Buy oversold, sell overbought using RSI."
     timeframe: "1h"
     symbols:
+      # 9mo backtest: Only BTC profitable (+2.54% no scale-out). ETH/SOL losing.
       - "BTC/USDT"
-      - "ETH/USDT"
-      - "SOL/USDT"
-      - "BNB/USDT"
-      - "XRP/USDT"
-      - "ADA/USDT"
-      - "AVAX/USDT"
-      - "LINK/USDT"
-      - "DOT/USDT"
-      - "DOGE/USDT"
-    risk_per_trade: 1.0        # % of equity risked per trade
+    risk_per_trade: 1.0
     max_positions: 2
     parameters:
       rsi_period: 14
-      rsi_oversold: 28           # Tuned on 2026 data (was 30, then 25)
-      rsi_overbought: 72         # Tuned on 2026 data (was 70, then 75)
+      rsi_oversold: 28
+      rsi_overbought: 72
       rsi_exit: 50
       atr_stop_mult: 1.0         # Keep original — 0.8x dropped WR from 58% to 45%
-      volume_mult: 1.2           # Volume confirmation (tuned from 1.5)
-      ema_trend_period: 200      # Only long above 200 EMA, short below
-      rr_min: 2.0                # Keep original R:R floor
+      volume_mult: 1.2
+      ema_trend_period: 200
+      rr_min: 2.0
 
   # ── 2. EMA Crossover ──────────────────────────────────────────────────────
   ema_crossover:
@@ -40,7 +37,7 @@ strategies:
     description: "MACD-style EMA crossover with signal-line confirmation."
     timeframe: "4h"
     symbols:
-      # Q1 2026: Only BTC profitable (+0.38%). Narrow focus.
+      # 9mo backtest: BTC +2.37% (no scale-out, 3.0/4.0). All others losing.
       - "BTC/USDT"
     risk_per_trade: 1.5
     max_positions: 2
@@ -50,33 +47,31 @@ strategies:
       macd_fast: 12
       macd_slow: 26
       macd_signal: 9
-      adx_threshold: 20.0        # Lower ADX catches early-trend breakouts (was 25)
-      atr_stop_mult: 2.5         # 2.0x was too tight (36% WR). 2.5x balances stop-outs vs loss size
-      rr_ratio: 3.5              # Wider target so winners exceed losses (was 3.0)
+      adx_threshold: 20.0
+      atr_stop_mult: 3.0         # Wider stop: 2.5x was -4.93%, 3.0x is +2.37% (no scale-out)
+      rr_ratio: 4.0              # 4.0 RR: sweet spot for trend-following (3.5 was -4.93%)
 
-  # ── 3. Bollinger Band Mean Reversion ──────────────────────────────────────
+  # ── 3. Bollinger Band Squeeze Breakout ───────────────────────────────────
   bollinger_squeeze:
     enabled: true
     description: "Squeeze breakout — 2-bar confirmation, ATR stops, volume exhaustion filter."
     timeframe: "1h"
     symbols:
-      # Q1 2026 backtest winners only: AVAX +2.13%, SOL +1.74%, BTC +1.46%
-      - "BTC/USDT"
+      # 9mo backtest (no scale-out): SOL +1.74% (best), BTC -1.58%, AVAX -3.1%
       - "SOL/USDT"
-      - "AVAX/USDT"
     risk_per_trade: 1.0
-    max_positions: 3
+    max_positions: 2
     parameters:
       bb_period: 20
       bb_std: 2.0
-      atr_stop_mult: 2.0           # Tuned: 2.0x gives 59% WR on 9mo data (1.5x drops to 48%)
-      atr_tp_mult: 5.0             # Big TP lets squeeze resolution play out fully
+      atr_stop_mult: 3.0         # 3.0x + 6.0 TP = +1.74% SOL (2.0x was only +0.11%)
+      atr_tp_mult: 6.0           # Wider TP lets squeeze resolution play out
       squeeze_percentile: 10.0
       exhaustion_vol_mult: 2.0
 
   # ── 4. VWAP Bounce ────────────────────────────────────────────────────────
   vwap_bounce:
-    enabled: false  # Disabled: -14.59% on BTC Q1 2026. 10% win rate. Fundamentally broken on crypto.
+    enabled: false  # 9mo: BTC -34.91%, ETH -25.23%, SOL -1.75%. Needs fundamental rework.
     description: "Intraday reversion to VWAP with volume confirmation."
     timeframe: "15m"
     symbols:
@@ -85,12 +80,13 @@ strategies:
     risk_per_trade: 1.0
     max_positions: 2
     parameters:
-      vwap_touch_pct: 0.001     # Price within 0.1% of VWAP triggers entry
-      atr_stop_mult: 1.2        # Stop distance in ATR units
-      atr_tp_mult: 1.5          # Take-profit distance in ATR units
-      volume_mult: 1.2           # Volume confirmation multiplier
+      vwap_touch_pct: 0.001
+      atr_stop_mult: 1.2
+      atr_tp_mult: 1.5
+      volume_mult: 1.2
 
   # ── 5. Multi-Timeframe Momentum ───────────────────────────────────────────
+  # STAR STRATEGY: +37.44% combined across 5 symbols (9mo, no scale-out)
   multi_timeframe:
     enabled: true
     description: "Align momentum across 3 timeframes before entering."
@@ -100,14 +96,15 @@ strategies:
       secondary: "1h"
       confirmation: "15m"
     symbols:
-      - "BTC/USDT"
+      # 9mo backtest (no scale-out, 3.0/4.0): BNB +21.16%, ETH +6.45%,
+      # LINK +4.46%, SOL +4.24%, AVAX +3.50%. BTC -2.37% (only loser).
       - "ETH/USDT"
       - "SOL/USDT"
       - "BNB/USDT"
       - "AVAX/USDT"
       - "LINK/USDT"
     risk_per_trade: 1.5
-    max_positions: 2
+    max_positions: 3
     parameters:
       htf_fast_ema: 50
       htf_slow_ema: 200
@@ -116,14 +113,14 @@ strategies:
       ltf_macd_slow: 26
       ltf_macd_signal: 9
       ltf_rsi_period: 14
-      ltf_rsi_entry_long: 40.0   # RSI level to cross above for long LTF trigger
-      ltf_rsi_entry_short: 60.0  # RSI level to cross below for short LTF trigger
+      ltf_rsi_entry_long: 40.0
+      ltf_rsi_entry_short: 60.0
       atr_period: 14
-      atr_stop_mult: 2.0         # 1.5x was too tight (46% WR, -17%). 2.0x is middle ground
-      rr_ratio: 3.5              # Wider target so winners cover losses (was 3.0)
-      min_confluence: 2          # Minimum confluence score to enter
-      htf_resample_rule: "4h"   # Pandas resample rule for high timeframe
-      mtf_resample_rule: "1h"   # Pandas resample rule for medium timeframe
+      atr_stop_mult: 3.0         # Wider: 2.0x was -16.67% BTC, 3.0x is +21.16% BNB
+      rr_ratio: 4.0              # 4.0 RR: empirically best for trend-following
+      min_confluence: 2
+      htf_resample_rule: "4h"
+      mtf_resample_rule: "1h"
 
   # ── 6. London Session Breakout ────────────────────────────────────────────
   london_breakout:
@@ -136,47 +133,46 @@ strategies:
     risk_per_trade: 1.5
     max_positions: 1
     parameters:
-      asian_start_hour: 0             # Asian session start (UTC)
-      asian_end_hour: 7               # Asian session end (UTC)
-      breakout_start_hour: 7          # London breakout window start (UTC)
-      breakout_end_hour: 9            # London breakout window end (UTC)
-      breakout_vol_mult: 1.2          # Volume multiplier for breakout confirmation
-      min_range_atr_ratio: 0.3        # Skip if range too tight relative to ATR
-      max_range_atr_ratio: 2.0        # Skip if range too wide
-      tp_range_mult: 1.5              # Take-profit as multiple of range size
+      asian_start_hour: 0
+      asian_end_hour: 7
+      breakout_start_hour: 7
+      breakout_end_hour: 9
+      breakout_vol_mult: 1.2
+      min_range_atr_ratio: 0.3
+      max_range_atr_ratio: 2.0
+      tp_range_mult: 1.5
       atr_period: 14
       volume_period: 20
-      avoid_nfp: true                 # Skip first Friday of each month (NFP)
+      avoid_nfp: true
 
   # ── 7. S&P 500 Opening Range Breakout ─────────────────────────────────────
   opening_range:
-    enabled: false  # Disabled: -33.04% on BTC Q1 2026. 112 trades, PF 0.35. Catastrophic on crypto.
+    enabled: false  # 9mo: BTC -53.87%, ETH -38.52%. High trade count but avg loss 2x avg win.
     description: "First 15-minute range breakout at NYSE open (09:30-09:45 ET)."
     timeframe: "5m"
     symbols:
-      # Crypto proxies that correlate with US equity open
       - "BTC/USDT"
     risk_per_trade: 1.0
     max_positions: 1
     parameters:
-      or_start_hour_utc: 13           # 09:30 ET = 13:30 UTC
+      or_start_hour_utc: 13
       or_start_minute_utc: 30
-      or_end_hour_utc: 13             # 09:45 ET = 13:45 UTC
+      or_end_hour_utc: 13
       or_end_minute_utc: 45
-      time_stop_hour_utc: 20          # 16:00 ET = 20:00 UTC (end of US session)
+      time_stop_hour_utc: 20
       time_stop_minute_utc: 30
-      breakout_vol_mult: 1.5          # Volume multiplier for breakout confirmation
-      gap_filter_pct: 0.015           # Skip session if prior-close-to-open gap > 1.5%
-      min_range_atr_ratio: 0.75       # Minimum range size relative to ATR
-      max_range_atr_ratio: 1.5        # Maximum range size relative to ATR
-      tp_range_mult: 1.5              # Take-profit as multiple of range size
-      rr_ratio: 3.0                   # Risk-reward ratio
+      breakout_vol_mult: 1.5
+      gap_filter_pct: 0.015
+      min_range_atr_ratio: 0.75
+      max_range_atr_ratio: 1.5
+      tp_range_mult: 1.5
+      rr_ratio: 3.0
       atr_period: 14
       volume_period: 20
 
   # ── 8. Smart Money Concepts ──────────────────────────────────────────────
   smart_money:
-    enabled: false  # Disabled: 0% win rate on 2026 BTC. OB detection needs fundamental rework.
+    enabled: false  # 9mo: BTC -1.56%, ETH +1.37%, SOL -1.27%. Low trade count. Needs more data.
     description: "Order blocks, fair value gaps, and liquidity sweeps."
     timeframe: "4h"
     symbols:
@@ -187,27 +183,26 @@ strategies:
     risk_per_trade: 1.0
     max_positions: 2
     parameters:
-      swing_lookback: 5               # Bars each side for swing high/low detection
-      ob_lookback: 50                 # Bars to search for order blocks
-      fvg_min_size_atr_ratio: 0.15   # Minimum FVG size as a ratio of ATR
-      bos_lookback: 100               # Bars to look back for BOS/CHoCH events
-      ob_entry_tolerance: 0.015       # Tolerance for price entering OB zone (1.5%)
+      swing_lookback: 5
+      ob_lookback: 50
+      fvg_min_size_atr_ratio: 0.15
+      bos_lookback: 100
+      ob_entry_tolerance: 0.015
       atr_period: 14
       atr_stop_mult: 2.0
       rr_ratio: 3.0
       volume_period: 20
-      min_rr_for_swing_tp: 2.0       # Swing TP only used if it delivers at least this R:R
-      displacement_atr_mult: 1.5     # OB displacement must cover this × ATR total range
-      displacement_vol_mult: 1.2     # Displacement candles avg vol > this × rolling avg vol
-      time_stop_bars: 50             # Exit if TP not reached within this many bars
+      min_rr_for_swing_tp: 2.0
+      displacement_atr_mult: 1.5
+      displacement_vol_mult: 1.2
+      time_stop_bars: 50
 
   # ── 9. Ichimoku Cloud Trend ─────────────────────────────────────────────
   ichimoku_trend:
-    enabled: true
+    enabled: false  # 9mo (no scale-out): ETH -2.93%, BTC -3.74%. Exits via signal before TP — RR irrelevant.
     description: "Full Ichimoku 5-condition entry with cloud exit."
     timeframe: "4h"
     symbols:
-      # Q1 2026: ETH +1.97% (PF 2.14), BTC +0.31%. Others losing.
       - "ETH/USDT"
       - "BTC/USDT"
     risk_per_trade: 1.5
@@ -218,11 +213,11 @@ strategies:
       senkou_b_period: 52
       displacement: 26
       atr_period: 14
-      rr_ratio: 3.0               # Bigger target needed to compensate 33% win rate (was 2.0)
+      rr_ratio: 3.0
 
   # ── 10. Order Flow Imbalance ────────────────────────────────────────────
   order_flow_imbalance:
-    enabled: false  # Disabled: -5.84% on BTC Q1 2026. 17% win rate. CVD unreliable on spot OHLCV.
+    enabled: false  # 9mo: BTC -31.06%, ETH -18.02%, SOL -15.99%. CVD proxy unreliable on spot.
     description: "CVD divergence + absorption candles for institutional flow detection."
     timeframe: "1h"
     symbols:
@@ -239,8 +234,8 @@ strategies:
       rr_ratio: 3.0
       volume_period: 20
       volume_mult: 1.5
-      exhaustion_mult: 3.0        # Volume spike multiple that signals exhaustion
-      sma_period: 20              # SMA period used for exit trigger
+      exhaustion_mult: 3.0
+      sma_period: 20
 
   # ── 11. Z-Score Mean Reversion ──────────────────────────────────────────
   zscore_mean_reversion:
@@ -248,36 +243,31 @@ strategies:
     description: "Statistical Z-score reversion with multi-timeframe confirmation."
     timeframe: "1h"
     symbols:
-      - "BTC/USDT"
-      - "ETH/USDT"
+      # 9mo (no scale-out): SOL +1.98% (PF 1.75), ETH +1.27% (PF 1.25). BTC -8.37%.
       - "SOL/USDT"
-      - "BNB/USDT"
-      - "XRP/USDT"
-      - "ADA/USDT"
-      - "AVAX/USDT"
-      - "LINK/USDT"
+      - "ETH/USDT"
     risk_per_trade: 1.0
     max_positions: 2
     parameters:
       zscore_period: 50
-      zscore_entry: 1.8             # Slightly more lenient — strategy had only 1 trade (was 2.0)
+      zscore_entry: 1.8
       zscore_htf_entry: 1.5
-      htf_resample_factor: 4          # 4× bars → ~4h on 1h chart
+      htf_resample_factor: 4
       rsi_period: 14
       rsi_oversold: 30.0
       rsi_overbought: 70.0
-      rsi_exit: 50.0                  # RSI level that signals mean-reversion complete
+      rsi_exit: 50.0
       adx_period: 14
-      adx_max: 30.0                   # Allow slightly trendier markets — widens opportunity (was 25.0)
+      adx_max: 30.0
       atr_period: 14
       atr_stop_mult: 2.5
-      atr_trail_mult: 1.5             # Tighter trailing stop once in profit
+      atr_trail_mult: 1.5
       volume_period: 20
       volume_mult: 1.5
 
   # ── 12. Volume Profile / Value Area ─────────────────────────────────────
   volume_profile:
-    enabled: false  # Disabled: -2.89% on 2026 BTC. Needs longer timeframe (4h) and multi-symbol validation before re-enabling.
+    enabled: false  # 9mo: BTC -6.74%, ETH -1.85%, SOL -5.50%. Needs longer timeframe.
     description: "Institutional volume profile — fade outside Value Area, breakout with POC trend."
     timeframe: "1h"
     symbols:
@@ -289,21 +279,21 @@ strategies:
       profile_window: 100
       profile_bins: 50
       rsi_period: 14
-      rsi_oversold: 30.0              # Tightened from 35 — only true extremes
-      rsi_overbought: 70.0            # Tightened from 65
+      rsi_oversold: 30.0
+      rsi_overbought: 70.0
       rsi_exit: 50.0
       atr_period: 14
       atr_stop_mult: 1.5
       volume_period: 20
-      volume_mult: 2.0                # Raised from 1.5 — stronger confirmation required
-      breakout_vol_mult: 2.5          # Raised from 2.0 — breakouts need heavy volume
-      min_volume_mult: 1.2            # Bar must have >= 120% of avg volume
-      hvn_threshold: 1.5              # Bins with volume > 1.5× mean are HVNs
-      lvn_threshold: 0.5              # Bins with volume < 0.5× mean are LVNs
+      volume_mult: 2.0
+      breakout_vol_mult: 2.5
+      min_volume_mult: 1.2
+      hvn_threshold: 1.5
+      lvn_threshold: 0.5
       poc_trend_bars: 10
       bounce_lookback: 30
-      bounce_tolerance: 0.003         # 0.3% of price counts as touching a level
+      bounce_tolerance: 0.003
       adx_period: 14
-      adx_min_trend: 20.0             # ADX must be >= this to trade
-      min_distance_atr: 1.0           # Price must be >= 1 ATR outside VA boundary
-      min_rr: 2.0                     # Minimum acceptable risk:reward ratio
+      adx_min_trend: 20.0
+      min_distance_atr: 1.0
+      min_rr: 2.0
