@@ -40,13 +40,8 @@ strategies:
     description: "MACD-style EMA crossover with signal-line confirmation."
     timeframe: "4h"
     symbols:
+      # Q1 2026: Only BTC profitable (+0.38%). Narrow focus.
       - "BTC/USDT"
-      - "ETH/USDT"
-      - "SOL/USDT"
-      - "BNB/USDT"
-      - "XRP/USDT"
-      - "AVAX/USDT"
-      - "LINK/USDT"
     risk_per_trade: 1.5
     max_positions: 2
     parameters:
@@ -65,9 +60,10 @@ strategies:
     description: "Squeeze breakout — 2-bar confirmation, ATR stops, volume exhaustion filter."
     timeframe: "1h"
     symbols:
+      # Q1 2026 backtest winners only: AVAX +2.13%, SOL +1.74%, BTC +1.46%
       - "BTC/USDT"
-      - "ETH/USDT"
-      - "BNB/USDT"
+      - "SOL/USDT"
+      - "AVAX/USDT"
     risk_per_trade: 1.0
     max_positions: 3
     parameters:
@@ -80,7 +76,7 @@ strategies:
 
   # ── 4. VWAP Bounce ────────────────────────────────────────────────────────
   vwap_bounce:
-    enabled: true
+    enabled: false  # Disabled: -14.59% on BTC Q1 2026. 10% win rate. Fundamentally broken on crypto.
     description: "Intraday reversion to VWAP with volume confirmation."
     timeframe: "15m"
     symbols:
@@ -154,7 +150,7 @@ strategies:
 
   # ── 7. S&P 500 Opening Range Breakout ─────────────────────────────────────
   opening_range:
-    enabled: true
+    enabled: false  # Disabled: -33.04% on BTC Q1 2026. 112 trades, PF 0.35. Catastrophic on crypto.
     description: "First 15-minute range breakout at NYSE open (09:30-09:45 ET)."
     timeframe: "5m"
     symbols:
@@ -211,11 +207,9 @@ strategies:
     description: "Full Ichimoku 5-condition entry with cloud exit."
     timeframe: "4h"
     symbols:
-      - "BTC/USDT"
+      # Q1 2026: ETH +1.97% (PF 2.14), BTC +0.31%. Others losing.
       - "ETH/USDT"
-      - "SOL/USDT"
-      - "BNB/USDT"
-      - "AVAX/USDT"
+      - "BTC/USDT"
     risk_per_trade: 1.5
     max_positions: 2
     parameters:
@@ -228,7 +222,7 @@ strategies:
 
   # ── 10. Order Flow Imbalance ────────────────────────────────────────────
   order_flow_imbalance:
-    enabled: true
+    enabled: false  # Disabled: -5.84% on BTC Q1 2026. 17% win rate. CVD unreliable on spot OHLCV.
     description: "CVD divergence + absorption candles for institutional flow detection."
     timeframe: "1h"
     symbols:
