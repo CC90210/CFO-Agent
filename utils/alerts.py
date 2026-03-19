@@ -306,8 +306,17 @@ class AlertSender:
                         attempt,
                         body[:200],
                     )
+                    # Only retry on transient server errors (5xx) or rate-limit (429).
+                    # 4xx errors (except 429) are permanent failures — retrying would
+                    # duplicate the message if Telegram processed the request.
+                    if resp.status not in (429, 500, 502, 503, 504):
+                        break
             except aiohttp.ClientError as exc:
-                logger.warning("Telegram request error (attempt %d): %s", attempt, exc)
+                # Do NOT retry on ClientError: the request may have already been
+                # delivered (e.g. ServerDisconnectedError after Telegram processed
+                # the POST). Retrying would send duplicate messages.
+                logger.warning("Telegram request error: %s", exc)
+                break
 
             if attempt < _RETRY_ATTEMPTS:
                 await asyncio.sleep(_RETRY_DELAY_S * attempt)
