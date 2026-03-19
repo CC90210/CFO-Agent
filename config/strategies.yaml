@@ -120,9 +120,14 @@ strategies:
       ltf_macd_slow: 26
       ltf_macd_signal: 9
       ltf_rsi_period: 14
-      atr_stop_mult: 2.5        # Stop-loss distance in ATR units (was 2.0)
-      rr_ratio: 3.0             # Risk-reward ratio for take-profit (was 2.5)
+      ltf_rsi_entry_long: 40.0   # RSI level to cross above for long LTF trigger
+      ltf_rsi_entry_short: 60.0  # RSI level to cross below for short LTF trigger
+      atr_period: 14
+      atr_stop_mult: 2.5         # Stop-loss distance in ATR units (was 2.0)
+      rr_ratio: 3.0              # Risk-reward ratio for take-profit (was 2.5)
       min_confluence: 2          # Minimum confluence score to enter
+      htf_resample_rule: "4h"   # Pandas resample rule for high timeframe
+      mtf_resample_rule: "1h"   # Pandas resample rule for medium timeframe
 
   # ── 6. London Session Breakout ────────────────────────────────────────────
   london_breakout:
@@ -143,6 +148,9 @@ strategies:
       min_range_atr_ratio: 0.3        # Skip if range too tight relative to ATR
       max_range_atr_ratio: 2.0        # Skip if range too wide
       tp_range_mult: 1.5              # Take-profit as multiple of range size
+      atr_period: 14
+      volume_period: 20
+      avoid_nfp: true                 # Skip first Friday of each month (NFP)
 
   # ── 7. S&P 500 Opening Range Breakout ─────────────────────────────────────
   opening_range:
@@ -162,10 +170,13 @@ strategies:
       time_stop_hour_utc: 20          # 16:00 ET = 20:00 UTC (end of US session)
       time_stop_minute_utc: 30
       breakout_vol_mult: 1.5          # Volume multiplier for breakout confirmation
+      gap_filter_pct: 0.015           # Skip session if prior-close-to-open gap > 1.5%
       min_range_atr_ratio: 0.75       # Minimum range size relative to ATR
       max_range_atr_ratio: 1.5        # Maximum range size relative to ATR
       tp_range_mult: 1.5              # Take-profit as multiple of range size
       rr_ratio: 3.0                   # Risk-reward ratio
+      atr_period: 14
+      volume_period: 20
 
   # ── 8. Smart Money Concepts ──────────────────────────────────────────────
   smart_money:
@@ -180,9 +191,19 @@ strategies:
     risk_per_trade: 1.0
     max_positions: 2
     parameters:
-      ob_tolerance_pct: 0.8
-      fvg_min_atr_ratio: 0.3
+      swing_lookback: 5               # Bars each side for swing high/low detection
+      ob_lookback: 50                 # Bars to search for order blocks
+      fvg_min_size_atr_ratio: 0.15   # Minimum FVG size as a ratio of ATR
+      bos_lookback: 100               # Bars to look back for BOS/CHoCH events
+      ob_entry_tolerance: 0.015       # Tolerance for price entering OB zone (1.5%)
+      atr_period: 14
       atr_stop_mult: 2.0
+      rr_ratio: 3.0
+      volume_period: 20
+      min_rr_for_swing_tp: 2.0       # Swing TP only used if it delivers at least this R:R
+      displacement_atr_mult: 1.5     # OB displacement must cover this × ATR total range
+      displacement_vol_mult: 1.2     # Displacement candles avg vol > this × rolling avg vol
+      time_stop_bars: 50             # Exit if TP not reached within this many bars
 
   # ── 9. Ichimoku Cloud Trend ─────────────────────────────────────────────
   ichimoku_trend:
@@ -202,6 +223,8 @@ strategies:
       kijun_period: 26
       senkou_b_period: 52
       displacement: 26
+      atr_period: 14
+      rr_ratio: 2.0               # Fallback R:R when Kijun stop distance is zero
 
   # ── 10. Order Flow Imbalance ────────────────────────────────────────────
   order_flow_imbalance:
@@ -215,10 +238,15 @@ strategies:
     max_positions: 2
     parameters:
       cvd_window: 20
+      adx_period: 14
       adx_max: 30.0
+      atr_period: 14
       atr_stop_mult: 2.0
       rr_ratio: 3.0
+      volume_period: 20
       volume_mult: 1.5
+      exhaustion_mult: 3.0        # Volume spike multiple that signals exhaustion
+      sma_period: 20              # SMA period used for exit trigger
 
   # ── 11. Z-Score Mean Reversion ──────────────────────────────────────────
   zscore_mean_reversion:
@@ -240,10 +268,17 @@ strategies:
       zscore_period: 50
       zscore_entry: 2.0
       zscore_htf_entry: 1.5
+      htf_resample_factor: 4          # 4× bars → ~4h on 1h chart
+      rsi_period: 14
       rsi_oversold: 30.0
       rsi_overbought: 70.0
+      rsi_exit: 50.0                  # RSI level that signals mean-reversion complete
+      adx_period: 14
       adx_max: 25.0
+      atr_period: 14
       atr_stop_mult: 2.5
+      atr_trail_mult: 1.5             # Tighter trailing stop once in profit
+      volume_period: 20
       volume_mult: 1.5
 
   # ── 12. Volume Profile / Value Area ─────────────────────────────────────
@@ -259,8 +294,22 @@ strategies:
     parameters:
       profile_window: 100
       profile_bins: 50
-      rsi_oversold: 35.0
-      rsi_overbought: 65.0
+      rsi_period: 14
+      rsi_oversold: 30.0              # Tightened from 35 — only true extremes
+      rsi_overbought: 70.0            # Tightened from 65
+      rsi_exit: 50.0
+      atr_period: 14
       atr_stop_mult: 1.5
-      volume_mult: 1.5
-      breakout_vol_mult: 2.0
+      volume_period: 20
+      volume_mult: 2.0                # Raised from 1.5 — stronger confirmation required
+      breakout_vol_mult: 2.5          # Raised from 2.0 — breakouts need heavy volume
+      min_volume_mult: 1.2            # Bar must have >= 120% of avg volume
+      hvn_threshold: 1.5              # Bins with volume > 1.5× mean are HVNs
+      lvn_threshold: 0.5              # Bins with volume < 0.5× mean are LVNs
+      poc_trend_bars: 10
+      bounce_lookback: 30
+      bounce_tolerance: 0.003         # 0.3% of price counts as touching a level
+      adx_period: 14
+      adx_min_trend: 20.0             # ADX must be >= this to trade
+      min_distance_atr: 1.0           # Price must be >= 1 ATR outside VA boundary
+      min_rr: 2.0                     # Minimum acceptable risk:reward ratio
