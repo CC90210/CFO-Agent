@@ -241,8 +241,7 @@ strategies:
     description: "Statistical Z-score reversion with multi-timeframe confirmation."
     timeframe: "1h"
     symbols:
-      # 9mo (no scale-out): SOL +1.98% (PF 1.75), ETH +1.27% (PF 1.25). BTC -8.37%.
-      - "SOL/USDT"
+      # Full-year robust: ETH +6.36% (PF 2.06). SOL failed full year (-5.23%).
       - "ETH/USDT"
     risk_per_trade: 1.0
     max_positions: 2
