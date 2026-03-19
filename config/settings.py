@@ -154,6 +154,63 @@ class LoggingSettings(BaseSettings):
         return path
 
 
+class AlpacaSettings(BaseSettings):
+    """Alpaca Markets connectivity settings (US equities and ETFs)."""
+
+    model_config = SettingsConfigDict(env_file=str(PROJECT_ROOT / ".env"), extra="ignore")
+
+    alpaca_api_key: str = Field(
+        default="",
+        description="Alpaca API key ID. Required for AlpacaAdapter.",
+    )
+    alpaca_secret_key: str = Field(
+        default="",
+        description="Alpaca API secret key. Required for AlpacaAdapter.",
+    )
+    alpaca_paper: bool = Field(
+        default=True,
+        description=(
+            "When True, AlpacaAdapter routes orders to paper-api.alpaca.markets. "
+            "Set to False only when live equity trading is intentional."
+        ),
+    )
+
+    @property
+    def configured(self) -> bool:
+        """True when both key and secret are non-empty."""
+        return bool(self.alpaca_api_key and self.alpaca_secret_key)
+
+
+class OandaSettings(BaseSettings):
+    """OANDA v20 connectivity settings (forex and precious metals)."""
+
+    model_config = SettingsConfigDict(env_file=str(PROJECT_ROOT / ".env"), extra="ignore")
+
+    oanda_token: str = Field(
+        default="",
+        description="OANDA personal access token (v20 API). Required for OANDAAdapter.",
+    )
+    oanda_account_id: str = Field(
+        default="",
+        description=(
+            "OANDA account ID, e.g. '001-001-1234567-001'. "
+            "Required for OANDAAdapter order and account endpoints."
+        ),
+    )
+    oanda_practice: bool = Field(
+        default=True,
+        description=(
+            "When True, OANDAAdapter connects to the practice (demo) environment. "
+            "Set to False only when live forex trading is intentional."
+        ),
+    )
+
+    @property
+    def configured(self) -> bool:
+        """True when both token and account ID are non-empty."""
+        return bool(self.oanda_token and self.oanda_account_id)
+
+
 class FinanceSettings(BaseSettings):
     """
     Financial planning and tax settings for CC.
@@ -251,6 +308,8 @@ class Settings(BaseSettings):
     # Sub-settings (populated from the same .env file)
     risk: RiskSettings = Field(default_factory=RiskSettings)
     exchange: ExchangeSettings = Field(default_factory=ExchangeSettings)
+    alpaca: AlpacaSettings = Field(default_factory=AlpacaSettings)
+    oanda: OandaSettings = Field(default_factory=OandaSettings)
     telegram: TelegramSettings = Field(default_factory=TelegramSettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     ai: AISettings = Field(default_factory=AISettings)
