@@ -344,3 +344,126 @@ strategies:
       adx_min_trend: 20.0
       min_distance_atr: 1.0
       min_rr: 2.0
+
+  # ── 13. Equity Mean Reversion (STOCKS) ──────────────────────────────────
+  equity_mean_reversion:
+    enabled: true
+    description: "RSI + Bollinger Bands mean reversion tuned for US stocks."
+    timeframe: "4h"
+    symbols:
+      # US Stocks — requires ALPACA_API_KEY in .env
+      - "SPY"
+      - "QQQ"
+      - "AAPL"
+      - "NVDA"
+      - "MSFT"
+      - "AMZN"
+      - "TSLA"
+      - "AMD"
+    risk_per_trade: 1.0
+    max_positions: 3
+    parameters:
+      rsi_period: 14
+      rsi_oversold: 30.0
+      rsi_overbought: 70.0
+      rsi_exit: 50.0
+      bb_period: 20
+      bb_std: 2.0
+      sma_trend_period: 200
+      adx_period: 14
+      adx_min: 20.0
+      volume_period: 20
+      volume_mult: 1.2
+      atr_period: 14
+      atr_stop_mult: 1.5
+      rr_ratio: 3.0
+
+  # ── 14. Forex Session Momentum (FOREX) ─────────────────────────────────
+  forex_session_momentum:
+    enabled: true
+    description: "Captures momentum at London/NY session opens on forex and gold."
+    timeframe: "1h"
+    symbols:
+      # Forex — requires OANDA_TOKEN in .env
+      - "EUR_USD"
+      - "GBP_USD"
+      - "USD_JPY"
+      - "AUD_USD"
+      - "USD_CAD"
+      # Gold — stronger trends, wider stops
+      - "XAU_USD"
+    risk_per_trade: 1.0
+    max_positions: 2
+    parameters:
+      ema_fast: 8
+      ema_slow: 21
+      macd_fast: 12
+      macd_slow: 26
+      macd_signal: 9
+      rsi_period: 14
+      atr_period: 14
+      adx_period: 14
+      adx_min: 25.0
+      volume_period: 20
+      volume_mult: 1.5
+      session_range_sl_mult: 1.0
+      session_range_tp_mult: 1.5
+      gold_sl_mult: 1.5
+      gold_tp_mult: 2.0
+
+  # ── 15. Gold Trend Follower (COMMODITIES) ──────────────────────────────
+  gold_trend_follower:
+    enabled: true
+    description: "Keltner Channel breakout for gold/silver — captures strong commodity trends."
+    timeframe: "4h"
+    symbols:
+      # Commodities — requires OANDA_TOKEN in .env
+      - "XAU_USD"      # Gold
+      - "XAG_USD"      # Silver
+    risk_per_trade: 1.0
+    max_positions: 2
+    parameters:
+      kc_period: 20
+      kc_atr_mult: 2.0
+      ema_fast: 20
+      ema_mid: 50
+      ema_slow: 200
+      adx_period: 14
+      adx_min: 25.0
+      macd_fast: 12
+      macd_slow: 26
+      macd_signal: 9
+      atr_period: 14
+      atr_stop_mult: 2.5
+      rr_ratio: 2.0
+      momentum_lookback: 3
+
+  # ── 16. Stock Gap Fade (STOCKS) ────────────────────────────────────────
+  stock_gap_fade:
+    enabled: true
+    description: "Fades opening gaps on US stocks — gaps fill 70%+ of the time."
+    timeframe: "5m"
+    symbols:
+      # US Stocks — requires ALPACA_API_KEY in .env
+      - "SPY"
+      - "QQQ"
+      - "AAPL"
+      - "TSLA"
+      - "NVDA"
+      - "AMD"
+    risk_per_trade: 1.0
+    max_positions: 2
+    parameters:
+      min_gap_pct: 0.5
+      max_gap_pct: 3.0
+      rsi_period: 14
+      rsi_overbought: 65.0
+      rsi_oversold: 35.0
+      bb_period: 20
+      bb_std: 2.0
+      volume_period: 20
+      volume_mult: 1.5
+      atr_period: 14
+      sl_gap_mult: 1.5
+      time_stop_bars: 8
+      adx_period: 14
