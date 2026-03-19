@@ -31,6 +31,7 @@ import yaml
 import pandas as pd
 
 from config.settings import settings
+from core.broker_adapter import BrokerRegistry
 from core.correlation_tracker import CorrelationTracker
 from core.strategy_health import StrategyHealthMonitor
 from core.momentum_classifier import MomentumClassifier
@@ -209,6 +210,9 @@ class TradingEngine:
         # Lazy-import ccxt to avoid slow startup when not needed
         self._exchange: Any | None = None  # ccxt.Exchange instance
 
+        # Multi-asset broker registry — routes symbols to correct broker
+        self._broker_registry: BrokerRegistry | None = None
+
         # Strategy instances (populated during setup)
         self._strategy_instances: dict[str, BaseStrategy] = {}
 
@@ -302,6 +306,7 @@ class TradingEngine:
         # 3. Exchange connection (skip for backtests that use local data)
         if self.mode != TradingMode.BACKTEST:
             await self._connect_exchange()
+            await self._connect_broker_adapters()
 
         # 4. Restore risk state from DB
         await self._restore_risk_state()
@@ -338,6 +343,14 @@ class TradingEngine:
                 await self._exchange.close()
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Error closing exchange: %s", exc)
+        # Disconnect all broker adapters (Alpaca, OANDA, etc.)
+        if self._broker_registry is not None:
+            for adapter in self._broker_registry.get_all_adapters():
+                try:
+                    await adapter.disconnect()
+                    logger.info("Broker %s disconnected.", adapter.name)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Error disconnecting broker %s: %s", adapter.name, exc)
         logger.info("Engine stopped.")
 
     # ── Strategy loading ──────────────────────────────────────────────────
@@ -427,6 +440,57 @@ class TradingEngine:
             except Exception as exc:  # noqa: BLE001
                 logger.error("Failed to connect to exchange: %s", exc)
                 raise
+
+    # ── Multi-asset broker adapters ─────────────────────────────────────────
+
+    async def _connect_broker_adapters(self) -> None:
+        """
+        Initialize the BrokerRegistry and connect any configured brokers
+        (Alpaca for stocks, OANDA for forex/commodities).
+
+        CCXT (crypto) is always available via self._exchange.
+        Alpaca/OANDA only connect if API keys are configured in .env.
+        The registry auto-routes symbols by format:
+          BTC/USDT → CCXT, AAPL → Alpaca, EUR_USD → OANDA
+        """
+        from core.broker_adapter import (
+            AlpacaAdapter,
+            CCXTAdapter,
+            OANDAAdapter,
+        )
+
+        self._broker_registry = BrokerRegistry.instance()
+
+        # Register CCXT adapter for crypto (wraps existing exchange)
+        if self._exchange is not None:
+            ccxt_adapter = CCXTAdapter(exchange_id=self.exchange_id)
+            await ccxt_adapter.connect()
+            self._broker_registry.register(ccxt_adapter)
+            logger.info("Broker: CCXT (%s) registered for crypto.", self.exchange_id)
+
+        # Register Alpaca for US stocks (if configured)
+        if settings.alpaca.configured:
+            try:
+                alpaca = AlpacaAdapter()
+                await alpaca.connect()
+                self._broker_registry.register(alpaca)
+                logger.info("Broker: Alpaca registered for US stocks.")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Alpaca adapter failed to connect: %s", exc)
+        else:
+            logger.info("Broker: Alpaca not configured — stock trading disabled.")
+
+        # Register OANDA for forex/commodities (if configured)
+        if settings.oanda.configured:
+            try:
+                oanda = OANDAAdapter()
+                await oanda.connect()
+                self._broker_registry.register(oanda)
+                logger.info("Broker: OANDA registered for forex/commodities.")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("OANDA adapter failed to connect: %s", exc)
+        else:
+            logger.info("Broker: OANDA not configured — forex/commodity trading disabled.")
 
     # ── Risk state restoration ─────────────────────────────────────────────
 
@@ -716,13 +780,30 @@ class TradingEngine:
         limit: int = 200,
     ) -> list[list[float]] | None:
         """
-        Fetch OHLCV bars from the exchange.
+        Fetch OHLCV bars from the correct broker for this symbol.
+
+        Routes through BrokerRegistry: crypto → CCXT, stocks → Alpaca,
+        forex/commodities → OANDA. Falls back to CCXT if no registry.
 
         Returns a list of [timestamp, open, high, low, close, volume] rows,
         or None if the fetch fails.
         """
+        # Try multi-asset routing first
+        if self._broker_registry is not None:
+            try:
+                adapter = self._broker_registry.get_adapter_for_symbol(symbol)
+                if adapter is not None:
+                    ohlcv = await adapter.fetch_ohlcv(symbol, timeframe, limit=limit)
+                    return ohlcv
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Broker adapter fetch failed [%s %s]: %s — falling back to CCXT",
+                    symbol, timeframe, exc,
+                )
+
+        # Fallback: direct CCXT (crypto only)
         if self._exchange is None:
-            logger.warning("Exchange not connected — cannot fetch OHLCV.")
+            logger.warning("No exchange connected — cannot fetch OHLCV for %s.", symbol)
             return None
 
         try:

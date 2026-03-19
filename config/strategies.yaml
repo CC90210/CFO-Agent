@@ -96,6 +96,7 @@ strategies:
       secondary: "1h"
       confirmation: "15m"
     symbols:
+      # ── Crypto (via Binance/CCXT) ──
       # 2026-03-19 backtest results (2000 bars 4h):
       # BTC +8.41% WR:72.2% Sharpe:3.57 — TOP PERFORMER
       # ETH +2.93% WR:66.7% Sharpe:1.31
@@ -103,9 +104,6 @@ strategies:
       # MATIC +3.53% WR:61.5% Sharpe:0.98
       # DOGE +2.95% WR:66.7% Sharpe:1.14
       # XRP +1.27% WR:60.0% Sharpe:0.44
-      # SOL +0.07% WR:50.0% Sharpe:0.05 — marginal
-      # AVAX +0.11% WR:53.8% Sharpe:0.06 — marginal
-      # LINK +0.33% WR:52.6% Sharpe:0.13 — marginal
       - "BTC/USDT"
       - "ETH/USDT"
       - "ADA/USDT"
@@ -115,6 +113,27 @@ strategies:
       - "SOL/USDT"
       - "AVAX/USDT"
       - "LINK/USDT"
+      # ── US Stocks (via Alpaca) — requires ALPACA_API_KEY in .env ──
+      - "AAPL"
+      - "TSLA"
+      - "NVDA"
+      - "MSFT"
+      - "AMZN"
+      - "META"
+      - "GOOG"
+      - "SPY"       # S&P 500 ETF
+      - "QQQ"       # Nasdaq 100 ETF
+      - "AMD"
+      # ── Forex (via OANDA) — requires OANDA_TOKEN in .env ──
+      - "EUR_USD"
+      - "GBP_USD"
+      - "USD_JPY"
+      - "AUD_USD"
+      - "USD_CAD"
+      - "EUR_GBP"
+      # ── Commodities (via OANDA) — requires OANDA_TOKEN in .env ──
+      - "XAU_USD"    # Gold
+      - "XAG_USD"    # Silver
     risk_per_trade: 1.5
     max_positions: 5
     parameters:
@@ -136,12 +155,15 @@ strategies:
 
   # ── 6. London Session Breakout ────────────────────────────────────────────
   london_breakout:
-    enabled: false  # 0 trades — 2h daily window too narrow, time-zone dependent. Needs rework.
+    enabled: true   # Re-enabled on FOREX pairs (was broken on crypto — time-window is forex-native)
     description: "Trade the breakout of the London open range (08:00-10:00 UTC)."
     timeframe: "5m"
     symbols:
-      - "BTC/USDT"
-      - "ETH/USDT"
+      # Forex pairs — London breakout is a forex-specific strategy
+      # Requires OANDA_TOKEN in .env
+      - "EUR_USD"
+      - "GBP_USD"
+      - "EUR_GBP"
     risk_per_trade: 1.5
     max_positions: 1
     parameters:
@@ -159,11 +181,17 @@ strategies:
 
   # ── 7. S&P 500 Opening Range Breakout ─────────────────────────────────────
   opening_range:
-    enabled: false  # 9mo: BTC -53.87%, ETH -38.52%. High trade count but avg loss 2x avg win.
+    enabled: true   # Re-enabled on US STOCKS (was losing on crypto — this is an equities strategy)
     description: "First 15-minute range breakout at NYSE open (09:30-09:45 ET)."
     timeframe: "5m"
     symbols:
-      - "BTC/USDT"
+      # US stocks — Opening Range is a US equity session strategy
+      # Requires ALPACA_API_KEY in .env
+      - "SPY"
+      - "QQQ"
+      - "AAPL"
+      - "TSLA"
+      - "NVDA"
     risk_per_trade: 1.0
     max_positions: 1
     parameters:
@@ -188,10 +216,20 @@ strategies:
     description: "Order blocks, fair value gaps, and liquidity sweeps."
     timeframe: "4h"
     symbols:
-      # Only ETH profitable. BTC -1.66%, SOL -1.31%.
-      - "ETH/USDT"
+      # Crypto
+      - "ETH/USDT"      # +2.66% backtested (BTC -1.66%, SOL -1.31%)
+      # US Stocks — Smart Money (order blocks, FVGs) works on all liquid markets
+      # Requires ALPACA_API_KEY in .env
+      - "SPY"
+      - "AAPL"
+      - "NVDA"
+      # Forex — Requires OANDA_TOKEN in .env
+      - "EUR_USD"
+      - "GBP_USD"
+      # Gold — Requires OANDA_TOKEN in .env
+      - "XAU_USD"
     risk_per_trade: 1.0
-    max_positions: 2
+    max_positions: 3
     parameters:
       swing_lookback: 5
       ob_lookback: 50
