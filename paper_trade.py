@@ -261,22 +261,23 @@ def _load_state_from_db(start_value: float) -> dict[str, Any]:
         if snapshot and snapshot.positions_json:
             positions = list(snapshot.positions_json)
 
-    portfolio_value = snapshot.total_value if snapshot else start_value
-    cash = snapshot.available_balance if snapshot else start_value
-    drawdown_pct = snapshot.drawdown_pct if snapshot else 0.0
-    daily_pnl = daily.realized_pnl if daily else 0.0
+        # Extract values while session is still open
+        portfolio_value = snapshot.total_value if snapshot else start_value
+        cash = snapshot.available_balance if snapshot else start_value
+        drawdown_pct = snapshot.drawdown_pct if snapshot else 0.0
+        daily_pnl = daily.realized_pnl if daily else 0.0
 
-    wins = sum(1 for t in closed_trades if (t.pnl or 0.0) > 0)
-    losses = sum(1 for t in closed_trades if (t.pnl or 0.0) <= 0)
+        wins = sum(1 for t in closed_trades if (t.pnl or 0.0) > 0)
+        losses = sum(1 for t in closed_trades if (t.pnl or 0.0) <= 0)
 
-    last_signal: dict[str, Any] | None = None
-    if last_signal_row:
-        last_signal = {
-            "symbol": last_signal_row.symbol,
-            "direction": last_signal_row.direction.upper(),
-            "time": last_signal_row.timestamp.strftime("%H:%M") if last_signal_row.timestamp else "?",
-            "conviction": last_signal_row.conviction,
-        }
+        last_signal: dict[str, Any] | None = None
+        if last_signal_row:
+            last_signal = {
+                "symbol": last_signal_row.symbol,
+                "direction": last_signal_row.direction.upper(),
+                "time": last_signal_row.timestamp.strftime("%H:%M") if last_signal_row.timestamp else "?",
+                "conviction": last_signal_row.conviction,
+            }
 
     return {
         "portfolio_value": portfolio_value,
@@ -393,7 +394,7 @@ async def main() -> None:
             .order_by(PortfolioSnapshot.timestamp.desc())
             .first()
         )
-    start_value: float = latest.total_value if latest else 10_000.0
+        start_value: float = latest.total_value if latest else 10_000.0
 
     shutdown_event = asyncio.Event()
 
