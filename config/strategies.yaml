@@ -172,14 +172,12 @@ strategies:
 
   # ── 8. Smart Money Concepts ──────────────────────────────────────────────
   smart_money:
-    enabled: false  # 9mo: BTC -1.56%, ETH +1.37%, SOL -1.27%. Low trade count. Needs more data.
+    enabled: true   # 9mo (no scale-out): ETH +2.66% PF 2.65. Low trade count but high quality.
     description: "Order blocks, fair value gaps, and liquidity sweeps."
     timeframe: "4h"
     symbols:
-      - "BTC/USDT"
+      # Only ETH profitable. BTC -1.66%, SOL -1.31%.
       - "ETH/USDT"
-      - "SOL/USDT"
-      - "BNB/USDT"
     risk_per_trade: 1.0
     max_positions: 2
     parameters:
