@@ -13,7 +13,7 @@ strategies:
 
   # ── 1. RSI Mean Reversion ──────────────────────────────────────────────────
   rsi_mean_reversion:
-    enabled: true
+    enabled: false  # 2026-03-19: -3.01% on BTC 1h (0% WR, 2 trades). Filters too tight, not viable.
     description: "Buy oversold, sell overbought using RSI."
     timeframe: "1h"
     symbols:
@@ -23,8 +23,8 @@ strategies:
     max_positions: 2
     parameters:
       rsi_period: 14
-      rsi_oversold: 28
-      rsi_overbought: 72
+      rsi_oversold: 30            # Relaxed from 28 — was generating only 1 trade per 2000 bars
+      rsi_overbought: 70          # Relaxed from 72 — industry standard thresholds
       rsi_exit: 50
       atr_stop_mult: 1.0         # Keep original — 0.8x dropped WR from 58% to 45%
       volume_mult: 1.2
@@ -86,7 +86,7 @@ strategies:
       volume_mult: 1.2
 
   # ── 5. Multi-Timeframe Momentum ───────────────────────────────────────────
-  # STAR STRATEGY: +21.1% combined across 4 symbols (post walk-forward pruning)
+  # STAR STRATEGY: Best performer across multiple symbols
   multi_timeframe:
     enabled: true
     description: "Align momentum across 3 timeframes before entering."
@@ -96,14 +96,27 @@ strategies:
       secondary: "1h"
       confirmation: "15m"
     symbols:
-      # Walk-forward: ETH passed (OOS +0.94%), BNB OVERFIT (score 0.791, removed).
-      # SOL/AVAX/LINK kept (profitable 9mo, not yet walk-forward tested).
+      # 2026-03-19 backtest results (2000 bars 4h):
+      # BTC +8.41% WR:72.2% Sharpe:3.57 — TOP PERFORMER
+      # ETH +2.93% WR:66.7% Sharpe:1.31
+      # ADA +3.82% WR:54.5% Sharpe:1.29
+      # MATIC +3.53% WR:61.5% Sharpe:0.98
+      # DOGE +2.95% WR:66.7% Sharpe:1.14
+      # XRP +1.27% WR:60.0% Sharpe:0.44
+      # SOL +0.07% WR:50.0% Sharpe:0.05 — marginal
+      # AVAX +0.11% WR:53.8% Sharpe:0.06 — marginal
+      # LINK +0.33% WR:52.6% Sharpe:0.13 — marginal
+      - "BTC/USDT"
       - "ETH/USDT"
+      - "ADA/USDT"
+      - "MATIC/USDT"
+      - "DOGE/USDT"
+      - "XRP/USDT"
       - "SOL/USDT"
       - "AVAX/USDT"
       - "LINK/USDT"
     risk_per_trade: 1.5
-    max_positions: 3
+    max_positions: 5
     parameters:
       htf_fast_ema: 50
       htf_slow_ema: 200
@@ -123,7 +136,7 @@ strategies:
 
   # ── 6. London Session Breakout ────────────────────────────────────────────
   london_breakout:
-    enabled: true
+    enabled: false  # 0 trades — 2h daily window too narrow, time-zone dependent. Needs rework.
     description: "Trade the breakout of the London open range (08:00-10:00 UTC)."
     timeframe: "5m"
     symbols:
@@ -236,7 +249,7 @@ strategies:
 
   # ── 11. Z-Score Mean Reversion ──────────────────────────────────────────
   zscore_mean_reversion:
-    enabled: true
+    enabled: false  # 2026-03-19: -3.40% on ETH 1h even with relaxed params (25% WR, 4 trades). Too many gates.
     description: "Statistical Z-score reversion with multi-timeframe confirmation."
     timeframe: "1h"
     symbols:
@@ -246,20 +259,20 @@ strategies:
     max_positions: 2
     parameters:
       zscore_period: 50
-      zscore_entry: 1.8
-      zscore_htf_entry: 1.5
+      zscore_entry: 1.5            # Relaxed from 1.8 — was generating 0 trades with 5 cascading gates
+      zscore_htf_entry: 1.0        # Relaxed from 1.5 — HTF gate was too restrictive on 1h
       htf_resample_factor: 4
       rsi_period: 14
       rsi_oversold: 30.0
       rsi_overbought: 70.0
       rsi_exit: 50.0
       adx_period: 14
-      adx_max: 30.0
+      adx_max: 35.0               # Relaxed from 30 — allows slightly trending markets
       atr_period: 14
       atr_stop_mult: 2.5
       atr_trail_mult: 1.5
       volume_period: 20
-      volume_mult: 1.5
+      volume_mult: 1.2             # Relaxed from 1.5 — lower volume gate
 
   # ── 12. Volume Profile / Value Area ─────────────────────────────────────
   volume_profile:

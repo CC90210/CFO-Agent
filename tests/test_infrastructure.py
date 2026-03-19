@@ -323,9 +323,9 @@ class TestStrategyLoading:
         assert len(engine._strategies) > 0  # type: ignore[attr-defined]
 
     def test_load_specific_strategy(self) -> None:
-        engine = self._make_engine(["rsi_mean_reversion"])
+        engine = self._make_engine(["multi_timeframe"])
         engine._load_strategies()  # type: ignore[attr-defined]
-        assert "rsi_mean_reversion" in engine._strategies  # type: ignore[attr-defined]
+        assert "multi_timeframe" in engine._strategies  # type: ignore[attr-defined]
 
     def test_unknown_strategy_raises(self) -> None:
         engine = self._make_engine(["no_such_strategy_xyz"])
@@ -333,14 +333,14 @@ class TestStrategyLoading:
             engine._load_strategies()  # type: ignore[attr-defined]
 
     def test_loaded_strategies_have_symbols(self) -> None:
-        engine = self._make_engine(["rsi_mean_reversion"])
+        engine = self._make_engine(["multi_timeframe"])
         engine._load_strategies()  # type: ignore[attr-defined]
-        config = engine._strategies["rsi_mean_reversion"]  # type: ignore[attr-defined]
+        config = engine._strategies["multi_timeframe"]  # type: ignore[attr-defined]
         assert "symbols" in config
         assert len(config["symbols"]) > 0
 
     def test_tick_interval_seconds_returns_positive_int(self) -> None:
-        engine = self._make_engine(["rsi_mean_reversion"])
+        engine = self._make_engine(["multi_timeframe"])
         engine._load_strategies()  # type: ignore[attr-defined]
         interval = engine._tick_interval_seconds()  # type: ignore[attr-defined]
         assert isinstance(interval, int)

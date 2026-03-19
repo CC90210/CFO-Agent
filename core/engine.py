@@ -648,6 +648,22 @@ class TradingEngine:
             await self._record_skipped_signal(signal, reason)
             return
 
+        # 7b. Correlation guard — block entry if >2 highly correlated positions open
+        open_symbols = list(self._paper_positions.keys()) if hasattr(self, '_paper_positions') else []
+        if open_symbols and self._correlations:
+            correlated_count = 0
+            for open_sym in open_symbols:
+                pair_corr = self._correlations.get(open_sym, {}).get(symbol, 0.0)
+                if abs(pair_corr) >= 0.80:
+                    correlated_count += 1
+            if correlated_count >= 2:
+                logger.info(
+                    "Correlation guard: %s blocked — %d correlated positions already open",
+                    symbol, correlated_count,
+                )
+                await self._record_skipped_signal(signal, "correlated_positions_limit")
+                return
+
         # 8. Trade protocol — 10-step decision framework
         signal_dict = {
             "direction": signal.direction.value,
@@ -824,7 +840,8 @@ class TradingEngine:
 
         # Adaptive conviction threshold: strategies with poor track records
         # need higher conviction to trade (learned from Darwinian weights)
-        min_conviction = self._get_adaptive_conviction_threshold(strategy_name)
+        agent_key = f"{strategy_name}_{symbol.replace('/', '')}"
+        min_conviction = self._get_adaptive_conviction_threshold(agent_key)
         if abs(signal.conviction) < min_conviction:
             logger.debug(
                 "Signal for %s/%s conviction %.3f below %.2f threshold — skipping.",
@@ -1071,7 +1088,8 @@ class TradingEngine:
                     db_trade.closed_at = now
 
         # Update strategy performance in agent_performance table (Darwinian learning)
-        self._update_strategy_performance(pos.strategy_name, pnl_pct)
+        agent_key = f"{pos.strategy_name}_{symbol.replace('/', '')}"
+        self._update_strategy_performance(agent_key, pnl_pct)
 
         logger.info(
             "Paper position CLOSED [%s]: %s %s @ %.4f → %.4f | PnL=%.2f (%+.2f%%) | equity=%.2f",
@@ -1109,14 +1127,14 @@ class TradingEngine:
                     .filter(AgentPerformance.agent_name == strategy_name)
                     .first()
                 )
-            if record is None or record.total_trades < 5:
-                return 0.30  # Default for new/untested strategies
+                if record is None or record.total_trades < 5:
+                    return 0.30  # Default for new/untested strategies
 
-            # Map weight (0.3 to 2.5) → threshold (0.50 to 0.25)
-            # Higher weight = lower threshold (trusted strategy)
-            weight = record.weight
-            threshold = 0.50 - (weight - 0.3) * (0.25 / 2.2)
-            return max(0.25, min(0.50, threshold))
+                # Map weight (0.3 to 2.5) → threshold (0.50 to 0.25)
+                # Higher weight = lower threshold (trusted strategy)
+                weight = record.weight
+                threshold = 0.50 - (weight - 0.3) * (0.25 / 2.2)
+                return max(0.25, min(0.50, threshold))
         except Exception:  # noqa: BLE001
             return 0.30
 
