@@ -29,10 +29,10 @@ strategies:
       rsi_oversold: 28           # Tuned on 2026 data (was 30, then 25)
       rsi_overbought: 72         # Tuned on 2026 data (was 70, then 75)
       rsi_exit: 50
-      atr_stop_mult: 1.0         # Tight stop for mean reversion (tuned from 2.5)
+      atr_stop_mult: 0.8         # Tighter stop to cut max loss per trade (was 1.0)
       volume_mult: 1.2           # Volume confirmation (tuned from 1.5)
       ema_trend_period: 200      # Only long above 200 EMA, short below
-      rr_min: 2.0                # Enforce 2:1 R:R minimum
+      rr_min: 2.5                # Raise R:R floor so winners outpace losers (was 2.0)
 
   # ── 2. EMA Crossover ──────────────────────────────────────────────────────
   ema_crossover:
@@ -51,8 +51,8 @@ strategies:
       macd_slow: 26
       macd_signal: 9
       adx_threshold: 20.0        # Lower ADX catches early-trend breakouts (was 25)
-      atr_stop_mult: 3.0         # Wider stops for trend trades (was 2.0)
-      rr_ratio: 3.0              # Risk-reward ratio
+      atr_stop_mult: 2.0         # Tighter stop to reduce max loss per trade (was 3.0)
+      rr_ratio: 3.5              # Wider target so winners exceed losses (was 3.0)
 
   # ── 3. Bollinger Band Mean Reversion ──────────────────────────────────────
   bollinger_squeeze:
@@ -69,8 +69,8 @@ strategies:
     parameters:
       bb_period: 20
       bb_std: 2.0
-      atr_stop_mult: 2.0           # Wider stop lets squeeze resolve (tuned from 1.5)
-      atr_tp_mult: 5.0             # Big TP lets winners run (tuned from 2.5)
+      atr_stop_mult: 1.5           # Tighter stop to cut max loss per trade (was 2.0)
+      atr_tp_mult: 4.0             # Reasonable TP — still 2.7x the stop distance (was 5.0)
       squeeze_percentile: 10.0
       exhaustion_vol_mult: 2.0
 
@@ -119,8 +119,8 @@ strategies:
       ltf_rsi_entry_long: 40.0   # RSI level to cross above for long LTF trigger
       ltf_rsi_entry_short: 60.0  # RSI level to cross below for short LTF trigger
       atr_period: 14
-      atr_stop_mult: 2.5         # Stop-loss distance in ATR units (was 2.0)
-      rr_ratio: 3.0              # Risk-reward ratio for take-profit (was 2.5)
+      atr_stop_mult: 1.5         # Tighter stop to reduce max loss per trade (was 2.5)
+      rr_ratio: 3.5              # Wider target so winners cover losses (was 3.0)
       min_confluence: 2          # Minimum confluence score to enter
       htf_resample_rule: "4h"   # Pandas resample rule for high timeframe
       mtf_resample_rule: "1h"   # Pandas resample rule for medium timeframe
@@ -218,7 +218,7 @@ strategies:
       senkou_b_period: 52
       displacement: 26
       atr_period: 14
-      rr_ratio: 2.0               # Fallback R:R when Kijun stop distance is zero
+      rr_ratio: 3.0               # Bigger target needed to compensate 33% win rate (was 2.0)
 
   # ── 10. Order Flow Imbalance ────────────────────────────────────────────
   order_flow_imbalance:
@@ -260,7 +260,7 @@ strategies:
     max_positions: 2
     parameters:
       zscore_period: 50
-      zscore_entry: 2.0
+      zscore_entry: 1.8             # Slightly more lenient — strategy had only 1 trade (was 2.0)
       zscore_htf_entry: 1.5
       htf_resample_factor: 4          # 4× bars → ~4h on 1h chart
       rsi_period: 14
@@ -268,7 +268,7 @@ strategies:
       rsi_overbought: 70.0
       rsi_exit: 50.0                  # RSI level that signals mean-reversion complete
       adx_period: 14
-      adx_max: 25.0
+      adx_max: 30.0                   # Allow slightly trendier markets — widens opportunity (was 25.0)
       atr_period: 14
       atr_stop_mult: 2.5
       atr_trail_mult: 1.5             # Tighter trailing stop once in profit
