@@ -398,9 +398,8 @@ class TradingEngine:
                 .order_by(PortfolioSnapshot.timestamp.desc())
                 .first()
             )
-
-        daily_pnl = daily.realized_pnl if daily else 0.0
-        equity = latest_snapshot.total_value if latest_snapshot else 10_000.0  # default paper balance
+            daily_pnl = daily.realized_pnl if daily else 0.0
+            equity = latest_snapshot.total_value if latest_snapshot else 10_000.0  # default paper balance
         self._risk = _RiskState(equity_peak=equity)
         self._risk.update(
             current_equity=equity,
