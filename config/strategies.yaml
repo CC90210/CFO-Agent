@@ -33,7 +33,7 @@ strategies:
 
   # ── 2. EMA Crossover ──────────────────────────────────────────────────────
   ema_crossover:
-    enabled: true
+    enabled: false  # Walk-forward: -0.03% OOS, coin-flip win rate. Full-year: -1.71%. Not viable.
     description: "MACD-style EMA crossover with signal-line confirmation."
     timeframe: "4h"
     symbols:
@@ -53,7 +53,7 @@ strategies:
 
   # ── 3. Bollinger Band Squeeze Breakout ───────────────────────────────────
   bollinger_squeeze:
-    enabled: true
+    enabled: false  # Walk-forward: -0.33% OOS, 14.7% win rate. Squeeze too rare on 1h SOL.
     description: "Squeeze breakout — 2-bar confirmation, ATR stops, volume exhaustion filter."
     timeframe: "1h"
     symbols:
@@ -86,7 +86,7 @@ strategies:
       volume_mult: 1.2
 
   # ── 5. Multi-Timeframe Momentum ───────────────────────────────────────────
-  # STAR STRATEGY: +37.44% combined across 5 symbols (9mo, no scale-out)
+  # STAR STRATEGY: +21.1% combined across 4 symbols (post walk-forward pruning)
   multi_timeframe:
     enabled: true
     description: "Align momentum across 3 timeframes before entering."
@@ -96,11 +96,10 @@ strategies:
       secondary: "1h"
       confirmation: "15m"
     symbols:
-      # 9mo backtest (no scale-out, 3.0/4.0): BNB +21.16%, ETH +6.45%,
-      # LINK +4.46%, SOL +4.24%, AVAX +3.50%. BTC -2.37% (only loser).
+      # Walk-forward: ETH passed (OOS +0.94%), BNB OVERFIT (score 0.791, removed).
+      # SOL/AVAX/LINK kept (profitable 9mo, not yet walk-forward tested).
       - "ETH/USDT"
       - "SOL/USDT"
-      - "BNB/USDT"
       - "AVAX/USDT"
       - "LINK/USDT"
     risk_per_trade: 1.5

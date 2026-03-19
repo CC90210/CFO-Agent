@@ -21,6 +21,7 @@ import datetime
 import logging
 import signal
 import sys
+from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
 from typing import Any
@@ -40,13 +41,28 @@ from core.regime_detector import RegimeDetector, MarketRegime
 from core.sentiment_engine import SentimentEngine
 from core.trade_protocol import TradeProtocol, ProtocolVerdict
 from db.database import get_session, init_db, health_check
-from db.models import DailyPnL, PortfolioSnapshot, Signal as DBSignal
+from db.models import DailyPnL, PortfolioSnapshot, Signal as DBSignal, Trade as DBTrade
 from strategies.base import BaseStrategy, Direction, Signal as StrategySignal, StrategyRegistry
 
 logger = logging.getLogger(__name__)
 
 # Path to the strategy config relative to this file
 _STRATEGIES_YAML = Path(__file__).resolve().parent.parent / "config" / "strategies.yaml"
+
+
+@dataclass
+class _PaperPosition:
+    """Tracks a single open position in paper/live mode for SL/TP monitoring."""
+
+    symbol: str
+    direction: Direction
+    entry_price: float
+    size: float
+    stop_loss: float
+    take_profit: float
+    strategy_name: str
+    opened_at: datetime.datetime
+    db_trade_id: int | None = None
 
 # How often the heartbeat snapshot is written (seconds)
 HEARTBEAT_INTERVAL_S: int = 60
@@ -222,6 +238,9 @@ class TradingEngine:
         # Mirror of the latest correlation matrix; pushed to RiskManager every 10 ticks
         self._correlations: dict[str, dict[str, float]] = {}
         self._tick_count: int = 0
+
+        # Paper position tracking — monitors SL/TP for open positions
+        self._paper_positions: dict[str, _PaperPosition] = {}
 
         logger.info(
             "TradingEngine initialised | mode=%s exchange=%s strategies=%s",
@@ -442,6 +461,9 @@ class TradingEngine:
                     logger.warning("Trading paused: %s", reason)
                     await asyncio.sleep(60)
                     continue
+
+                # Monitor open positions for SL/TP hits before new entries
+                await self._monitor_positions()
 
                 # Main tick — run all strategies concurrently for speed
                 tick_tasks = [
@@ -884,6 +906,40 @@ class TradingEngine:
         if position is not None:
             self._risk.open_positions += 1
 
+        # Track position for SL/TP monitoring in paper mode
+        if record and record.success and self.mode == TradingMode.PAPER:
+            paper_pos = _PaperPosition(
+                symbol=signal.symbol,
+                direction=signal.direction,
+                entry_price=entry_price,
+                size=size,
+                stop_loss=signal.stop_loss,
+                take_profit=signal.take_profit,
+                strategy_name=strategy_config.get("name", signal.strategy_name),
+                opened_at=datetime.datetime.now(datetime.UTC),
+            )
+            # Persist trade entry to DB
+            db_trade = DBTrade(
+                symbol=signal.symbol,
+                exchange=self.exchange_id,
+                side="buy" if signal.direction == Direction.LONG else "sell",
+                size=size,
+                entry_price=entry_price,
+                strategy=paper_pos.strategy_name,
+                mode="paper",
+                opened_at=paper_pos.opened_at,
+            )
+            with get_session() as session:
+                session.add(db_trade)
+                session.flush()
+                paper_pos.db_trade_id = db_trade.id
+            self._paper_positions[signal.symbol] = paper_pos
+            logger.info(
+                "Paper position opened: %s %s @ %.4f SL=%.4f TP=%.4f",
+                signal.direction.value, signal.symbol, entry_price,
+                signal.stop_loss, signal.take_profit,
+            )
+
         # Persist signal to DB
         self._persist_signal(signal, executed=record.success if record else False)
 
@@ -892,6 +948,89 @@ class TradingEngine:
             self._health_monitor.refresh()
         except Exception as exc:  # noqa: BLE001
             logger.debug("Health monitor refresh failed: %s", exc)
+
+    # ── Position monitoring (paper mode SL/TP) ─────────────────────────────
+
+    async def _monitor_positions(self) -> None:
+        """
+        Check all open paper positions against current market prices.
+        Close any that have hit stop-loss or take-profit.
+        """
+        if not self._paper_positions:
+            return
+
+        symbols_to_close: list[tuple[str, float, str]] = []  # (symbol, exit_price, reason)
+
+        for symbol, pos in self._paper_positions.items():
+            # Fetch current price (use 1m candle close as mark price)
+            try:
+                ohlcv = await self._fetch_ohlcv(symbol, "1m", limit=1)
+                if not ohlcv or len(ohlcv) == 0:
+                    continue
+                mark_price = float(ohlcv[-1][4])  # close price
+            except Exception:  # noqa: BLE001
+                continue
+
+            # Check SL/TP
+            if pos.direction == Direction.LONG:
+                if mark_price <= pos.stop_loss:
+                    symbols_to_close.append((symbol, pos.stop_loss, "STOP_LOSS"))
+                elif mark_price >= pos.take_profit:
+                    symbols_to_close.append((symbol, pos.take_profit, "TAKE_PROFIT"))
+            else:  # SHORT
+                if mark_price >= pos.stop_loss:
+                    symbols_to_close.append((symbol, pos.stop_loss, "STOP_LOSS"))
+                elif mark_price <= pos.take_profit:
+                    symbols_to_close.append((symbol, pos.take_profit, "TAKE_PROFIT"))
+
+        for symbol, exit_price, reason in symbols_to_close:
+            await self._close_paper_position(symbol, exit_price, reason)
+
+    async def _close_paper_position(
+        self, symbol: str, exit_price: float, reason: str
+    ) -> None:
+        """Close a paper position and record the outcome."""
+        pos = self._paper_positions.pop(symbol, None)
+        if pos is None:
+            return
+
+        # Calculate PnL
+        if pos.direction == Direction.LONG:
+            pnl = (exit_price - pos.entry_price) * pos.size
+        else:
+            pnl = (pos.entry_price - exit_price) * pos.size
+
+        pnl_pct = (pnl / (pos.entry_price * pos.size) * 100) if pos.entry_price * pos.size != 0 else 0.0
+
+        # Update risk state
+        self._risk.current_equity += pnl
+        self._risk.daily_pnl += pnl
+        self._risk.open_positions = max(0, self._risk.open_positions - 1)
+        if self._risk.current_equity > self._risk.equity_peak:
+            self._risk.equity_peak = self._risk.current_equity
+
+        # Refresh strategy health from DB (picks up the new closed trade)
+        try:
+            self._health_monitor.refresh()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Health monitor refresh failed: %s", exc)
+
+        # Persist trade close to DB
+        now = datetime.datetime.now(datetime.UTC)
+        if pos.db_trade_id is not None:
+            with get_session() as session:
+                db_trade = session.get(DBTrade, pos.db_trade_id)
+                if db_trade is not None:
+                    db_trade.exit_price = exit_price
+                    db_trade.pnl = pnl
+                    db_trade.pnl_pct = pnl_pct
+                    db_trade.closed_at = now
+
+        logger.info(
+            "Paper position CLOSED [%s]: %s %s @ %.4f → %.4f | PnL=%.2f (%+.2f%%) | equity=%.2f",
+            reason, pos.direction.value, symbol, pos.entry_price,
+            exit_price, pnl, pnl_pct, self._risk.current_equity,
+        )
 
     # ── Database helpers ───────────────────────────────────────────────────
 
