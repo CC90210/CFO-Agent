@@ -29,10 +29,10 @@ strategies:
       rsi_oversold: 28           # Tuned on 2026 data (was 30, then 25)
       rsi_overbought: 72         # Tuned on 2026 data (was 70, then 75)
       rsi_exit: 50
-      atr_stop_mult: 0.8         # Tighter stop to cut max loss per trade (was 1.0)
+      atr_stop_mult: 1.0         # Keep original — 0.8x dropped WR from 58% to 45%
       volume_mult: 1.2           # Volume confirmation (tuned from 1.5)
       ema_trend_period: 200      # Only long above 200 EMA, short below
-      rr_min: 2.5                # Raise R:R floor so winners outpace losers (was 2.0)
+      rr_min: 2.0                # Keep original R:R floor
 
   # ── 2. EMA Crossover ──────────────────────────────────────────────────────
   ema_crossover:
@@ -51,7 +51,7 @@ strategies:
       macd_slow: 26
       macd_signal: 9
       adx_threshold: 20.0        # Lower ADX catches early-trend breakouts (was 25)
-      atr_stop_mult: 2.0         # Tighter stop to reduce max loss per trade (was 3.0)
+      atr_stop_mult: 2.5         # 2.0x was too tight (36% WR). 2.5x balances stop-outs vs loss size
       rr_ratio: 3.5              # Wider target so winners exceed losses (was 3.0)
 
   # ── 3. Bollinger Band Mean Reversion ──────────────────────────────────────
@@ -69,8 +69,8 @@ strategies:
     parameters:
       bb_period: 20
       bb_std: 2.0
-      atr_stop_mult: 1.5           # Tighter stop to cut max loss per trade (was 2.0)
-      atr_tp_mult: 4.0             # Reasonable TP — still 2.7x the stop distance (was 5.0)
+      atr_stop_mult: 2.0           # Tuned: 2.0x gives 59% WR on 9mo data (1.5x drops to 48%)
+      atr_tp_mult: 5.0             # Big TP lets squeeze resolution play out fully
       squeeze_percentile: 10.0
       exhaustion_vol_mult: 2.0
 
@@ -119,7 +119,7 @@ strategies:
       ltf_rsi_entry_long: 40.0   # RSI level to cross above for long LTF trigger
       ltf_rsi_entry_short: 60.0  # RSI level to cross below for short LTF trigger
       atr_period: 14
-      atr_stop_mult: 1.5         # Tighter stop to reduce max loss per trade (was 2.5)
+      atr_stop_mult: 2.0         # 1.5x was too tight (46% WR, -17%). 2.0x is middle ground
       rr_ratio: 3.5              # Wider target so winners cover losses (was 3.0)
       min_confluence: 2          # Minimum confluence score to enter
       htf_resample_rule: "4h"   # Pandas resample rule for high timeframe

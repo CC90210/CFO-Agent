@@ -108,7 +108,15 @@ class BacktestRunner:
                 logger.info("Backtesting strategy: %s", strategy_name)
 
                 try:
-                    strategy = StrategyRegistry.build(strategy_name)
+                    yaml_params = strategy_config.get("parameters", {})
+                    try:
+                        strategy = StrategyRegistry.build(strategy_name, **yaml_params)
+                    except TypeError:
+                        strategy = StrategyRegistry.build(strategy_name)
+                        logger.debug(
+                            "Strategy %s: YAML params don't match constructor — using defaults",
+                            strategy_name,
+                        )
                 except KeyError:
                     logger.warning(
                         "Strategy '%s' not found in registry — skipping.",
