@@ -40,8 +40,15 @@ from core.position_sizer import PositionSizer
 from core.regime_detector import RegimeDetector, MarketRegime
 from core.sentiment_engine import SentimentEngine
 from core.trade_protocol import TradeProtocol, ProtocolVerdict
+from utils.alerts import AlertSender
 from db.database import get_session, init_db, health_check
-from db.models import DailyPnL, PortfolioSnapshot, Signal as DBSignal, Trade as DBTrade
+from db.models import (
+    AgentPerformance,
+    DailyPnL,
+    PortfolioSnapshot,
+    Signal as DBSignal,
+    Trade as DBTrade,
+)
 from strategies.base import BaseStrategy, Direction, Signal as StrategySignal, StrategyRegistry
 
 logger = logging.getLogger(__name__)
@@ -242,6 +249,11 @@ class TradingEngine:
         # Paper position tracking — monitors SL/TP for open positions
         self._paper_positions: dict[str, _PaperPosition] = {}
 
+        # Telegram alerts for trade notifications
+        self._alert: AlertSender | None = None
+        if mode != TradingMode.BACKTEST:
+            self._alert = AlertSender()
+
         logger.info(
             "TradingEngine initialised | mode=%s exchange=%s strategies=%s",
             mode.name,
@@ -301,12 +313,26 @@ class TradingEngine:
         except Exception as exc:  # noqa: BLE001
             logger.warning("Strategy health monitor init failed (no trades yet?): %s", exc)
 
+        # 6. Start Telegram alert sender for trade notifications
+        if self._alert is not None:
+            try:
+                await self._alert.__aenter__()
+                logger.info("Telegram alert sender started.")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Telegram alerts unavailable: %s", exc)
+                self._alert = None
+
         logger.info("Engine setup complete.")
 
     async def _teardown(self) -> None:
         """Clean up resources on shutdown."""
         logger.info("Engine teardown...")
         self._running = False
+        if self._alert is not None:
+            try:
+                await self._alert.__aexit__(None, None, None)
+            except Exception:  # noqa: BLE001
+                pass
         if self._exchange and hasattr(self._exchange, "close"):
             try:
                 await self._exchange.close()
@@ -796,10 +822,13 @@ class TradingEngine:
         except Exception as exc:  # noqa: BLE001
             logger.debug("Sentiment analysis failed for %s: %s", symbol, exc)
 
-        if abs(signal.conviction) < 0.3:
+        # Adaptive conviction threshold: strategies with poor track records
+        # need higher conviction to trade (learned from Darwinian weights)
+        min_conviction = self._get_adaptive_conviction_threshold(strategy_name)
+        if abs(signal.conviction) < min_conviction:
             logger.debug(
-                "Signal for %s/%s conviction %.3f below 0.3 threshold — skipping.",
-                symbol, strategy_name, signal.conviction,
+                "Signal for %s/%s conviction %.3f below %.2f threshold — skipping.",
+                symbol, strategy_name, signal.conviction, min_conviction,
             )
             return None
 
@@ -939,6 +968,21 @@ class TradingEngine:
                 signal.direction.value, signal.symbol, entry_price,
                 signal.stop_loss, signal.take_profit,
             )
+            # Telegram alert
+            if self._alert is not None:
+                try:
+                    await self._alert.send_trade_opened(
+                        symbol=signal.symbol,
+                        direction=signal.direction.value,
+                        entry_price=entry_price,
+                        size=size,
+                        stop_loss=signal.stop_loss,
+                        take_profit=signal.take_profit,
+                        conviction=signal.conviction,
+                        strategy=paper_pos.strategy_name,
+                    )
+                except Exception:  # noqa: BLE001
+                    pass  # alerts are best-effort
 
         # Persist signal to DB
         self._persist_signal(signal, executed=record.success if record else False)
@@ -1026,11 +1070,107 @@ class TradingEngine:
                     db_trade.pnl_pct = pnl_pct
                     db_trade.closed_at = now
 
+        # Update strategy performance in agent_performance table (Darwinian learning)
+        self._update_strategy_performance(pos.strategy_name, pnl_pct)
+
         logger.info(
             "Paper position CLOSED [%s]: %s %s @ %.4f → %.4f | PnL=%.2f (%+.2f%%) | equity=%.2f",
             reason, pos.direction.value, symbol, pos.entry_price,
             exit_price, pnl, pnl_pct, self._risk.current_equity,
         )
+        # Telegram alert
+        if self._alert is not None:
+            try:
+                await self._alert.send_trade_closed(
+                    symbol=symbol,
+                    direction=pos.direction.value,
+                    exit_price=exit_price,
+                    pnl=pnl,
+                    pnl_pct=pnl_pct,
+                    exit_reason=reason,
+                )
+            except Exception:  # noqa: BLE001
+                pass  # alerts are best-effort
+
+    # ── Darwinian learning ──────────────────────────────────────────────────
+
+    def _get_adaptive_conviction_threshold(self, strategy_name: str) -> float:
+        """
+        Return the minimum conviction required for a strategy to trade.
+
+        Strategies with strong Darwinian weights (high win rate) get a lower
+        threshold (0.25), while poor performers get a higher bar (0.50).
+        New strategies with no track record use the default (0.30).
+        """
+        try:
+            with get_session() as session:
+                record = (
+                    session.query(AgentPerformance)
+                    .filter(AgentPerformance.agent_name == strategy_name)
+                    .first()
+                )
+            if record is None or record.total_trades < 5:
+                return 0.30  # Default for new/untested strategies
+
+            # Map weight (0.3 to 2.5) → threshold (0.50 to 0.25)
+            # Higher weight = lower threshold (trusted strategy)
+            weight = record.weight
+            threshold = 0.50 - (weight - 0.3) * (0.25 / 2.2)
+            return max(0.25, min(0.50, threshold))
+        except Exception:  # noqa: BLE001
+            return 0.30
+
+    def _update_strategy_performance(self, strategy_name: str, pnl_pct: float) -> None:
+        """
+        Update the AgentPerformance record for a strategy after a trade closes.
+        This is the core feedback loop: every closed trade updates the strategy's
+        win rate, Sharpe, and weight so the system learns from its results.
+        """
+        try:
+            with get_session() as session:
+                record = (
+                    session.query(AgentPerformance)
+                    .filter(AgentPerformance.agent_name == strategy_name)
+                    .first()
+                )
+                if record is None:
+                    record = AgentPerformance(
+                        agent_name=strategy_name,
+                        weight=1.0,
+                        total_trades=0,
+                        total_pnl=0.0,
+                    )
+                    session.add(record)
+
+                # Update trade statistics
+                record.total_trades += 1
+                record.total_pnl += pnl_pct
+                is_win = pnl_pct > 0
+
+                # Recalculate win rate
+                old_wins = int((record.win_rate or 0.5) * max(record.total_trades - 1, 1))
+                new_wins = old_wins + (1 if is_win else 0)
+                record.win_rate = new_wins / record.total_trades
+
+                # Darwinian weight adjustment: reward winners, penalise losers
+                if is_win:
+                    record.weight = min(2.5, record.weight * 1.08)
+                else:
+                    record.weight = max(0.3, record.weight * 0.90)
+
+                # Update average conviction (running average)
+                record.avg_conviction = record.total_pnl / record.total_trades
+
+                logger.info(
+                    "Darwinian update [%s]: trades=%d WR=%.1f%% weight=%.3f pnl_this=%.2f%%",
+                    strategy_name,
+                    record.total_trades,
+                    (record.win_rate or 0) * 100,
+                    record.weight,
+                    pnl_pct,
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed to update strategy performance for %s: %s", strategy_name, exc)
 
     # ── Database helpers ───────────────────────────────────────────────────
 

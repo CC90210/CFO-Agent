@@ -65,6 +65,8 @@ logger = logging.getLogger("atlas.autonomous")
 # ─────────────────────────────────────────────────────────────────────────────
 
 from config.settings import settings  # noqa: E402
+from core.parameter_tuner import ParameterTuner  # noqa: E402
+from core.supervisor import SupervisedEngine, run_watchdog_heartbeat  # noqa: E402
 from db.database import get_session, health_check, init_db  # noqa: E402
 from db.models import AgentPerformance, DailyPnL, PortfolioSnapshot, Trade  # noqa: E402
 from utils.alerts import AlertSender  # noqa: E402
@@ -217,6 +219,10 @@ async def _run_market_scan(alert: AlertSender) -> None:
     """
     Quick scan of all watchlist symbols. Generates signals via the
     trading engine tick. Does not perform deep multi-agent analysis.
+
+    NOTE: The primary continuous engine is managed by SupervisedEngine in run().
+    This function handles supplementary on-schedule scans when the persistent
+    engine is between restart cycles or in a non-running state.
     """
     try:
         logger.info("Market scan starting...")
@@ -239,11 +245,12 @@ async def _run_deep_analysis(alert: AlertSender) -> None:
     """
     Full multi-agent analysis on the top movers from the last scan.
     More expensive than a quick scan — runs every hour.
+
+    TODO: integrate with agents/ multi-agent orchestrator once implemented.
+    Currently runs a full engine tick pass on all strategies.
     """
     try:
         logger.info("Deep analysis starting...")
-        # TODO: integrate with agents/ multi-agent orchestrator once implemented.
-        # For now, run a full engine tick on all strategies (same as scan but logged differently).
         from core.engine import TradingEngine, TradingMode  # noqa: PLC0415
 
         mode = TradingMode.PAPER if settings.is_paper else TradingMode.LIVE
@@ -376,6 +383,20 @@ async def _run_weekly_evolution(alert: AlertSender) -> None:
             "Weekly agent evolution complete\n" + "\n".join(summary_lines)
         )
         logger.info("Weekly evolution complete. %d agents updated.", len(updates))
+
+        # ── Parameter tuning: runs immediately after Darwinian weight update ──
+        try:
+            tuner = ParameterTuner(dry_run=False, lookback_days=30)
+            records = tuner.tune_all()
+            report = tuner.report(records)
+            if records:
+                await alert.send_info(report)
+            logger.info(
+                "Parameter tuning complete. %d adjustment(s) applied.", len(records)
+            )
+        except Exception as tuning_exc:  # noqa: BLE001
+            logger.error("Parameter tuning failed: %s", tuning_exc)
+
     except Exception as exc:  # noqa: BLE001
         logger.error("Weekly evolution failed: %s", exc)
 
@@ -564,8 +585,33 @@ async def run(live: bool = False, confirm_live: bool = False) -> None:
             f"Portfolio: ${portfolio_value:,.2f}"
         )
 
+        # ── Supervised engine (crash-safe, persistent, 24/7) ─────────────────
+        from core.engine import TradingMode  # noqa: PLC0415
+
+        engine_mode = TradingMode.PAPER if not (live and confirm_live) else TradingMode.LIVE
+        supervised_engine = SupervisedEngine(
+            mode=engine_mode,
+            alert=alert,
+            max_crashes=50,
+        )
+
         # Schedule all recurring tasks as concurrent asyncio tasks
         tasks = [
+            # Watchdog heartbeat — writes logs/watchdog.heartbeat every 60 s.
+            # External monitors (Docker HEALTHCHECK, scripts/healthcheck.py) use this
+            # to detect a stale/dead process without parsing logs.
+            asyncio.create_task(
+                run_watchdog_heartbeat(shutdown_event),
+                name="watchdog-heartbeat",
+            ),
+            # Supervised trading engine — the primary 24/7 workhorse.
+            # SupervisedEngine restarts the engine on crash with exponential backoff,
+            # persists portfolio state to DB before each teardown, and restores it on
+            # restart.  It replaces the ad-hoc per-scan engine instantiations.
+            asyncio.create_task(
+                supervised_engine.run_forever(shutdown_event),
+                name="supervised-engine",
+            ),
             asyncio.create_task(
                 _interval_task(
                     "heartbeat",

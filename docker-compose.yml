@@ -70,10 +70,10 @@ services:
     # Health check from the Dockerfile is inherited; the compose file adds a
     # dependency ordering hook for any future services that depend on the agent.
     healthcheck:
-      test: ["CMD", "python", "-c", "from config.settings import settings; from core.engine import TradingEngine"]
+      test: ["CMD", "python", "scripts/healthcheck.py", "--quiet"]
       interval: 60s
-      timeout: 15s
-      start_period: 30s
+      timeout: 10s
+      start_period: 90s
       retries: 3
 
 # ─────────────────────────────────────────────────────────────────────────────
