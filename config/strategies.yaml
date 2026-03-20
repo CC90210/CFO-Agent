@@ -638,3 +638,41 @@ strategies:
       volume_period: 20
       volume_mult: 1.0
       sma_distance_pct: 0.005
+
+  # ── 21. Donchian Channel Breakout (TURTLE TRADERS) ─────────────────────
+  donchian_breakout:
+    enabled: true
+    description: "Classic Turtle Traders breakout — 20-bar high/low channel. Proven profitable for 40+ years."
+    timeframe: "4h"
+    symbols:
+      - "BTC/USDT"
+      - "ETH/USDT"
+      - "SOL/USDT"
+      - "ADA/USDT"
+      - "DOT/USDT"
+      - "DOGE/USDT"
+      - "XRP/USDT"
+      - "AVAX/USDT"
+      - "LINK/USDT"
+      # Gold and forex via OANDA
+      - "XAU_USD"
+      - "XAG_USD"
+      - "EUR_USD"
+      - "GBP_USD"
+      - "USD_JPY"
+    risk_per_trade: 1.5
+    max_positions: 4
+    parameters:
+      entry_period: 20
+      exit_period: 10
+      atr_period: 14
+      atr_stop_mult: 2.0
+      rr_ratio: 3.0
+      adx_period: 14
+      adx_min: 20.0
+      rsi_period: 14
+      rsi_max_long: 75.0
+      rsi_min_short: 25.0
+      volume_period: 20
+      volume_mult: 1.2
+      sma_trend_period: 200
