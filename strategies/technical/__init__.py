@@ -33,6 +33,10 @@ from strategies.technical import smart_money  # noqa: F401
 from strategies.technical import volume_profile  # noqa: F401
 from strategies.technical import order_flow_imbalance  # noqa: F401
 from strategies.technical import zscore_mean_reversion  # noqa: F401
+from strategies.technical import forex_session_momentum  # noqa: F401
+from strategies.technical import ibs_mean_reversion  # noqa: F401
+from strategies.technical import sector_rotation  # noqa: F401 — side-effect import: registers SectorRotationStrategy with StrategyRegistry
+from strategies.technical import connors_rsi  # noqa: F401
 
 __all__ = [
     "rsi",
