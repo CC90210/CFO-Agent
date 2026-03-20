@@ -101,13 +101,13 @@ strategies:
       # BTC +8.41% WR:72.2% Sharpe:3.57 — TOP PERFORMER
       # ETH +2.93% WR:66.7% Sharpe:1.31
       # ADA +3.82% WR:54.5% Sharpe:1.29
-      # MATIC +3.53% WR:61.5% Sharpe:0.98
+      # DOT +TBD (replaced MATIC — not on Kraken)
       # DOGE +2.95% WR:66.7% Sharpe:1.14
       # XRP +1.27% WR:60.0% Sharpe:0.44
       - "BTC/USDT"
       - "ETH/USDT"
       - "ADA/USDT"
-      - "MATIC/USDT"
+      - "DOT/USDT"
       - "DOGE/USDT"
       - "XRP/USDT"
       - "SOL/USDT"
@@ -539,6 +539,35 @@ strategies:
       atr_period: 14
       atr_stop_mult: 1.5
       rr_ratio: 2.0
+
+  # ── 20. Grid/DCA Hybrid (CHOPPY CRYPTO) ────────────────────────────────
+  grid_dca:
+    enabled: true
+    description: "ATR-adaptive grid mean reversion — profits from sideways crypto oscillation. ADX < 25 gate ensures choppy-only trades."
+    timeframe: "1h"
+    symbols:
+      # Crypto — requires Binance/CCXT in .env
+      - "BTC/USDT"
+      - "ETH/USDT"
+      - "SOL/USDT"
+      - "ADA/USDT"
+      - "DOT/USDT"
+      - "DOGE/USDT"
+      - "XRP/USDT"
+    risk_per_trade: 1.0
+    max_positions: 4
+    parameters:
+      grid_atr_mult: 1.0         # grid spacing = 1.0 × ATR (adaptive to volatility)
+      grid_levels: 3             # 3 buy zones below SMA, 3 sell zones above
+      sma_period: 50             # center anchor
+      rsi_period: 14
+      adx_period: 14
+      adx_max: 25.0              # only trade when ADX confirms choppy/ranging market
+      atr_period: 14
+      atr_stop_mult: 1.5         # tighter stop than trend strategies (small wins target)
+      rr_ratio: 1.5              # 1.5 RR — frequent small wins in chop
+      volume_period: 20
+      volume_mult: 0.8           # relaxed volume gate — want frequent trades in chop
 
   # ── 19. Sector Momentum Rotation (US SECTOR ETFs) ───────────────────────
   sector_rotation:
