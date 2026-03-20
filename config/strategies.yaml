@@ -212,12 +212,16 @@ strategies:
 
   # ── 8. Smart Money Concepts ──────────────────────────────────────────────
   smart_money:
-    enabled: true   # 9mo (no scale-out): ETH +2.66% PF 2.65. Low trade count but high quality.
+    enabled: true
     description: "Order blocks, fair value gaps, and liquidity sweeps."
     timeframe: "4h"
     symbols:
-      # Crypto
-      - "ETH/USDT"      # +2.66% backtested (BTC -1.66%, SOL -1.31%)
+      # Crypto — only symbols that backtested profitable (2026-03-19)
+      # ETH +2.66%, XRP +3.56%, SOL +1.18%, DOGE +1.16% (BTC/ADA/LINK/BNB all negative)
+      - "ETH/USDT"
+      - "XRP/USDT"
+      - "SOL/USDT"
+      - "DOGE/USDT"
       # US Stocks — Smart Money (order blocks, FVGs) works on all liquid markets
       # Requires ALPACA_API_KEY in .env
       - "SPY"

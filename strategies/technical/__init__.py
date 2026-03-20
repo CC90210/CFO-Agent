@@ -30,7 +30,7 @@ from strategies.technical import london_breakout  # noqa: F401
 from strategies.technical import opening_range  # noqa: F401
 from strategies.technical import ichimoku_trend  # noqa: F401
 from strategies.technical import smart_money  # noqa: F401
-from strategies.technical import volume_profile  # noqa: F401
+import importlib as _il; _il.import_module("strategies.technical.volume_profile")  # noqa: F401,E702 — name shadowed by indicator function
 from strategies.technical import order_flow_imbalance  # noqa: F401
 from strategies.technical import zscore_mean_reversion  # noqa: F401
 from strategies.technical import forex_session_momentum  # noqa: F401
