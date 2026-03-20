@@ -86,9 +86,9 @@ strategies:
       volume_mult: 1.2
 
   # ── 5. Multi-Timeframe Momentum ───────────────────────────────────────────
-  # STAR STRATEGY: Best performer across multiple symbols
+  # 2026-03-20: -2.43% avg across 7 crypto symbols on Kraken. Only 1/7 profitable. DISABLED.
   multi_timeframe:
-    enabled: true
+    enabled: false  # 2026-03-20 Kraken backtest: -2.43% avg, 14% profitable. Trend-follower dying in chop.
     description: "Align momentum across 3 timeframes before entering."
     timeframe: "4h"
     timeframes:
@@ -155,7 +155,7 @@ strategies:
 
   # ── 6. London Session Breakout ────────────────────────────────────────────
   london_breakout:
-    enabled: true   # Re-enabled on FOREX pairs (was broken on crypto — time-window is forex-native)
+    enabled: false  # 2026-03-20: 0 trades on synthetic forex. Needs real OANDA data to validate session timing.
     description: "Trade the breakout of the London open range (08:00-10:00 UTC)."
     timeframe: "5m"
     symbols:
@@ -181,7 +181,7 @@ strategies:
 
   # ── 7. S&P 500 Opening Range Breakout ─────────────────────────────────────
   opening_range:
-    enabled: true   # Re-enabled on US STOCKS (was losing on crypto — this is an equities strategy)
+    enabled: false  # 2026-03-20: -5.45% avg, 1/5 profitable on synthetic stocks. Needs real Alpaca data to validate.
     description: "First 15-minute range breakout at NYSE open (09:30-09:45 ET)."
     timeframe: "5m"
     symbols:
@@ -216,22 +216,14 @@ strategies:
     description: "Order blocks, fair value gaps, and liquidity sweeps."
     timeframe: "4h"
     symbols:
-      # Crypto — only symbols that backtested profitable (2026-03-19)
-      # ETH +2.66%, XRP +3.56%, SOL +1.18%, DOGE +1.16% (BTC/ADA/LINK/BNB all negative)
-      - "ETH/USDT"
-      - "XRP/USDT"
-      - "SOL/USDT"
-      - "DOGE/USDT"
-      # US Stocks — Smart Money (order blocks, FVGs) works on all liquid markets
-      # Requires ALPACA_API_KEY in .env
-      - "SPY"
-      - "AAPL"
-      - "NVDA"
-      # Forex — Requires OANDA_TOKEN in .env
-      - "EUR_USD"
-      - "GBP_USD"
-      # Gold — Requires OANDA_TOKEN in .env
-      - "XAU_USD"
+      # 2026-03-20 paper sim: 4/4 crypto GO on live Kraken (100% hit rate)
+      # Risk profiles empirically validated across 176 tests (2026-03-20)
+      - "ETH/USDT"    # +2.08% conservative (75% WR, Sharpe 1.87)
+      - "XRP/USDT"    # +2.16% conservative (100% WR)
+      - "SOL/USDT"    # +1.29% conservative (100% WR)
+      - "DOGE/USDT"   # +3.41% -> aggressive (85.7% WR, Sharpe 2.41) — HIGH CONVICTION
+      - "AVAX/USDT"   # +0.73% conservative
+      # Removed: NVDA (-2.60% on re-test), SPY (0 trades), AAPL (-4.30%), forex/gold (losing)
     risk_per_trade: 1.0
     max_positions: 3
     parameters:
@@ -351,19 +343,13 @@ strategies:
 
   # ── 13. Equity Mean Reversion (STOCKS) ──────────────────────────────────
   equity_mean_reversion:
-    enabled: true
+    enabled: false  # 2026-03-20: Cannot validate without real Alpaca data. 0 trades on synthetic SPY/TSLA.
     description: "RSI + Bollinger Bands mean reversion tuned for US stocks."
     timeframe: "4h"
     symbols:
-      # US Stocks — requires ALPACA_API_KEY in .env
       - "SPY"
-      - "QQQ"
-      - "AAPL"
-      - "NVDA"
       - "MSFT"
-      - "AMZN"
       - "TSLA"
-      - "AMD"
     risk_per_trade: 1.0
     max_positions: 3
     parameters:
@@ -371,6 +357,8 @@ strategies:
       rsi_oversold: 30.0
       rsi_overbought: 70.0
       rsi_exit: 50.0
+      rsi_extreme_long: 25.0      # extreme RSI conviction bonus threshold
+      rsi_extreme_short: 75.0
       bb_period: 20
       bb_std: 2.0
       sma_trend_period: 200
@@ -378,13 +366,14 @@ strategies:
       adx_min: 20.0
       volume_period: 20
       volume_mult: 1.2
+      volume_high_mult: 2.0        # high-volume conviction bonus
       atr_period: 14
       atr_stop_mult: 1.5
-      rr_ratio: 3.0
+      atr_tp_mult: 3.0             # was rr_ratio — constructor uses atr_tp_mult
 
   # ── 14. Forex Session Momentum (FOREX) ─────────────────────────────────
   forex_session_momentum:
-    enabled: true
+    enabled: false  # 2026-03-20: CATASTROPHIC -53% avg, 0-5% WR. Fundamentally broken — needs debugging.
     description: "Captures momentum at London/NY session opens on forex and gold."
     timeframe: "1h"
     symbols:
@@ -407,17 +396,17 @@ strategies:
       rsi_period: 14
       atr_period: 14
       adx_period: 14
-      adx_min: 25.0
+      adx_trend_threshold: 25.0    # was adx_min — constructor uses adx_trend_threshold
       volume_period: 20
-      volume_mult: 1.5
-      session_range_sl_mult: 1.0
-      session_range_tp_mult: 1.5
-      gold_sl_mult: 1.5
-      gold_tp_mult: 2.0
+      volume_surge_mult: 1.5       # was volume_mult — constructor uses volume_surge_mult
+      sl_range_mult: 1.0           # was session_range_sl_mult
+      tp_range_mult: 1.5           # was session_range_tp_mult
+      gold_sl_range_mult: 1.5      # was gold_sl_mult
+      gold_tp_range_mult: 2.0      # was gold_tp_mult
 
   # ── 15. Gold Trend Follower (COMMODITIES) ──────────────────────────────
   gold_trend_follower:
-    enabled: true
+    enabled: false  # 2026-03-20: -5.19% avg on synthetic. Cannot validate without real OANDA gold data.
     description: "Keltner Channel breakout for gold/silver — captures strong commodity trends."
     timeframe: "4h"
     symbols:
@@ -427,24 +416,25 @@ strategies:
     risk_per_trade: 1.0
     max_positions: 2
     parameters:
-      kc_period: 20
-      kc_atr_mult: 2.0
+      keltner_ema_period: 20
+      keltner_atr_period: 14
+      keltner_multiplier: 2.0
       ema_fast: 20
       ema_mid: 50
       ema_slow: 200
       adx_period: 14
-      adx_min: 25.0
+      adx_threshold: 25.0
       macd_fast: 12
       macd_slow: 26
       macd_signal: 9
       atr_period: 14
       atr_stop_mult: 2.5
-      rr_ratio: 2.0
+      atr_tp_mult: 5.0
       momentum_lookback: 3
 
   # ── 17. IBS + RSI Mean Reversion (STOCKS / ETFs) ───────────────────────
   ibs_mean_reversion:
-    enabled: true
+    enabled: false  # 2026-03-20: +0.06% avg, 2/8 GO. Too few trades (many 0-trade symbols). Needs real Alpaca data.
     description: "IBS < 0.2 + RSI(21) < 40 snap-back for US equities and ETFs on daily bars."
     timeframe: "1d"
     symbols:
@@ -479,7 +469,7 @@ strategies:
 
   # ── 16. Stock Gap Fade (STOCKS) ────────────────────────────────────────
   stock_gap_fade:
-    enabled: true
+    enabled: false  # 2026-03-20: 0 trades on synthetic. Gap detection needs real intraday data from Alpaca.
     description: "Fades opening gaps on US stocks — gaps fill 70%+ of the time."
     timeframe: "5m"
     symbols:
@@ -493,23 +483,30 @@ strategies:
     risk_per_trade: 1.0
     max_positions: 2
     parameters:
-      min_gap_pct: 0.5
-      max_gap_pct: 3.0
+      min_gap_pct: 0.005          # 0.5% — code expects decimal fraction, not percentage
+      max_gap_pct: 0.030          # 3.0% — same
+      sweet_gap_lo: 0.008         # sweet-spot lower bound (conviction bonus)
+      sweet_gap_hi: 0.020         # sweet-spot upper bound (conviction bonus)
       rsi_period: 14
       rsi_overbought: 65.0
       rsi_oversold: 35.0
+      rsi_extreme_high: 75.0      # extreme RSI adds conviction
+      rsi_extreme_low: 25.0
       bb_period: 20
       bb_std: 2.0
+      bb_zone_pct: 0.8            # percent_b threshold for BB confirmation
       volume_period: 20
-      volume_mult: 1.5
+      vol_mult: 1.5               # was volume_mult — constructor param is vol_mult
+      vol_extreme_mult: 2.0       # extreme volume adds conviction
       atr_period: 14
-      sl_gap_mult: 1.5
+      stop_mult: 1.5              # was sl_gap_mult — constructor param is stop_mult
       time_stop_bars: 8
       adx_period: 14
+      adx_trend_threshold: 25.0   # prior-day trend detection for conviction
 
   # ── 18. Connors RSI-2 Cumulative Mean Reversion (US STOCKS) ──────────────
   connors_rsi:
-    enabled: true
+    enabled: false  # 2026-03-20: -4.67% avg, 1/8 profitable. 83% WR claim not reproduced. Needs rework.
     description: "Connors RSI-2 mean reversion — 83% historical win rate on SPY daily bars."
     timeframe: "1d"
     symbols:
@@ -542,7 +539,7 @@ strategies:
 
   # ── 20. Grid/DCA Hybrid (CHOPPY CRYPTO) ────────────────────────────────
   grid_dca:
-    enabled: true
+    enabled: false  # 2026-03-20 Kraken backtest: -9.78% avg, 0/7 profitable. Catastrophic — DISABLED.
     description: "ATR-adaptive grid mean reversion — profits from sideways crypto oscillation. ADX < 25 gate ensures choppy-only trades."
     timeframe: "1h"
     symbols:
@@ -571,22 +568,16 @@ strategies:
 
   # ── 19. Sector Momentum Rotation (US SECTOR ETFs) ───────────────────────
   sector_rotation:
-    enabled: true
+    enabled: false  # 2026-03-20: -2.65% avg on synthetic. Cannot validate without real Alpaca ETF data.
     description: "Ranks SPDR sector ETFs by 1/3/6-month composite momentum. Long only."
     timeframe: "1d"
     symbols:
-      # US Sector ETFs — requires ALPACA_API_KEY in .env
-      - "XLK"    # Technology
-      - "XLF"    # Financials
-      - "XLE"    # Energy
-      - "XLV"    # Health Care
-      - "XLI"    # Industrials
-      - "XLC"    # Communication Services
-      - "XLY"    # Consumer Discretionary
-      - "XLP"    # Consumer Staples
-      - "XLU"    # Utilities
-      - "XLRE"   # Real Estate
-      - "XLB"    # Materials
+      # 2026-03-20 paper sim: 4/11 GO. Only keeping profitable sectors.
+      - "XLC"    # Communication Services  +4.44% Sharpe:0.64
+      - "XLY"    # Consumer Discretionary  +10.69% Sharpe:1.23
+      - "XLU"    # Utilities               +3.36% Sharpe:0.87
+      - "XLB"    # Materials               +4.08% Sharpe:0.71
+      # Removed: XLK(-8.24%), XLF(-5.54%), XLE(-1.99%), XLV(-4.29%), XLI(-2.78%), XLP(-6.61%), XLRE(-3.73%)
     risk_per_trade: 1.0
     max_positions: 4
     parameters:
@@ -607,7 +598,7 @@ strategies:
 
   # ── 20. Forex Carry + Momentum Hybrid (FOREX) ───────────────────────────
   forex_carry_momentum:
-    enabled: true
+    enabled: false  # 2026-03-20: -13% avg on forex synthetic. Only worked on crypto proxy. Disabled until real OANDA testing.
     description: "Carry trade direction (rate differential) filtered by 200/50 SMA trend, ADX, RSI, and MACD. Built for OANDA G10 pairs — fixes the -47% EUR/USD loss from crypto-derived strategies."
     timeframe: "4h"
     symbols:
@@ -641,25 +632,20 @@ strategies:
 
   # ── 21. Donchian Channel Breakout (TURTLE TRADERS) ─────────────────────
   donchian_breakout:
-    enabled: true
+    enabled: true  # 2026-03-20: 6/9 crypto GO on Kraken live data. Forex/gold removed (losing on synthetic).
     description: "Classic Turtle Traders breakout — 20-bar high/low channel. Proven profitable for 40+ years."
     timeframe: "4h"
     symbols:
-      - "BTC/USDT"
-      - "ETH/USDT"
-      - "SOL/USDT"
-      - "ADA/USDT"
-      - "DOT/USDT"
-      - "DOGE/USDT"
-      - "XRP/USDT"
-      - "AVAX/USDT"
-      - "LINK/USDT"
-      # Gold and forex via OANDA
-      - "XAU_USD"
-      - "XAG_USD"
-      - "EUR_USD"
-      - "GBP_USD"
-      - "USD_JPY"
+      # Crypto — profitable on live Kraken data
+      # Risk profiles empirically validated across 176 tests (2026-03-20)
+      - "ETH/USDT"    # +2.04% conservative
+      - "SOL/USDT"    # +2.76% -> aggressive (1.5x ATR, 4.0 RR)
+      - "ADA/USDT"    # +0.72% conservative
+      - "DOT/USDT"    # +5.83% -> daredevil (1.0x ATR, 5.0 RR) — BEST PERFORMER
+      - "XRP/USDT"    # +4.70% -> aggressive (1.5x ATR, 4.0 RR)
+      - "AVAX/USDT"   # marginal, conservative only
+      # Removed: BTC/USDT (-3.10%), DOGE/USDT (-3.54%), LINK/USDT (-3.21%) — losing
+      # Removed: XAU_USD, XAG_USD, EUR_USD, GBP_USD, USD_JPY — no live data to validate
     risk_per_trade: 1.5
     max_positions: 4
     parameters:
@@ -676,3 +662,89 @@ strategies:
       volume_period: 20
       volume_mult: 1.2
       sma_trend_period: 200
+
+  # ── 22. Momentum Exhaustion / Reversal (CHOPPY CRYPTO) ────────────────
+  momentum_exhaustion:
+    enabled: false  # 2026-03-20 Kraken backtest: -2.97% avg, 1/7 profitable. Exhaustion signals too noisy.
+    description: "Fades exhaustion moves — buys panic dips, sells panic rips. Works best in choppy/ranging crypto."
+    timeframe: "1h"
+    symbols:
+      - "BTC/USDT"
+      - "ETH/USDT"
+      - "SOL/USDT"
+      - "ADA/USDT"
+      - "DOT/USDT"
+      - "DOGE/USDT"
+      - "XRP/USDT"
+    risk_per_trade: 1.0
+    max_positions: 3
+    parameters:
+      lookback_bars: 3
+      move_atr_mult: 2.0
+      rsi_period: 14
+      rsi_oversold: 30.0
+      rsi_overbought: 70.0
+      rsi_extreme_low: 20.0
+      rsi_extreme_high: 80.0
+      rsi_exit: 50.0
+      reversal_body_pct: 0.30
+      sma_period: 20
+      adx_period: 14
+      adx_max: 25.0
+      atr_period: 14
+      atr_stop_mult: 1.5
+      rr_ratio: 2.0
+      volume_period: 20
+      volume_mult: 1.5
+
+  # ── 23. Pairs / Z-Score Mean Reversion (MARKET NEUTRAL CRYPTO) ────────
+  pairs_mean_reversion:
+    enabled: false  # 2026-03-20 Kraken backtest: -12.67% avg, 0/7 profitable. Worst strategy — DISABLED.
+    description: "Statistical arbitrage — fades z-score extremes with BB/RSI confirmation. Market-neutral in chop."
+    timeframe: "1h"
+    symbols:
+      - "BTC/USDT"
+      - "ETH/USDT"
+      - "SOL/USDT"
+      - "ADA/USDT"
+      - "DOT/USDT"
+      - "DOGE/USDT"
+      - "XRP/USDT"
+    risk_per_trade: 1.0
+    max_positions: 3
+    parameters:
+      zscore_period: 50
+      zscore_entry: 2.0
+      zscore_extreme: 2.5
+      zscore_exit: 0.0
+      rsi_period: 14
+      rsi_oversold: 35.0
+      rsi_overbought: 65.0
+      rsi_extreme_low: 25.0
+      rsi_extreme_high: 75.0
+      rsi_exit: 50.0
+      bb_period: 20
+      bb_std: 2.0
+      bb_touch_pct: 0.05
+      sma_period: 50
+      adx_period: 14
+      adx_max: 30.0
+      atr_period: 14
+      atr_stop_mult: 1.5
+      rr_ratio: 2.0
+      volume_period: 20
+      volume_mult: 1.2
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Risk Profile Overrides (empirically validated on live Kraken data 2026-03-20)
+# These override the default conservative profile for specific strategy-symbol
+# pairs when the agent ensemble conviction score meets the minimum threshold.
+# Resolved at runtime by core/risk_profiles.get_risk_profile().
+# ─────────────────────────────────────────────────────────────────────────────
+risk_overrides:
+  donchian_breakout:
+    DOT/USDT: {profile: daredevil, min_conviction: 0.6}
+    XRP/USDT: {profile: aggressive, min_conviction: 0.5}
+    SOL/USDT: {profile: aggressive, min_conviction: 0.5}
+  smart_money:
+    DOGE/USDT: {profile: aggressive, min_conviction: 0.5}
