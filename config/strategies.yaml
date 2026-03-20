@@ -604,3 +604,37 @@ strategies:
       atr_period: 14
       atr_stop_mult: 2.0
       rr_ratio: 2.5
+
+  # ── 20. Forex Carry + Momentum Hybrid (FOREX) ───────────────────────────
+  forex_carry_momentum:
+    enabled: true
+    description: "Carry trade direction (rate differential) filtered by 200/50 SMA trend, ADX, RSI, and MACD. Built for OANDA G10 pairs — fixes the -47% EUR/USD loss from crypto-derived strategies."
+    timeframe: "4h"
+    symbols:
+      # G10 forex pairs via OANDA — requires OANDA_TOKEN in .env
+      - "EUR_USD"
+      - "GBP_USD"
+      - "USD_JPY"
+      - "AUD_USD"
+      - "USD_CAD"
+      - "EUR_GBP"
+    risk_per_trade: 1.0
+    max_positions: 3
+    parameters:
+      sma_slow: 200
+      sma_fast: 50
+      rsi_period: 14
+      rsi_overbought: 70.0
+      rsi_oversold: 30.0
+      adx_period: 14
+      adx_min: 20.0
+      adx_strong: 25.0
+      macd_fast: 12
+      macd_slow: 26
+      macd_signal: 9
+      atr_period: 14
+      atr_stop_mult: 2.5
+      rr_ratio: 2.0
+      volume_period: 20
+      volume_mult: 1.0
+      sma_distance_pct: 0.005

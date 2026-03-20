@@ -38,6 +38,7 @@ from strategies.technical import ibs_mean_reversion  # noqa: F401
 from strategies.technical import sector_rotation  # noqa: F401 — side-effect import: registers SectorRotationStrategy with StrategyRegistry
 from strategies.technical import connors_rsi  # noqa: F401
 from strategies.technical import grid_dca  # noqa: F401
+from strategies.technical import forex_carry_momentum  # noqa: F401
 
 __all__ = [
     "rsi",
