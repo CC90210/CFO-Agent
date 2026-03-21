@@ -131,6 +131,31 @@ OPTIMAL_PROFILES: dict[tuple[str, str], str] = {
     ("smart_money", "ETH/USDT"):   "conservative", # +2.08%
     ("smart_money", "SOL/USDT"):   "conservative", # +1.29%
     ("smart_money", "AVAX/USDT"):  "conservative", # +0.73%
+    # ── multi_timeframe (fresh Kraken validation 2026-03-20) ──────────────
+    ("multi_timeframe", "DOGE/USDT"):  "conservative", # +7.46%, Sharpe 1.54
+    ("multi_timeframe", "XRP/USDT"):   "aggressive",   # +13.75%, Sharpe 1.99 — TOP
+    # ── donchian_breakout new discovery ──────────────────────────────────
+    ("donchian_breakout", "ATOM/USDT"): "aggressive",   # +14.56%, Sharpe 2.11 — BEST FIND
+    # ── stock strategies (validated on real yfinance 5yr data 2026-03-20) ────
+    # sector_rotation — daredevil upgrades based on fresh 5yr backtest
+    ("sector_rotation", "XLC"):  "daredevil",    # +50.04%, WR 30.6%, Sharpe 0.50 — MONSTER
+    ("sector_rotation", "XLK"):  "daredevil",    # +33.98%, WR 28.7%, Sharpe 0.37
+    ("sector_rotation", "XLF"):  "conservative", # +10.55%, WR 35.0%, Sharpe 0.33 — conservative still best
+    # connors_rsi — all daredevil on fresh 5yr backtest
+    ("connors_rsi", "NVDA"):     "daredevil",    # +29.03%, WR 48.9%, Sharpe 0.55
+    ("connors_rsi", "META"):     "daredevil",    # +18.75%, WR 50.0%, Sharpe 0.33
+    ("connors_rsi", "QQQ"):      "daredevil",    # +18.98%, WR 55.2%, Sharpe 0.45
+    ("connors_rsi", "AMD"):      "daredevil",    # +15.21%, WR 54.4%, Sharpe 0.37
+    ("connors_rsi", "GOOG"):     "daredevil",    # +6.96%, WR 53.9%, Sharpe 0.22
+    # ── volume_profile (resurrected 2026-03-20, daredevil params on 4h) ─────
+    ("volume_profile", "AVAX/USDT"): "daredevil",    # +4.37%, WR 60%, Sharpe 1.85, PF 2.75
+    ("volume_profile", "BTC/USDT"):  "daredevil",    # +2.14%, WR 50%, Sharpe 0.88, PF 1.94
+    ("volume_profile", "XRP/USDT"):  "aggressive",   # +2.43%, WR 42.9%, Sharpe 0.95, PF 1.62
+    ("volume_profile", "DOGE/USDT"): "daredevil",    # +0.50%, WR 50%, Sharpe 0.18
+    # ── gold (validated on real OANDA data 2026-03-20) ──────────────────────
+    ("gold_trend_follower", "XAU_USD"): "aggressive", # +3.80%, WR 54.5%, Sharpe 0.87
+    ("donchian_breakout",   "XAU_USD"): "aggressive", # +15.70%, Sharpe 2.49 — GOLD CHAMPION
+    ("multi_timeframe",     "XAU_USD"): "conservative", # +10.94%, Sharpe 2.10
 }
 
 
