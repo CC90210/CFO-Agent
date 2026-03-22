@@ -120,22 +120,25 @@ _ELEVATED_PROFILES: frozenset[str] = frozenset({"aggressive", "daredevil", "snip
 
 OPTIMAL_PROFILES: dict[tuple[str, str], str] = {
     # ── donchian_breakout ──────────────────────────────────────────────────
-    ("donchian_breakout", "DOT/USDT"):  "daredevil",    # +5.83% — best performer
-    ("donchian_breakout", "XRP/USDT"):  "aggressive",   # +4.70%
-    ("donchian_breakout", "SOL/USDT"):  "aggressive",   # +2.76%
-    ("donchian_breakout", "ETH/USDT"):  "conservative", # +2.04%
-    ("donchian_breakout", "ADA/USDT"):  "conservative", # +0.72%
+    # Profiles assigned by Sharpe tier: >1.5 → aggressive, 0.7-1.5 → sniper,
+    # <0.7 → conservative. Source: full-portfolio Sharpe analysis 2026-03-21.
+    ("donchian_breakout", "ATOM/USDT"): "daredevil",    # Sharpe 1.91 → top tier (>1.5), +14.56%
+    ("donchian_breakout", "ADA/USDT"):  "aggressive",   # Sharpe 1.81 → aggressive (>1.5)
+    ("donchian_breakout", "DOT/USDT"):  "aggressive",   # Sharpe 1.70 → aggressive (>1.5)
+    ("donchian_breakout", "SOL/USDT"):  "aggressive",   # Sharpe 1.60 → aggressive (>1.5)
+    ("donchian_breakout", "ETH/USDT"):  "aggressive",   # Sharpe 1.29 → aggressive (0.7-1.5)
+    ("donchian_breakout", "XRP/USDT"):  "conservative", # Sharpe 0.74 → conservative (<0.7 boundary)
+    ("donchian_breakout", "AVAX/USDT"): "conservative", # Sharpe 0.65 → conservative (<0.7)
     # ── smart_money ───────────────────────────────────────────────────────
-    ("smart_money", "DOGE/USDT"):  "aggressive",   # +3.41%, WR 85.7%, Sharpe 2.41
-    ("smart_money", "XRP/USDT"):   "conservative", # +2.16%
-    ("smart_money", "ETH/USDT"):   "conservative", # +2.08%
-    ("smart_money", "SOL/USDT"):   "conservative", # +1.29%
-    ("smart_money", "AVAX/USDT"):  "conservative", # +0.73%
+    # Sharpe-tiered assignments from fresh validation 2026-03-21.
+    ("smart_money", "DOGE/USDT"):  "daredevil",   # Sharpe 2.11, 100% WR — elite conviction
+    ("smart_money", "AVAX/USDT"):  "aggressive",  # Sharpe 2.04 → aggressive
+    ("smart_money", "ETH/USDT"):   "aggressive",  # Sharpe 2.00 → aggressive
+    ("smart_money", "XRP/USDT"):   "aggressive",  # Sharpe 1.94 → aggressive
+    ("smart_money", "SOL/USDT"):   "aggressive",  # Sharpe 1.45 → aggressive (0.7-1.5)
     # ── multi_timeframe (fresh Kraken validation 2026-03-20) ──────────────
     ("multi_timeframe", "DOGE/USDT"):  "conservative", # +7.46%, Sharpe 1.54
-    ("multi_timeframe", "XRP/USDT"):   "aggressive",   # +13.75%, Sharpe 1.99 — TOP
-    # ── donchian_breakout new discovery ──────────────────────────────────
-    ("donchian_breakout", "ATOM/USDT"): "aggressive",   # +14.56%, Sharpe 2.11 — BEST FIND
+    ("multi_timeframe", "XRP/USDT"):   "aggressive",   # Sharpe 1.12 → aggressive (0.7-1.5), +13.75%
     # ── stock strategies (validated on real yfinance 5yr data 2026-03-20) ────
     # sector_rotation — daredevil upgrades based on fresh 5yr backtest
     ("sector_rotation", "XLC"):  "daredevil",    # +50.04%, WR 30.6%, Sharpe 0.50 — MONSTER
@@ -151,11 +154,14 @@ OPTIMAL_PROFILES: dict[tuple[str, str], str] = {
     ("volume_profile", "AVAX/USDT"): "daredevil",    # +4.37%, WR 60%, Sharpe 1.85, PF 2.75
     ("volume_profile", "BTC/USDT"):  "daredevil",    # +2.14%, WR 50%, Sharpe 0.88, PF 1.94
     ("volume_profile", "XRP/USDT"):  "aggressive",   # +2.43%, WR 42.9%, Sharpe 0.95, PF 1.62
-    ("volume_profile", "DOGE/USDT"): "daredevil",    # +0.50%, WR 50%, Sharpe 0.18
+    # Removed: DOGE/USDT — flipped to -0.66% on fresh validation
     # ── gold (validated on real OANDA data 2026-03-20) ──────────────────────
     ("gold_trend_follower", "XAU_USD"): "aggressive", # +3.80%, WR 54.5%, Sharpe 0.87
     ("donchian_breakout",   "XAU_USD"): "aggressive", # +15.70%, Sharpe 2.49 — GOLD CHAMPION
     ("multi_timeframe",     "XAU_USD"): "conservative", # +10.94%, Sharpe 2.10
+    # ── silver (validated on real OANDA data 2026-03-20) ──────────────────────
+    ("donchian_breakout",   "XAG_USD"): "aggressive", # +12.44%, WR 60%, Sharpe 2.08, PF 3.74
+    ("multi_timeframe",     "XAG_USD"): "conservative", # +7.21%, WR 50%, Sharpe 1.43, PF 2.82
 }
 
 
