@@ -129,6 +129,8 @@ OPTIMAL_PROFILES: dict[tuple[str, str], str] = {
     ("donchian_breakout", "ETH/USDT"):  "aggressive",   # Sharpe 1.29 → aggressive (0.7-1.5)
     ("donchian_breakout", "XRP/USDT"):  "conservative", # Sharpe 0.74 → conservative (<0.7 boundary)
     ("donchian_breakout", "AVAX/USDT"): "conservative", # Sharpe 0.65 → conservative (<0.7)
+    ("donchian_breakout", "SHIB/USDT"): "aggressive",      # +10.19%, Sharpe 1.86, WR 50% (2026-03-21)
+    ("donchian_breakout", "MANA/USDT"): "conservative",    # +3.13%, Sharpe 0.68, WR 44% (2026-03-21)
     # ── smart_money ───────────────────────────────────────────────────────
     # Sharpe-tiered assignments from fresh validation 2026-03-21.
     ("smart_money", "DOGE/USDT"):  "daredevil",   # Sharpe 2.11, 100% WR — elite conviction
