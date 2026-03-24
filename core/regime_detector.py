@@ -41,7 +41,11 @@ class MarketRegime(str, Enum):
 
 class RegimeDetector:
     """
-    Stateless regime classifier — call detect() with recent OHLCV data.
+    Regime classifier with hysteresis — prevents whipsaw regime flips.
+
+    The detector requires a new regime to persist for ``min_hold_bars``
+    consecutive detections before switching.  This eliminates the 51%
+    false-positive rate observed in regime transition testing (2026-03-23).
 
     Usage
     -----
@@ -61,6 +65,7 @@ class RegimeDetector:
         trend_adx_threshold: float = 25.0,
         bull_sharpe_threshold: float = 0.3,
         bear_sharpe_threshold: float = -0.3,
+        min_hold_bars: int = 6,
     ) -> None:
         self.sharpe_window = sharpe_window
         self.adx_window = adx_window
@@ -69,6 +74,13 @@ class RegimeDetector:
         self.trend_adx_threshold = trend_adx_threshold
         self.bull_sharpe_threshold = bull_sharpe_threshold
         self.bear_sharpe_threshold = bear_sharpe_threshold
+        self.min_hold_bars = min_hold_bars
+
+        # Hysteresis state
+        self._current_regime: MarketRegime = MarketRegime.CHOPPY
+        self._regime_hold_count: int = 0
+        self._pending_regime: MarketRegime | None = None
+        self._pending_count: int = 0
 
     def detect(self, df: pd.DataFrame) -> RegimeResult:
         """
@@ -142,14 +154,47 @@ class RegimeDetector:
         lookback_vol = float(np.std(returns[-self.vol_window * 3:], ddof=1)) if len(returns) >= self.vol_window * 3 else recent_vol
         vol_ratio = recent_vol / max(lookback_vol, 1e-8)
 
-        # Classification
-        regime, confidence = self._classify(
+        # Raw classification (what the metrics say right now)
+        raw_regime, confidence = self._classify(
             rolling_sharpe, adx_value, vol_ratio, mean_ret
         )
 
+        # Hysteresis: require min_hold_bars consecutive detections before switching
+        # Exception: HIGH_VOL always applies immediately (safety override)
+        if raw_regime == MarketRegime.HIGH_VOL:
+            self._current_regime = raw_regime
+            self._pending_regime = None
+            self._pending_count = 0
+        elif raw_regime != self._current_regime:
+            if self._pending_regime == raw_regime:
+                self._pending_count += 1
+            else:
+                self._pending_regime = raw_regime
+                self._pending_count = 1
+
+            if self._pending_count >= self.min_hold_bars:
+                old = self._current_regime
+                self._current_regime = raw_regime
+                self._pending_regime = None
+                self._pending_count = 0
+                logger.info(
+                    "Regime changed: %s -> %s (held %d bars, conf=%.2f)",
+                    old.value, raw_regime.value, self.min_hold_bars, confidence,
+                )
+        else:
+            # Same as current — reset pending
+            self._pending_regime = None
+            self._pending_count = 0
+            self._regime_hold_count += 1
+
+        regime = self._current_regime
+
         logger.debug(
-            "Regime: %s (conf=%.2f) Sharpe=%.2f ADX=%.1f VolRatio=%.2f",
+            "Regime: %s (conf=%.2f) Sharpe=%.2f ADX=%.1f VolRatio=%.2f [raw=%s pending=%s(%d)]",
             regime.value, confidence, rolling_sharpe, adx_value, vol_ratio,
+            raw_regime.value,
+            self._pending_regime.value if self._pending_regime else "none",
+            self._pending_count,
         )
 
         return RegimeResult(
@@ -238,6 +283,7 @@ class RegimeResult:
         """
         if self.regime == MarketRegime.BULL_TREND:
             return {
+                "donchian_breakout": 1.2,  # Breakout strategy — strong in trends
                 "ema_crossover": 1.3,
                 "multi_timeframe": 1.3,
                 "ichimoku_trend": 1.2,
@@ -250,24 +296,31 @@ class RegimeResult:
                 "order_flow_imbalance": 0.7,  # Reversal strategy — penalised in trends
                 "zscore_mean_reversion": 0.6,  # Mean reversion dangerous in trends
                 "volume_profile": 1.1,  # Breakout mode works in trends
+                "momentum_exhaustion": 0.8,
             }
         elif self.regime == MarketRegime.BEAR_TREND:
+            # 2026-03-22: Empirically tested all 12 strategies in bear conditions.
+            # Only 3 profitable: donchian (+$3,362), rsi_mr (+$1,090), smart_money (+$275).
+            # All others lose money. Weights updated from backtest evidence.
             return {
-                "ema_crossover": 1.2,   # Shorts work in bear trends
-                "multi_timeframe": 1.2,
-                "ichimoku_trend": 1.1,
-                "rsi_mean_reversion": 0.5,  # Mean reversion is a trap
-                "bollinger_squeeze": 0.8,
-                "vwap_bounce": 0.6,
-                "london_breakout": 0.9,
-                "opening_range": 0.8,
-                "smart_money": 1.0,
-                "order_flow_imbalance": 0.6,  # Catching knives is dangerous
-                "zscore_mean_reversion": 0.5,  # Mean reversion trap in bear trends
-                "volume_profile": 1.0,  # Neutral — breakout shorts can work
+                "donchian_breakout": 1.2,  # BEAR CHAMPION: +$3,362, shorts +$1,752
+                "ema_crossover": 0.3,      # LOSING: -$878, blocked
+                "multi_timeframe": 0.4,    # LOSING: -$240, blocked (shorts +$652 but longs -$892)
+                "ichimoku_trend": 0.3,     # LOSING: -$1,073, blocked
+                "rsi_mean_reversion": 0.8, # PROFITABLE: +$1,090, Sharpe 0.49
+                "bollinger_squeeze": 0.3,  # LOSING: -$305, blocked
+                "vwap_bounce": 0.3,        # Not tested, block conservatively
+                "london_breakout": 0.5,    # Not tested on bear crypto
+                "opening_range": 0.3,      # Not tested, block conservatively
+                "smart_money": 1.0,        # PROFITABLE: +$275, 52.6% WR
+                "order_flow_imbalance": 0.3,  # LOSING: -$837, blocked
+                "zscore_mean_reversion": 0.3, # LOSING: -$50, blocked
+                "volume_profile": 0.3,     # LOSING: -$76, blocked
+                "momentum_exhaustion": 0.3,   # WORST: -$1,416, blocked
             }
         elif self.regime == MarketRegime.HIGH_VOL:
             return {
+                "donchian_breakout": 0.7,  # Breakouts valid but volatile
                 "ema_crossover": 0.6,
                 "multi_timeframe": 0.7,
                 "ichimoku_trend": 0.7,
@@ -280,9 +333,11 @@ class RegimeResult:
                 "order_flow_imbalance": 0.5,  # Too noisy for flow analysis
                 "zscore_mean_reversion": 0.4,  # Extreme vol invalidates z-score
                 "volume_profile": 0.6,  # Profiles less reliable in chaos
+                "momentum_exhaustion": 0.5,
             }
         else:  # CHOPPY
             return {
+                "donchian_breakout": 0.6,  # Breakouts weaker in chop but still profitable
                 "ema_crossover": 0.8,
                 "multi_timeframe": 0.9,
                 "ichimoku_trend": 0.8,
@@ -295,4 +350,5 @@ class RegimeResult:
                 "order_flow_imbalance": 1.3,  # Flow analysis excels in ranges
                 "zscore_mean_reversion": 1.3,  # Statistical reversion thrives
                 "volume_profile": 1.2,  # VA mean reversion is ideal in ranges
+                "momentum_exhaustion": 1.0,
             }

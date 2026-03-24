@@ -72,6 +72,8 @@ Best markets   : XLK, XLF, XLE, XLV, XLI, XLC, XLY, XLP, XLU, XLRE, XLB
 
 from __future__ import annotations
 
+import math
+
 import pandas as pd
 
 from strategies.base import BaseStrategy, Direction, Position, Signal
@@ -328,7 +330,7 @@ class SectorRotationStrategy(BaseStrategy):
         ret_long = (close.iloc[-1] / close.iloc[-(long_bars + 1)]) - 1.0
 
         # Guard against division errors producing NaN/Inf
-        if any(pd.isna(v) for v in (ret_short, ret_mid, ret_long)):
+        if any(pd.isna(v) or not math.isfinite(v) for v in (ret_short, ret_mid, ret_long)):
             return False
 
         momentum_score = (ret_short + ret_mid + ret_long) / 3.0

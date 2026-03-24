@@ -147,7 +147,7 @@ class EquityMeanReversionStrategy(BaseStrategy):
         adx_df = adx(df, self.adx_period)
         atr_series = atr(df, self.atr_period)
         sma_trend = sma(close, self.sma_trend_period)
-        avg_vol = df["volume"].rolling(self.volume_period).mean()
+        avg_vol = df["volume"].shift(1).rolling(self.volume_period).mean()
         stoch = stochastic_rsi(close, rsi_period=self.stoch_rsi_period)
 
         # --- Extract current-bar values ---
@@ -166,7 +166,7 @@ class EquityMeanReversionStrategy(BaseStrategy):
         # Guard against NaN values that can appear at the start of indicator series
         if any(
             pd.isna(v)
-            for v in (rsi_now, bb_upper, bb_lower, adx_now, atr_now, sma_now, avg_vol_now)
+            for v in (rsi_now, bb_upper, bb_lower, adx_now, atr_now, sma_now, avg_vol_now, stoch_k)
         ):
             return None
 

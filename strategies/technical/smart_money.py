@@ -212,7 +212,11 @@ class SmartMoneyStrategy(BaseStrategy):
 
         if bias == Direction.LONG:
             stop_loss = target_ob.low - buffer
+            if stop_loss <= 0:
+                return None  # OB too close to zero — invalid setup
             risk = entry_price - stop_loss
+            if risk <= 0:
+                return None  # Entry below stop — invalid setup
 
             # Primary TP: always guarantee a reachable R:R target
             take_profit = entry_price + risk * self.rr_ratio
@@ -228,9 +232,13 @@ class SmartMoneyStrategy(BaseStrategy):
         else:
             stop_loss = target_ob.high + buffer
             risk = stop_loss - entry_price
+            if risk <= 0:
+                return None  # Entry above stop — invalid setup
 
             # Primary TP: always guarantee a reachable R:R target
             take_profit = entry_price - risk * self.rr_ratio
+            if take_profit <= 0:
+                return None  # TP below zero — invalid setup
 
             # Bonus: use swing low only if it provides at least min_rr_for_swing_tp
             swing_lows = self._swing_lows(df)

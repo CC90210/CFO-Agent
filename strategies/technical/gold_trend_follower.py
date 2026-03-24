@@ -306,21 +306,24 @@ class GoldTrendFollowerStrategy(BaseStrategy):
             return False
 
         if position.side == Direction.LONG:
-            # Exit long when:
-            #   (a) price retreats back inside the Keltner Channel (breakout failed), OR
+            # Exit long when ANY of:
+            #   (a) price retreats back inside the Keltner Channel (breakout failed)
             #   (b) EMA stack has broken down (20 crosses below 50)
+            #   (c) MACD histogram flips bearish
             breakout_failed = close_now < kc_upper
             ema_stack_broken = ema20_now < ema50_now
             macd_flipped_bearish = hist_now < 0
-            return breakout_failed and (ema_stack_broken or macd_flipped_bearish)
+            return breakout_failed or ema_stack_broken or macd_flipped_bearish
 
         if position.side == Direction.SHORT:
-            # Exit short when price reclaims back inside the Keltner Channel, OR
-            # EMA stack has recovered (20 crosses above 50)
+            # Exit short when ANY of:
+            #   (a) price reclaims back inside the Keltner Channel
+            #   (b) EMA stack has recovered (20 crosses above 50)
+            #   (c) MACD histogram flips bullish
             breakout_failed = close_now > kc_lower
             ema_stack_broken = ema20_now > ema50_now
             macd_flipped_bullish = hist_now > 0
-            return breakout_failed and (ema_stack_broken or macd_flipped_bullish)
+            return breakout_failed or ema_stack_broken or macd_flipped_bullish
 
         return False
 

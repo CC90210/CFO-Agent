@@ -213,7 +213,7 @@ class BacktestEngine:
         self,
         initial_capital: float = 10_000.0,
         commission_pct: float = 0.001,
-        risk_per_trade_pct: float = 0.015,
+        risk_per_trade_pct: float = 0.010,  # matches conservative profile (was 0.015)
         slippage_enabled: bool = True,
         log_dir: Path | None = None,
         regime_filter: bool = True,
@@ -235,9 +235,10 @@ class BacktestEngine:
         self.trailing_stops = trailing_stops
         self._regime_detector = RegimeDetector() if regime_filter else None
         self._trailing_stop_mgr = TrailingStopManager(method="chandelier") if trailing_stops else None
-        # Default two-tier scale-out: 30 % at 1R, 30 % at 2R, 40 % rides stop
+        # Scale-out disabled by default — empirically destroys crypto returns
+        # (-5% to -20% drag). Pass explicit tiers to re-enable if needed.
         self.scale_out_tiers: list[tuple[float, float]] = (
-            scale_out_tiers if scale_out_tiers is not None else [(1.0, 0.30), (2.0, 0.30)]
+            scale_out_tiers if scale_out_tiers is not None else []
         )
 
     # ------------------------------------------------------------------
@@ -784,8 +785,9 @@ class BacktestEngine:
         alpha = max(0.0, min(1.0, (vol_z + 1.0) / (2.0 * _SLIPPAGE_VOL_THRESHOLD)))
         slip_pct = _SLIPPAGE_MAX - alpha * (_SLIPPAGE_MAX - _SLIPPAGE_MIN)
 
-        # Adverse direction: entry longs pay more, entry shorts sell less;
-        # exits also suffer — slippage is always against the trader.
+        # Adverse slippage always works against the trader:
+        # Entry: LONG pays more, SHORT receives less (both worse)
+        # Exit:  LONG receives less, SHORT pays more (both worse)
         if direction == Direction.LONG:
             return price * (1.0 + slip_pct) if not is_exit else price * (1.0 - slip_pct)
         else:
@@ -848,17 +850,18 @@ class BacktestEngine:
         daily_returns = equity_curve.resample("D").last().ffill().pct_change().dropna()
 
         # Sharpe ratio (annualised, risk-free = 0 for simplicity)
-        if len(daily_returns) > 1 and daily_returns.std() > 0:
-            sharpe_ratio = (daily_returns.mean() / daily_returns.std()) * math.sqrt(
+        # Use ddof=1 (sample std) for unbiased estimate on short backtests
+        if len(daily_returns) > 1 and daily_returns.std(ddof=1) > 0:
+            sharpe_ratio = (daily_returns.mean() / daily_returns.std(ddof=1)) * math.sqrt(
                 _ANNUALISATION_FACTOR
             )
         else:
             sharpe_ratio = 0.0
 
-        # Sortino ratio (only downside volatility)
+        # Sortino ratio (only downside volatility, ddof=1 for sample std)
         negative_returns = daily_returns[daily_returns < 0]
-        if len(negative_returns) > 1 and negative_returns.std() > 0:
-            sortino_ratio = (daily_returns.mean() / negative_returns.std()) * math.sqrt(
+        if len(negative_returns) > 1 and negative_returns.std(ddof=1) > 0:
+            sortino_ratio = (daily_returns.mean() / negative_returns.std(ddof=1)) * math.sqrt(
                 _ANNUALISATION_FACTOR
             )
         else:
@@ -869,20 +872,16 @@ class BacktestEngine:
         drawdown_series = (equity_curve - rolling_max) / rolling_max
         max_drawdown = float(drawdown_series.min())  # negative number
 
-        # Max drawdown duration (longest continuous underwater period)
+        # Max drawdown duration (longest continuous underwater period in bars)
         underwater = drawdown_series < 0
         max_dd_duration = 0
         current_streak = 0
-        dd_start: datetime | None = None
 
-        for ts, is_under in underwater.items():
+        for _ts, is_under in underwater.items():
             if is_under:
-                if dd_start is None:
-                    dd_start = ts
-                current_streak = (ts - dd_start).days
+                current_streak += 1
                 max_dd_duration = max(max_dd_duration, current_streak)
             else:
-                dd_start = None
                 current_streak = 0
 
         # Calmar ratio

@@ -314,6 +314,29 @@ class OrderExecutor:
         )
         return await self._dispatch(request, reference_price=tp_price)
 
+    async def execute_close(
+        self,
+        symbol: str,
+        side: str,
+        size: float,
+    ) -> ExecutionRecord:
+        """
+        Place a market close order (called by engine when SL/TP is hit client-side).
+
+        Parameters
+        ----------
+        symbol : e.g. "BTC/USD"
+        side   : "sell" to close a long, "buy" to close a short
+        size   : quantity to close
+        """
+        request = OrderRequest(
+            symbol=symbol,
+            side=side,
+            order_type=OrderType.MARKET,
+            quantity=size,
+        )
+        return await self._dispatch(request, reference_price=0.0)
+
     async def close_position(
         self,
         position: Position,

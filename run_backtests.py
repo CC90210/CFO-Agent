@@ -31,7 +31,7 @@ logger.setLevel(logging.INFO)
 # ── Crypto symbols to test (we have exchange keys for these) ──
 CRYPTO_SYMBOLS = [
     "BTC/USDT", "ETH/USDT", "SOL/USDT", "ADA/USDT",
-    "MATIC/USDT", "DOGE/USDT", "XRP/USDT", "AVAX/USDT",
+    "DOT/USDT", "DOGE/USDT", "XRP/USDT", "AVAX/USDT",
     "LINK/USDT", "BNB/USDT",
 ]
 

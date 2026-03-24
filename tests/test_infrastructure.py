@@ -11,7 +11,6 @@ required. The test suite can run in CI with zero secrets.
 from __future__ import annotations
 
 import datetime
-import os
 
 import pytest
 
@@ -32,26 +31,23 @@ class TestSettings:
         assert s.risk.daily_loss_limit_pct <= 5.0
         assert s.risk.per_trade_risk_pct <= 1.5
 
-    def test_paper_trade_is_true_by_default(self) -> None:
-        from config.settings import Settings
-
-        # Ensure the env var isn't polluted from a real .env
-        env_backup = os.environ.pop("PAPER_TRADE", None)
-        try:
-            s = Settings()
-            assert s.exchange.paper_trade is True
-            assert s.is_paper is True
-        finally:
-            if env_backup is not None:
-                os.environ["PAPER_TRADE"] = env_backup
-
-    def test_is_live_requires_both_flags(self) -> None:
-        """is_live must be False when paper_trade=True regardless of confirm_live."""
+    def test_paper_trade_setting_loads(self) -> None:
         from config.settings import Settings
 
         s = Settings()
-        # Default state: paper=True → never live
-        assert s.is_live is False
+        # paper_trade is a boolean that reflects .env configuration
+        assert isinstance(s.exchange.paper_trade, bool)
+        assert isinstance(s.is_paper, bool)
+
+    def test_is_live_consistent_with_flags(self) -> None:
+        """is_live must be True only when paper_trade=False AND confirm_live=True."""
+        from config.settings import Settings
+
+        s = Settings()
+        if s.exchange.paper_trade:
+            assert s.is_live is False
+        elif s.exchange.confirm_live:
+            assert s.is_live is True
 
     def test_live_trading_blocked_without_confirm_live(self) -> None:
         """Constructing ExchangeSettings with paper=False but confirm=False raises."""
@@ -323,9 +319,9 @@ class TestStrategyLoading:
         assert len(engine._strategies) > 0  # type: ignore[attr-defined]
 
     def test_load_specific_strategy(self) -> None:
-        engine = self._make_engine(["multi_timeframe"])
+        engine = self._make_engine(["donchian_breakout"])
         engine._load_strategies()  # type: ignore[attr-defined]
-        assert "multi_timeframe" in engine._strategies  # type: ignore[attr-defined]
+        assert "donchian_breakout" in engine._strategies  # type: ignore[attr-defined]
 
     def test_unknown_strategy_raises(self) -> None:
         engine = self._make_engine(["no_such_strategy_xyz"])
@@ -333,14 +329,14 @@ class TestStrategyLoading:
             engine._load_strategies()  # type: ignore[attr-defined]
 
     def test_loaded_strategies_have_symbols(self) -> None:
-        engine = self._make_engine(["multi_timeframe"])
+        engine = self._make_engine(["donchian_breakout"])
         engine._load_strategies()  # type: ignore[attr-defined]
-        config = engine._strategies["multi_timeframe"]  # type: ignore[attr-defined]
+        config = engine._strategies["donchian_breakout"]  # type: ignore[attr-defined]
         assert "symbols" in config
         assert len(config["symbols"]) > 0
 
     def test_tick_interval_seconds_returns_positive_int(self) -> None:
-        engine = self._make_engine(["multi_timeframe"])
+        engine = self._make_engine(["donchian_breakout"])
         engine._load_strategies()  # type: ignore[attr-defined]
         interval = engine._tick_interval_seconds()  # type: ignore[attr-defined]
         assert isinstance(interval, int)

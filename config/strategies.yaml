@@ -13,18 +13,20 @@ strategies:
 
   # ── 1. RSI Mean Reversion ──────────────────────────────────────────────────
   rsi_mean_reversion:
-    enabled: false  # 2026-03-19: -3.01% on BTC 1h (0% WR, 2 trades). Filters too tight, not viable.
+    enabled: true  # 2026-03-21: 4h choppy-market edge — ATOM +9.22% (Sharpe 1.86, 721bars), SOL +2.69% (Sharpe 0.92)
     description: "Buy oversold, sell overbought using RSI."
-    timeframe: "1h"
+    timeframe: "4h"
     symbols:
-      # 9mo backtest: Only BTC profitable (+2.54% no scale-out). ETH/SOL losing.
-      - "BTC/USDT"
+      # 2026-03-21 validated on 4h Kraken data (30-day + 166-day + 721-bar confirmation)
+      - "ATOM/USD"   # +9.22% 721bar, Sharpe 1.86, 60% WR (5 trades) — CONFIRMED
+      - "SOL/USD"    # +2.69% 721bar, Sharpe 0.92, 50% WR (2 trades) — CONFIRMED
+      # Removed: BTC/USDT — profitable 30d but -1.80% on 721-bar backtest
     risk_per_trade: 1.0
     max_positions: 2
     parameters:
-      rsi_period: 14
-      rsi_oversold: 30            # Relaxed from 28 — was generating only 1 trade per 2000 bars
-      rsi_overbought: 70          # Relaxed from 72 — industry standard thresholds
+      rsi_period: 10              # Optimized from 14 — faster RSI catches reversals quicker (Sharpe +2.30)
+      rsi_oversold: 25            # Optimized from 30 — only enter at deeper oversold levels
+      rsi_overbought: 75          # Optimized from 70 — hold winners longer before exit
       rsi_exit: 50
       atr_stop_mult: 1.0         # Keep original — 0.8x dropped WR from 58% to 45%
       volume_mult: 1.2
@@ -38,7 +40,7 @@ strategies:
     timeframe: "4h"
     symbols:
       # 9mo backtest: BTC +2.37% (no scale-out, 3.0/4.0). All others losing.
-      - "BTC/USDT"
+      - "BTC/USD"
     risk_per_trade: 1.5
     max_positions: 2
     parameters:
@@ -53,12 +55,13 @@ strategies:
 
   # ── 3. Bollinger Band Squeeze Breakout ───────────────────────────────────
   bollinger_squeeze:
-    enabled: false  # Walk-forward: -0.33% OOS, 14.7% win rate. Squeeze too rare on 1h SOL.
+    enabled: true  # 2026-03-21: 4h choppy-market edge — ATOM +2.70% (100% WR, Sharpe 1.45, 721bars)
     description: "Squeeze breakout — 2-bar confirmation, ATR stops, volume exhaustion filter."
-    timeframe: "1h"
+    timeframe: "4h"
     symbols:
-      # 9mo backtest (no scale-out): SOL +1.74% (best), BTC -1.58%, AVAX -3.1%
-      - "SOL/USDT"
+      # 2026-03-21 validated on 4h Kraken data (721-bar confirmation only)
+      - "ATOM/USD"   # +2.70% 721bar, 100% WR, Sharpe 1.45 — CONFIRMED
+      # Removed: BTC/USDT (-1.82% 721bar), DOGE/USDT (-0.80%), ETH/USDT (+0.38% marginal)
     risk_per_trade: 1.0
     max_positions: 2
     parameters:
@@ -75,8 +78,8 @@ strategies:
     description: "Intraday reversion to VWAP with volume confirmation."
     timeframe: "15m"
     symbols:
-      - "BTC/USDT"
-      - "ETH/USDT"
+      - "BTC/USD"
+      - "ETH/USD"
     risk_per_trade: 1.0
     max_positions: 2
     parameters:
@@ -99,7 +102,7 @@ strategies:
       confirmation: "15m"
     symbols:
       # 2026-03-20 fresh Kraken validation (1000 bars, 4h)
-      - "XRP/USDT"   # +13.75% aggressive, Sharpe 1.99 — TOP PERFORMER
+      - "XRP/USD"   # +13.75% aggressive, Sharpe 1.99 — TOP PERFORMER
       # Removed: DOGE/USDT — flipped to -0.32% on 2026-03-21 fresh validation
       # Gold/Silver — validated on real OANDA data (2026-03-20)
       - "XAU_USD"    # +10.94% conservative, Sharpe 2.10
@@ -189,28 +192,25 @@ strategies:
     description: "Order blocks, fair value gaps, and liquidity sweeps."
     timeframe: "4h"
     symbols:
-      # 2026-03-20 paper sim: 4/4 crypto GO on live Kraken (100% hit rate)
-      # Risk profiles empirically validated across 176 tests (2026-03-20)
-      - "ETH/USDT"    # +2.08% conservative (75% WR, Sharpe 1.87)
-      - "XRP/USDT"    # +2.16% conservative (100% WR)
-      - "SOL/USDT"    # +1.29% conservative (100% WR)
-      - "DOGE/USDT"   # +3.41% -> aggressive (85.7% WR, Sharpe 2.41) — HIGH CONVICTION
-      - "AVAX/USDT"   # +0.73% conservative
-      # Removed: NVDA (-2.60% on re-test), SPY (0 trades), AAPL (-4.30%), forex/gold (losing)
+      # 2026-03-23 revalidated on 2000-bar Kraken backtest (regime filter ON)
+      - "ETH/USD"    # +1.45% Sharpe 0.58, 33% WR — profitable, keep
+      - "XRP/USD"    # +2.19% Sharpe 1.90, 100% WR — best SM pair
+      - "ADA/USD"    # +0.95% Sharpe 0.67, 75% WR — newly validated
+      # Removed 2026-03-23: SOL (-1.24%), AVAX (0 trades), DOGE (marginal +0.08%)
     risk_per_trade: 1.0
     max_positions: 3
     parameters:
-      swing_lookback: 5
+      swing_lookback: 7            # Optimized from 5 — wider structure identification (Sharpe +2.04)
       ob_lookback: 50
       fvg_min_size_atr_ratio: 0.15
       bos_lookback: 100
-      ob_entry_tolerance: 0.015
+      ob_entry_tolerance: 0.025    # Optimized from 0.015 — more forgiving entry zone
       atr_period: 14
       atr_stop_mult: 2.0
-      rr_ratio: 3.0
+      rr_ratio: 4.0               # Optimized from 3.0 — bigger winners, fewer but better trades
       volume_period: 20
       min_rr_for_swing_tp: 2.0
-      displacement_atr_mult: 1.5
+      displacement_atr_mult: 1.0   # Optimized from 1.5 — lower displacement threshold catches more setups
       displacement_vol_mult: 1.2
       time_stop_bars: 50
 
@@ -220,8 +220,8 @@ strategies:
     description: "Full Ichimoku 5-condition entry with cloud exit."
     timeframe: "4h"
     symbols:
-      - "ETH/USDT"
-      - "BTC/USDT"
+      - "ETH/USD"
+      - "BTC/USD"
     risk_per_trade: 1.5
     max_positions: 2
     parameters:
@@ -238,8 +238,8 @@ strategies:
     description: "CVD divergence + absorption candles for institutional flow detection."
     timeframe: "1h"
     symbols:
-      - "BTC/USDT"
-      - "ETH/USDT"
+      - "BTC/USD"
+      - "ETH/USD"
     risk_per_trade: 1.0
     max_positions: 2
     parameters:
@@ -261,7 +261,7 @@ strategies:
     timeframe: "1h"
     symbols:
       # Full-year robust: ETH +6.36% (PF 2.06). SOL failed full year (-5.23%).
-      - "ETH/USDT"
+      - "ETH/USD"
     risk_per_trade: 1.0
     max_positions: 2
     parameters:
@@ -292,9 +292,9 @@ strategies:
     timeframe: "4h"
     symbols:
       # 2026-03-20 Kraken backtest (daredevil params, 4h):
-      - "AVAX/USDT"   # +4.37%, WR 60%, Sharpe 1.85, PF 2.75 — BEST
-      - "BTC/USDT"    # +2.14%, WR 50%, Sharpe 0.88, PF 1.94
-      - "XRP/USDT"    # +2.43% aggressive / +0.33% daredevil — multi-profile edge
+      - "AVAX/USD"   # +4.37%, WR 60%, Sharpe 1.85, PF 2.75 — BEST
+      - "BTC/USD"    # +2.14%, WR 50%, Sharpe 0.88, PF 1.94
+      - "XRP/USD"    # +2.43% aggressive / +0.33% daredevil — multi-profile edge
       # Removed: DOGE/USDT — flipped to -0.66% on fresh validation (was marginal +0.50%)
     risk_per_trade: 1.5
     max_positions: 3
@@ -519,13 +519,13 @@ strategies:
     timeframe: "1h"
     symbols:
       # Crypto — requires Binance/CCXT in .env
-      - "BTC/USDT"
-      - "ETH/USDT"
-      - "SOL/USDT"
-      - "ADA/USDT"
-      - "DOT/USDT"
-      - "DOGE/USDT"
-      - "XRP/USDT"
+      - "BTC/USD"
+      - "ETH/USD"
+      - "SOL/USD"
+      - "ADA/USD"
+      - "DOT/USD"
+      - "DOGE/USD"
+      - "XRP/USD"
     risk_per_trade: 1.0
     max_positions: 4
     parameters:
@@ -610,26 +610,21 @@ strategies:
     description: "Classic Turtle Traders breakout — 20-bar high/low channel. Proven profitable for 40+ years."
     timeframe: "4h"
     symbols:
-      # Crypto — profitable on live Kraken data
-      # Risk profiles empirically validated across 176 tests (2026-03-20)
-      - "ETH/USDT"    # +2.04% conservative
-      - "SOL/USDT"    # +2.76% -> aggressive (1.5x ATR, 4.0 RR)
-      - "ADA/USDT"    # +0.72% conservative
-      - "DOT/USDT"    # +5.83% -> daredevil (1.0x ATR, 5.0 RR) — BEST PERFORMER
-      - "XRP/USDT"    # +4.70% -> aggressive (1.5x ATR, 4.0 RR)
-      - "AVAX/USDT"   # marginal, conservative only
-      - "ATOM/USDT"   # +14.56% aggressive, Sharpe 2.11 — BEST DISCOVERY (2026-03-20)
-      # Gold/Silver — validated on real OANDA data (2026-03-20)
-      - "XAU_USD"     # +15.70% aggressive, Sharpe 2.49 — GOLD CHAMPION
-      - "XAG_USD"     # +12.44% aggressive, Sharpe 2.08, WR 60%, PF 3.74
-      - "SHIB/USDT"    # +10.19% aggressive, Sharpe 1.86, WR 50% (2026-03-21)
-      - "MANA/USDT"    # +3.13% conservative, Sharpe 0.68, WR 44% (2026-03-21)
-      # Removed: BTC/USDT (-3.10%), DOGE/USDT (-3.54%), LINK/USDT (-3.21%) — losing
-      # Removed: EUR_USD, GBP_USD, USD_JPY — no edge on forex
+      # 2026-03-23 revalidated on 2000-bar Kraken data (Sharpe > 0.5 = KEEP)
+      - "ATOM/USD"   # +4.43% Sharpe 0.97, 46% WR, 13 trades — TOP CRYPTO
+      - "ETH/USD"    # +4.10% Sharpe 0.98, 44% WR — STRONG
+      - "AVAX/USD"   # +4.20% Sharpe 1.12, 62% WR — BEST WIN RATE
+      - "XRP/USD"    # +3.02% Sharpe 0.88, 33% WR — PROFITABLE
+      - "DOT/USD"    # +2.20% Sharpe 0.55, 33% WR — PROFITABLE
+      # Gold/Silver — validated on real OANDA data (prior session: +$3,374)
+      - "XAU_USD"     # +15.70% Sharpe 2.49 — GOLD CHAMPION
+      - "XAG_USD"     # +12.44% Sharpe 2.08 — SILVER STRONG
+      # Removed 2026-03-23: BTC (Sharpe 0.07), SOL (Sharpe 0.48), DOGE (Sharpe 0.37),
+      #   ADA (Sharpe 0.25), SHIB, MANA — all marginal or losing on fresh data
     risk_per_trade: 1.5
     max_positions: 4
     parameters:
-      entry_period: 20
+      entry_period: 15       # Optimized from 20 — shorter channel catches breakouts faster (Sharpe +26%)
       exit_period: 10
       atr_period: 14
       atr_stop_mult: 2.0
@@ -640,7 +635,7 @@ strategies:
       rsi_max_long: 75.0
       rsi_min_short: 25.0
       volume_period: 20
-      volume_mult: 1.2
+      volume_mult: 1.5       # Optimized from 1.2 — tighter volume filter, fewer false entries
       sma_trend_period: 200
 
   # ── 22. Momentum Exhaustion / Reversal (CHOPPY CRYPTO) ────────────────
@@ -649,13 +644,13 @@ strategies:
     description: "Fades exhaustion moves — buys panic dips, sells panic rips. Works best in choppy/ranging crypto."
     timeframe: "1h"
     symbols:
-      - "BTC/USDT"
-      - "ETH/USDT"
-      - "SOL/USDT"
-      - "ADA/USDT"
-      - "DOT/USDT"
-      - "DOGE/USDT"
-      - "XRP/USDT"
+      - "BTC/USD"
+      - "ETH/USD"
+      - "SOL/USD"
+      - "ADA/USD"
+      - "DOT/USD"
+      - "DOGE/USD"
+      - "XRP/USD"
     risk_per_trade: 1.0
     max_positions: 3
     parameters:
@@ -683,13 +678,13 @@ strategies:
     description: "Statistical arbitrage — fades z-score extremes with BB/RSI confirmation. Market-neutral in chop."
     timeframe: "1h"
     symbols:
-      - "BTC/USDT"
-      - "ETH/USDT"
-      - "SOL/USDT"
-      - "ADA/USDT"
-      - "DOT/USDT"
-      - "DOGE/USDT"
-      - "XRP/USDT"
+      - "BTC/USD"
+      - "ETH/USD"
+      - "SOL/USD"
+      - "ADA/USD"
+      - "DOT/USD"
+      - "DOGE/USD"
+      - "XRP/USD"
     risk_per_trade: 1.0
     max_positions: 3
     parameters:
@@ -721,20 +716,41 @@ strategies:
 # pairs when the agent ensemble conviction score meets the minimum threshold.
 # Resolved at runtime by core/risk_profiles.get_risk_profile().
 # ─────────────────────────────────────────────────────────────────────────────
+# Risk Profile Reference (DOCUMENTATION ONLY — actual profiles in core/risk_profiles.py)
+# The engine reads OPTIMAL_PROFILES from core/risk_profiles.py, NOT this section.
+# This mirrors the authoritative source for human reference.
+#
+# Updated: 2026-03-22 (Monte Carlo validated, tightened sizing)
+# Profiles: conservative=1.0%, aggressive=2.0%, sniper=2.5%, daredevil=3.0%
 risk_overrides:
   donchian_breakout:
-    DOT/USDT: {profile: daredevil, min_conviction: 0.6}
-    XRP/USDT: {profile: aggressive, min_conviction: 0.5}
-    SOL/USDT: {profile: aggressive, min_conviction: 0.5}
-    ATOM/USDT: {profile: aggressive, min_conviction: 0.5}  # +14.56% Sharpe 2.11
-    XAU_USD: {profile: aggressive, min_conviction: 0.5}    # +15.70% Sharpe 2.49 — GOLD CHAMPION
-    XAG_USD: {profile: aggressive, min_conviction: 0.5}    # +12.44% Sharpe 2.08
-    SHIB/USDT: {profile: aggressive, min_conviction: 0.5}  # +10.19% Sharpe 1.86 (2026-03-21)
+    ATOM/USDT: {profile: daredevil}   # PF 2.88, recovery 3.5x, OOS +$526 ROBUST, +$788 fresh
+    SHIB/USDT: {profile: daredevil}   # PF 2.78, recovery 4.6x, OOS +$510 ROBUST, +$752 fresh
+    DOT/USDT: {profile: aggressive}   # PF 3.18, recovery 2.9x, OOS +$173, +$301 fresh
+    MANA/USDT: {profile: sniper}      # PF 2.01, recovery 3.1x, +$453 fresh
+    ADA/USDT: {profile: sniper}       # PF 2.07, recovery 2.1x, +$277 fresh
+    XAU_USD: {profile: aggressive}    # +15.70% Sharpe 2.49 — GOLD CHAMPION
+    XAG_USD: {profile: aggressive}    # +12.44% Sharpe 2.08
+    SOL/USDT: {profile: conservative} # PF 1.70, 5 consec losses — DOWNGRADED
+    AVAX/USDT: {profile: conservative}
+    ETH/USDT: {profile: conservative}
+    XRP/USDT: {profile: conservative}
+    BTC/USDT: {profile: conservative}
+    DOGE/USDT: {profile: conservative}
   smart_money:
-    DOGE/USDT: {profile: aggressive, min_conviction: 0.5}
+    DOGE/USDT: {profile: daredevil}   # 100% WR, Sharpe 2.11
+    AVAX/USDT: {profile: aggressive}
+    ETH/USDT: {profile: aggressive}
+    XRP/USDT: {profile: aggressive}
+    SOL/USDT: {profile: aggressive}
   multi_timeframe:
-    XRP/USDT: {profile: aggressive, min_conviction: 0.5}  # +13.75% Sharpe 1.99
-  volume_profile:
-    AVAX/USDT: {profile: daredevil, min_conviction: 0.5}  # +4.37% Sharpe 1.85
-    BTC/USDT: {profile: daredevil, min_conviction: 0.5}   # +2.14% Sharpe 0.88
-    XRP/USDT: {profile: aggressive, min_conviction: 0.5}   # +2.43% Sharpe 0.95
+    XRP/USDT: {profile: aggressive}   # +$309 fresh, Sharpe 0.69
+  rsi_mean_reversion:
+    BTC/USDT: {profile: aggressive}   # Sharpe 4.62
+    ATOM/USDT: {profile: aggressive}  # +$645 fresh, 67% WR
+    SOL/USDT: {profile: conservative}
+  bollinger_squeeze:
+    ATOM/USDT: {profile: aggressive}  # +$328, 100% WR
+    BTC/USDT: {profile: conservative}
+    ETH/USDT: {profile: conservative}
+    DOGE/USDT: {profile: conservative}

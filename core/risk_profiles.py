@@ -20,11 +20,11 @@ Usage
 -----
     from core.risk_profiles import get_risk_profile, RiskProfile
 
-    profile = get_risk_profile("donchian_breakout", "DOT/USDT", conviction=0.8)
-    # profile.risk_pct        → 5.0
-    # profile.atr_stop_mult   → 1.0
-    # profile.rr_ratio        → 5.0
-    # profile.name            → "daredevil"
+    profile = get_risk_profile("donchian_breakout", "DOT/USD", conviction=0.8)
+    # profile.risk_pct        → 2.0
+    # profile.atr_stop_mult   → 1.5
+    # profile.rr_ratio        → 4.0
+    # profile.name            → "aggressive"
 """
 
 from __future__ import annotations
@@ -70,28 +70,28 @@ class RiskProfile:
 
 CONSERVATIVE = RiskProfile(
     name="conservative",
-    risk_pct=1.5,
+    risk_pct=1.0,           # was 1.5% — tightened after Monte Carlo showed 26.8% median DD
     atr_stop_mult=2.0,
     rr_ratio=3.0,
 )
 
 AGGRESSIVE = RiskProfile(
     name="aggressive",
-    risk_pct=3.0,
+    risk_pct=2.0,           # was 3.0% — scaled to keep portfolio DD < 15% kill switch
     atr_stop_mult=1.5,
     rr_ratio=4.0,
 )
 
 DAREDEVIL = RiskProfile(
     name="daredevil",
-    risk_pct=5.0,
+    risk_pct=3.0,           # was 5.0% — 5% per trade with correlated crypto = DD disaster
     atr_stop_mult=1.0,
     rr_ratio=5.0,
 )
 
 SNIPER = RiskProfile(
     name="sniper",
-    risk_pct=4.0,
+    risk_pct=2.5,           # was 4.0% — reduced to match tightened risk framework
     atr_stop_mult=1.5,
     rr_ratio=5.0,
 )
@@ -120,27 +120,35 @@ _ELEVATED_PROFILES: frozenset[str] = frozenset({"aggressive", "daredevil", "snip
 
 OPTIMAL_PROFILES: dict[tuple[str, str], str] = {
     # ── donchian_breakout ──────────────────────────────────────────────────
-    # Profiles assigned by Sharpe tier: >1.5 → aggressive, 0.7-1.5 → sniper,
-    # <0.7 → conservative. Source: full-portfolio Sharpe analysis 2026-03-21.
-    ("donchian_breakout", "ATOM/USDT"): "daredevil",    # Sharpe 1.91 → top tier (>1.5), +14.56%
-    ("donchian_breakout", "ADA/USDT"):  "aggressive",   # Sharpe 1.81 → aggressive (>1.5)
-    ("donchian_breakout", "DOT/USDT"):  "aggressive",   # Sharpe 1.70 → aggressive (>1.5)
-    ("donchian_breakout", "SOL/USDT"):  "aggressive",   # Sharpe 1.60 → aggressive (>1.5)
-    ("donchian_breakout", "ETH/USDT"):  "aggressive",   # Sharpe 1.29 → aggressive (0.7-1.5)
-    ("donchian_breakout", "XRP/USDT"):  "conservative", # Sharpe 0.74 → conservative (<0.7 boundary)
-    ("donchian_breakout", "AVAX/USDT"): "conservative", # Sharpe 0.65 → conservative (<0.7)
-    ("donchian_breakout", "SHIB/USDT"): "aggressive",      # +10.19%, Sharpe 1.86, WR 50% (2026-03-21)
-    ("donchian_breakout", "MANA/USDT"): "conservative",    # +3.13%, Sharpe 0.68, WR 44% (2026-03-21)
+    # Profiles assigned by Darwinian analysis: PF + recovery factor + OOS walk-forward.
+    # Source: 1500-candle risk analysis + walk-forward validation (2026-03-22).
+    #
+    # Tier 1 — ROBUST OOS + high PF (daredevil/aggressive):
+    ("donchian_breakout", "ATOM/USD"): "daredevil",    # PF 2.88, recovery 3.5x, OOS +$526 ROBUST
+    ("donchian_breakout", "SHIB/USD"): "daredevil",    # PF 2.78, recovery 4.6x, OOS +$510 ROBUST — UPGRADED
+    ("donchian_breakout", "DOT/USD"):  "aggressive",   # PF 3.18, recovery 2.9x, OOS +$173 ROBUST
+    #
+    # Tier 2 — profitable but weaker OOS (sniper/conservative):
+    ("donchian_breakout", "MANA/USD"): "sniper",       # PF 2.01, recovery 3.1x, +$753 total — UPGRADED
+    ("donchian_breakout", "ADA/USD"):  "sniper",       # PF 2.07, recovery 2.1x, OOS -$91 (single window)
+    ("donchian_breakout", "SOL/USD"):  "conservative", # PF 1.70, recovery 0.9x, 5 consec losses — DOWNGRADED
+    ("donchian_breakout", "AVAX/USD"): "conservative", # PF 1.66, recovery 1.4x, OOS -$60
+    #
+    # Tier 3 — weakest edge (conservative only):
+    ("donchian_breakout", "ETH/USD"):  "conservative", # PF 1.67, recovery 1.0x, OOS -$169 — DOWNGRADED
+    ("donchian_breakout", "XRP/USD"):  "conservative", # PF 1.35, recovery 0.4x
+    ("donchian_breakout", "BTC/USD"):  "conservative", # PF 1.43, recovery 0.5x, 5 consec, OOS -$469
+    ("donchian_breakout", "DOGE/USD"): "conservative", # PF 1.55, recovery 1.0x, OOS +$16 marginal
     # ── smart_money ───────────────────────────────────────────────────────
     # Sharpe-tiered assignments from fresh validation 2026-03-21.
-    ("smart_money", "DOGE/USDT"):  "daredevil",   # Sharpe 2.11, 100% WR — elite conviction
-    ("smart_money", "AVAX/USDT"):  "aggressive",  # Sharpe 2.04 → aggressive
-    ("smart_money", "ETH/USDT"):   "aggressive",  # Sharpe 2.00 → aggressive
-    ("smart_money", "XRP/USDT"):   "aggressive",  # Sharpe 1.94 → aggressive
-    ("smart_money", "SOL/USDT"):   "aggressive",  # Sharpe 1.45 → aggressive (0.7-1.5)
+    ("smart_money", "DOGE/USD"):  "daredevil",   # Sharpe 2.11, 100% WR — elite conviction
+    ("smart_money", "AVAX/USD"):  "aggressive",  # Sharpe 2.04 → aggressive
+    ("smart_money", "ETH/USD"):   "aggressive",  # Sharpe 2.00 → aggressive
+    ("smart_money", "XRP/USD"):   "aggressive",  # Sharpe 1.94 → aggressive
+    ("smart_money", "SOL/USD"):   "aggressive",  # Sharpe 1.45 → aggressive (0.7-1.5)
     # ── multi_timeframe (fresh Kraken validation 2026-03-20) ──────────────
-    ("multi_timeframe", "DOGE/USDT"):  "conservative", # +7.46%, Sharpe 1.54
-    ("multi_timeframe", "XRP/USDT"):   "aggressive",   # Sharpe 1.12 → aggressive (0.7-1.5), +13.75%
+    ("multi_timeframe", "DOGE/USD"):  "conservative", # +7.46%, Sharpe 1.54
+    ("multi_timeframe", "XRP/USD"):   "aggressive",   # Sharpe 1.12 → aggressive (0.7-1.5), +13.75%
     # ── stock strategies (validated on real yfinance 5yr data 2026-03-20) ────
     # sector_rotation — daredevil upgrades based on fresh 5yr backtest
     ("sector_rotation", "XLC"):  "daredevil",    # +50.04%, WR 30.6%, Sharpe 0.50 — MONSTER
@@ -153,10 +161,19 @@ OPTIMAL_PROFILES: dict[tuple[str, str], str] = {
     ("connors_rsi", "AMD"):      "daredevil",    # +15.21%, WR 54.4%, Sharpe 0.37
     ("connors_rsi", "GOOG"):     "daredevil",    # +6.96%, WR 53.9%, Sharpe 0.22
     # ── volume_profile (resurrected 2026-03-20, daredevil params on 4h) ─────
-    ("volume_profile", "AVAX/USDT"): "daredevil",    # +4.37%, WR 60%, Sharpe 1.85, PF 2.75
-    ("volume_profile", "BTC/USDT"):  "daredevil",    # +2.14%, WR 50%, Sharpe 0.88, PF 1.94
-    ("volume_profile", "XRP/USDT"):  "aggressive",   # +2.43%, WR 42.9%, Sharpe 0.95, PF 1.62
+    ("volume_profile", "AVAX/USD"): "daredevil",    # +4.37%, WR 60%, Sharpe 1.85, PF 2.75
+    ("volume_profile", "BTC/USD"):  "daredevil",    # +2.14%, WR 50%, Sharpe 0.88, PF 1.94
+    ("volume_profile", "XRP/USD"):  "aggressive",   # +2.43%, WR 42.9%, Sharpe 0.95, PF 1.62
     # Removed: DOGE/USDT — flipped to -0.66% on fresh validation
+    # ── rsi_mean_reversion (choppy-market edge, 4h, 2026-03-21) ─────────────
+    ("rsi_mean_reversion", "BTC/USD"):  "aggressive",   # +6.55% 30d, Sharpe 4.62, 100% WR
+    ("rsi_mean_reversion", "ATOM/USD"): "aggressive",   # +3.27% 166d, 71% WR — confirmed long-term
+    ("rsi_mean_reversion", "SOL/USD"):  "conservative", # +1.61% 166d, 75% WR — confirmed but smaller edge
+    # ── bollinger_squeeze (choppy-market edge, 4h, 2026-03-21) ───────────────
+    ("bollinger_squeeze", "ATOM/USD"):  "aggressive",   # +3.38% 166d, 100% WR, Sharpe 4.17 — confirmed
+    ("bollinger_squeeze", "BTC/USD"):   "conservative", # +0.69% 30d only — conservative sizing
+    ("bollinger_squeeze", "ETH/USD"):   "conservative", # +0.68% 30d, Sharpe 3.28
+    ("bollinger_squeeze", "DOGE/USD"):  "conservative", # +0.32% 30d — small edge, conservative
     # ── gold (validated on real OANDA data 2026-03-20) ──────────────────────
     ("gold_trend_follower", "XAU_USD"): "aggressive", # +3.80%, WR 54.5%, Sharpe 0.87
     ("donchian_breakout",   "XAU_USD"): "aggressive", # +15.70%, Sharpe 2.49 — GOLD CHAMPION
@@ -191,7 +208,7 @@ def get_risk_profile(
     Args:
         strategy_name: Exact strategy key as used in strategies.yaml
                        (e.g. "donchian_breakout").
-        symbol:        Trading pair in standard format (e.g. "DOT/USDT").
+        symbol:        Trading pair in standard format (e.g. "DOT/USD").
         conviction:    Float in [0.0, 1.0] from the agent ensemble.
                        Values outside this range are clamped silently.
 

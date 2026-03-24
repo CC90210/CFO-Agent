@@ -38,9 +38,11 @@ from core.momentum_classifier import MomentumClassifier
 from core.order_executor import ExecutionMode, OrderExecutor, OrderType
 from core.playbook import TradingPlaybook
 from core.position_sizer import PositionSizer
+from core.risk_profiles import get_risk_profile
 from core.regime_detector import RegimeDetector, MarketRegime
 from core.sentiment_engine import SentimentEngine
 from core.trade_protocol import TradeProtocol, ProtocolVerdict
+from core.trailing_stop import TrailingStopManager
 from utils.alerts import AlertSender
 from db.database import get_session, init_db, health_check
 from db.models import (
@@ -71,6 +73,9 @@ class _PaperPosition:
     strategy_name: str
     opened_at: datetime.datetime
     db_trade_id: int | None = None
+    # Trailing stop state
+    highest_since_entry: float = 0.0
+    lowest_since_entry: float = float("inf")
 
 # How often the heartbeat snapshot is written (seconds)
 HEARTBEAT_INTERVAL_S: int = 60
@@ -198,11 +203,13 @@ class TradingEngine:
         mode: TradingMode,
         strategy_names: list[str],
         exchange_id: str | None = None,
+        initial_equity: float | None = None,
     ) -> None:
         self.mode = mode
         self.exchange_id = exchange_id or settings.exchange.default_exchange
         self._strategies: dict[str, dict[str, Any]] = {}
         self._strategy_names = strategy_names
+        self._initial_equity = initial_equity
         self._risk = _RiskState()
         self._shutdown_event = asyncio.Event()
         self._running = False
@@ -249,6 +256,9 @@ class TradingEngine:
         # Mirror of the latest correlation matrix; pushed to RiskManager every 10 ticks
         self._correlations: dict[str, dict[str, float]] = {}
         self._tick_count: int = 0
+
+        # Trailing stop manager — dynamically tightens stops for open positions
+        self._trailing_stop = TrailingStopManager(method="chandelier")
 
         # Paper position tracking — monitors SL/TP for open positions
         self._paper_positions: dict[str, _PaperPosition] = {}
@@ -508,7 +518,12 @@ class TradingEngine:
                 .first()
             )
             daily_pnl = daily.realized_pnl if daily else 0.0
-            equity = latest_snapshot.total_value if latest_snapshot else 10_000.0  # default paper balance
+            if latest_snapshot:
+                equity = latest_snapshot.total_value
+            elif self._initial_equity:
+                equity = self._initial_equity
+            else:
+                equity = 10_000.0  # default paper balance
         self._risk = _RiskState(equity_peak=equity)
         self._risk.update(
             current_equity=equity,
@@ -544,6 +559,16 @@ class TradingEngine:
                 if today != last_midnight:
                     self._risk.reset_daily()
                     last_midnight = today
+
+                # Check Telegram pause flag
+                try:
+                    from telegram_bridge import _trading_paused  # noqa: PLC0415
+                    if _trading_paused:
+                        logger.info("Trading paused via Telegram /pause command")
+                        await asyncio.sleep(60)
+                        continue
+                except ImportError:
+                    pass
 
                 # Pre-trade risk check
                 allowed, reason = self._risk.can_trade()
@@ -656,6 +681,10 @@ class TradingEngine:
         # 1. Fetch OHLCV
         ohlcv = await self._fetch_ohlcv(symbol, timeframe)
         if ohlcv is None or len(ohlcv) < 2:
+            logger.warning(
+                "OHLCV unavailable or insufficient [%s %s %s] — skipping tick (rows=%s)",
+                strategy_name, symbol, timeframe, len(ohlcv) if ohlcv is not None else "None",
+            )
             return
 
         # 2. Feed close prices into correlation tracker
@@ -806,14 +835,27 @@ class TradingEngine:
             logger.warning("No exchange connected — cannot fetch OHLCV for %s.", symbol)
             return None
 
-        try:
-            ohlcv: list[list[float]] = await self._exchange.fetch_ohlcv(
-                symbol, timeframe, limit=limit
-            )
-            return ohlcv
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("OHLCV fetch failed [%s %s]: %s", symbol, timeframe, exc)
-            return None
+        _fallback_timeout = 30.0
+        for _attempt in range(1, 4):
+            try:
+                ohlcv: list[list[float]] = await asyncio.wait_for(
+                    self._exchange.fetch_ohlcv(symbol, timeframe, limit=limit),
+                    timeout=_fallback_timeout,
+                )
+                logger.debug("OHLCV fallback fetch OK [%s %s] rows=%d", symbol, timeframe, len(ohlcv))
+                return ohlcv
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "OHLCV fallback timeout [%s %s] attempt %d/3",
+                    symbol, timeframe, _attempt,
+                )
+                if _attempt < 3:
+                    await asyncio.sleep(2 ** _attempt)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("OHLCV fallback fetch failed [%s %s]: %s", symbol, timeframe, exc)
+                return None
+        logger.error("OHLCV fallback exhausted retries for [%s %s]", symbol, timeframe)
+        return None
 
     # ── AI analysis (stub — agents/ provides the real implementations) ─────
 
@@ -857,9 +899,9 @@ class TradingEngine:
 
         # If regime strongly disfavours this strategy, skip it entirely
         if regime_weight <= 0.5:
-            logger.debug(
-                "Strategy %s suppressed by %s regime (weight=%.2f)",
-                strategy_name, regime_result.regime.value, regime_weight,
+            logger.info(
+                "No signal [%s/%s]: regime %s suppressed (weight=%.2f)",
+                strategy_name, symbol, regime_result.regime.value, regime_weight,
             )
             return None
 
@@ -888,13 +930,19 @@ class TradingEngine:
 
         # Check entry condition then generate signal
         if not strategy.should_enter(df):
+            logger.info(
+                "No signal [%s/%s]: should_enter=False (regime=%s weight=%.2f)",
+                strategy_name, symbol, regime_result.regime.value, regime_weight,
+            )
             return None
 
         signal = strategy.analyze(df)
         if signal is None:
+            logger.info("No signal [%s/%s]: strategy.analyze returned None", strategy_name, symbol)
             return None
 
         if signal.direction == Direction.FLAT:
+            logger.info("No signal [%s/%s]: direction=FLAT", strategy_name, symbol)
             return None
 
         # Scale conviction by regime weight — strategies the regime favours
@@ -924,9 +972,9 @@ class TradingEngine:
         agent_key = f"{strategy_name}_{symbol.replace('/', '')}"
         min_conviction = self._get_adaptive_conviction_threshold(agent_key)
         if abs(signal.conviction) < min_conviction:
-            logger.debug(
-                "Signal for %s/%s conviction %.3f below %.2f threshold — skipping.",
-                symbol, strategy_name, signal.conviction, min_conviction,
+            logger.info(
+                "No signal [%s/%s]: conviction %.3f below %.2f adaptive threshold",
+                strategy_name, symbol, signal.conviction, min_conviction,
             )
             return None
 
@@ -967,6 +1015,34 @@ class TradingEngine:
             in force simultaneously.
         """
         entry_price = signal.metadata.get("entry_price", 0.0)
+
+        # ── Risk profile override ───────────────────────────────────────
+        # Adjust SL/TP based on the empirically optimal risk tier for this
+        # strategy-symbol pair. Only escalates when conviction is high enough.
+        profile = get_risk_profile(
+            signal.strategy_name, signal.symbol, conviction=signal.conviction,
+        )
+        if profile.name != "conservative" and entry_price > 0 and signal.stop_loss > 0:
+            # Recompute SL/TP using the profile's ATR-mult and RR ratio.
+            # Preserve the direction of the original stop distance.
+            original_sl_dist = abs(entry_price - signal.stop_loss)
+            strategy_params = strategy_config.get("parameters", {})
+            default_atr_mult = strategy_params.get("atr_stop_mult", 2.0)
+            if default_atr_mult > 0:
+                atr_estimate = original_sl_dist / default_atr_mult
+                new_sl_dist = atr_estimate * profile.atr_stop_mult
+                new_tp_dist = new_sl_dist * profile.rr_ratio
+                if signal.direction == Direction.LONG:
+                    signal.stop_loss = entry_price - new_sl_dist
+                    signal.take_profit = entry_price + new_tp_dist
+                else:
+                    signal.stop_loss = entry_price + new_sl_dist
+                    signal.take_profit = entry_price - new_tp_dist
+                logger.info(
+                    "Risk profile [%s] applied for %s %s: SL=%.4f TP=%.4f",
+                    profile.name, signal.strategy_name, signal.symbol,
+                    signal.stop_loss, signal.take_profit,
+                )
 
         # Extract multipliers from signal metadata (set by _analyze)
         meta = signal.metadata or {}
@@ -1033,9 +1109,10 @@ class TradingEngine:
         if position is not None:
             self._risk.open_positions += 1
 
-        # Track position for SL/TP monitoring in paper mode
-        if record and record.success and self.mode == TradingMode.PAPER:
-            paper_pos = _PaperPosition(
+        # Track position for SL/TP monitoring (both paper AND live)
+        if record and record.success and self.mode in (TradingMode.PAPER, TradingMode.LIVE):
+            mode_str = "paper" if self.mode == TradingMode.PAPER else "live"
+            tracked_pos = _PaperPosition(
                 symbol=signal.symbol,
                 direction=signal.direction,
                 entry_price=entry_price,
@@ -1044,6 +1121,8 @@ class TradingEngine:
                 take_profit=signal.take_profit,
                 strategy_name=strategy_config.get("name", signal.strategy_name),
                 opened_at=datetime.datetime.now(datetime.UTC),
+                highest_since_entry=entry_price,
+                lowest_since_entry=entry_price,
             )
             # Persist trade entry to DB
             db_trade = DBTrade(
@@ -1052,18 +1131,18 @@ class TradingEngine:
                 side="buy" if signal.direction == Direction.LONG else "sell",
                 size=size,
                 entry_price=entry_price,
-                strategy=paper_pos.strategy_name,
-                mode="paper",
-                opened_at=paper_pos.opened_at,
+                strategy=tracked_pos.strategy_name,
+                mode=mode_str,
+                opened_at=tracked_pos.opened_at,
             )
             with get_session() as session:
                 session.add(db_trade)
                 session.flush()
-                paper_pos.db_trade_id = db_trade.id
-            self._paper_positions[signal.symbol] = paper_pos
+                tracked_pos.db_trade_id = db_trade.id
+            self._paper_positions[signal.symbol] = tracked_pos
             logger.info(
-                "Paper position opened: %s %s @ %.4f SL=%.4f TP=%.4f",
-                signal.direction.value, signal.symbol, entry_price,
+                "%s position opened: %s %s @ %.4f SL=%.4f TP=%.4f",
+                mode_str.upper(), signal.direction.value, signal.symbol, entry_price,
                 signal.stop_loss, signal.take_profit,
             )
             # Telegram alert
@@ -1091,12 +1170,13 @@ class TradingEngine:
         except Exception as exc:  # noqa: BLE001
             logger.debug("Health monitor refresh failed: %s", exc)
 
-    # ── Position monitoring (paper mode SL/TP) ─────────────────────────────
+    # ── Position monitoring (paper + live SL/TP) ────────────────────────────
 
     async def _monitor_positions(self) -> None:
         """
-        Check all open paper positions against current market prices.
-        Close any that have hit stop-loss or take-profit.
+        Check all open positions against current market prices.
+        Updates trailing stops dynamically, then checks SL/TP.
+        Works for both paper and live mode.
         """
         if not self._paper_positions:
             return
@@ -1110,8 +1190,64 @@ class TradingEngine:
                 if not ohlcv or len(ohlcv) == 0:
                     continue
                 mark_price = float(ohlcv[-1][4])  # close price
+                bar_high = float(ohlcv[-1][2])
+                bar_low = float(ohlcv[-1][3])
             except Exception:  # noqa: BLE001
                 continue
+
+            # Update position high/low tracking for trailing stop
+            pos.highest_since_entry = max(pos.highest_since_entry, bar_high, mark_price)
+            pos.lowest_since_entry = min(pos.lowest_since_entry, bar_low, mark_price)
+
+            # Initialise high/low if this is the first tick after open
+            if pos.highest_since_entry <= 0:
+                pos.highest_since_entry = max(pos.entry_price, mark_price)
+            if pos.lowest_since_entry == float("inf"):
+                pos.lowest_since_entry = min(pos.entry_price, mark_price)
+
+            # Fetch ATR for trailing stop calculation (use 4h candle)
+            try:
+                atr_ohlcv = await self._fetch_ohlcv(symbol, "4h", limit=20)
+                if atr_ohlcv and len(atr_ohlcv) >= 14:
+                    import numpy as np
+                    highs = [float(c[2]) for c in atr_ohlcv[-14:]]
+                    lows = [float(c[3]) for c in atr_ohlcv[-14:]]
+                    closes = [float(c[4]) for c in atr_ohlcv[-14:]]
+                    trs = [max(h - l, abs(h - closes[i - 1]), abs(l - closes[i - 1]))
+                           for i, (h, l) in enumerate(zip(highs[1:], lows[1:]), 1)]
+                    current_atr = float(np.mean(trs)) if trs else 0.0
+                else:
+                    current_atr = 0.0
+            except Exception:  # noqa: BLE001
+                current_atr = 0.0
+
+            # Update trailing stop if ATR is available
+            if current_atr > 0:
+                ts_result = self._trailing_stop.update(
+                    current_price=mark_price,
+                    current_atr=current_atr,
+                    direction=pos.direction.value,
+                    entry_price=pos.entry_price,
+                    highest_since_entry=pos.highest_since_entry,
+                    lowest_since_entry=pos.lowest_since_entry,
+                )
+                # Tighten SL if trailing stop is better than current fixed SL
+                if pos.direction == Direction.LONG:
+                    if ts_result.stop_price > pos.stop_loss:
+                        logger.info(
+                            "Trailing stop tightened %s: SL %.4f -> %.4f (%s, locked %.0f%%)",
+                            symbol, pos.stop_loss, ts_result.stop_price,
+                            ts_result.method, ts_result.profit_locked_pct * 100,
+                        )
+                        pos.stop_loss = ts_result.stop_price
+                else:  # SHORT
+                    if ts_result.stop_price < pos.stop_loss:
+                        logger.info(
+                            "Trailing stop tightened %s: SL %.4f -> %.4f (%s, locked %.0f%%)",
+                            symbol, pos.stop_loss, ts_result.stop_price,
+                            ts_result.method, ts_result.profit_locked_pct * 100,
+                        )
+                        pos.stop_loss = ts_result.stop_price
 
             # Check SL/TP
             if pos.direction == Direction.LONG:
@@ -1126,15 +1262,43 @@ class TradingEngine:
                     symbols_to_close.append((symbol, pos.take_profit, "TAKE_PROFIT"))
 
         for symbol, exit_price, reason in symbols_to_close:
-            await self._close_paper_position(symbol, exit_price, reason)
+            await self._close_tracked_position(symbol, exit_price, reason)
 
-    async def _close_paper_position(
+    async def _close_tracked_position(
         self, symbol: str, exit_price: float, reason: str
     ) -> None:
-        """Close a paper position and record the outcome."""
+        """Close a tracked position (paper or live) and record the outcome."""
         pos = self._paper_positions.pop(symbol, None)
         if pos is None:
             return
+
+        mode_str = "LIVE" if self.mode == TradingMode.LIVE else "PAPER"
+
+        # ── LIVE MODE: place a real closing order on the exchange ──────────
+        if self.mode == TradingMode.LIVE:
+            close_side = "sell" if pos.direction == Direction.LONG else "buy"
+            try:
+                close_record = await self._executor.execute_close(
+                    symbol=symbol,
+                    side=close_side,
+                    size=pos.size,
+                )
+                if close_record and close_record.success:
+                    exit_price = close_record.fill_price
+                    logger.info(
+                        "LIVE close order FILLED: %s %s size=%.6f @ %.4f",
+                        close_side.upper(), symbol, pos.size, exit_price,
+                    )
+                else:
+                    logger.error(
+                        "LIVE close order FAILED for %s — keeping exit_price=%.4f from monitor",
+                        symbol, exit_price,
+                    )
+            except Exception as exc:  # noqa: BLE001
+                logger.error(
+                    "LIVE close order EXCEPTION for %s: %s — using monitored exit_price=%.4f",
+                    symbol, exc, exit_price,
+                )
 
         # Calculate PnL
         if pos.direction == Direction.LONG:
@@ -1173,8 +1337,8 @@ class TradingEngine:
         self._update_strategy_performance(agent_key, pnl_pct)
 
         logger.info(
-            "Paper position CLOSED [%s]: %s %s @ %.4f → %.4f | PnL=%.2f (%+.2f%%) | equity=%.2f",
-            reason, pos.direction.value, symbol, pos.entry_price,
+            "%s position CLOSED [%s]: %s %s @ %.4f -> %.4f | PnL=%.2f (%+.2f%%) | equity=%.2f",
+            mode_str, reason, pos.direction.value, symbol, pos.entry_price,
             exit_price, pnl, pnl_pct, self._risk.current_equity,
         )
         # Telegram alert

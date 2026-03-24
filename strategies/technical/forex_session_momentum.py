@@ -271,10 +271,10 @@ class ForexSessionMomentumStrategy(BaseStrategy):
         if not momentum_aligned:
             return None
 
-        # ATR must be expanding (current ATR > its recent SMA) to confirm breakout
+        # ATR expansion check — used as conviction bonus, not a hard gate.
+        # Hard-gating on ATR expansion rejects clean early breakouts and only
+        # accepts late, already-exhausted moves.
         atr_expanding = atr_now > atr_sma_now
-        if not atr_expanding:
-            return None
 
         # Build SL/TP levels
         is_gold = symbol in _GOLD_SYMBOLS
@@ -301,6 +301,7 @@ class ForexSessionMomentumStrategy(BaseStrategy):
             vol_ratio=vol_ratio,
             adx_value=adx_value,
             is_overlap=is_overlap,
+            atr_expanding=atr_expanding,
         )
 
         return Signal(
@@ -341,23 +342,35 @@ class ForexSessionMomentumStrategy(BaseStrategy):
         Close position at the end of whichever session was active at entry.
         Session-end hours (UTC): Asian 08:00, London 16:00, NY 21:00.
 
-        The entry metadata records the session; we time-stop once that session ends.
-        If the session name is not available in metadata, fall back to the
-        conservative earliest close (08:00 UTC, i.e. Asian end).
+        Derives the entry session from position.entry_time (not metadata) so that
+        this works correctly in the backtest engine, which does not forward signal
+        metadata to the Position object.
         """
         if not self._min_rows(df, 2):
             return False
 
         current_ts: pd.Timestamp = df.index[-1]
-        entry_session_name: str = position.metadata.get("current_session", "asian")
 
-        # Resolve session end hour from the recorded session name
-        session_end_map: dict[str, int] = {
-            "asian": 8,
-            "london": 16,
-            "new_york": 21,
-        }
-        end_hour = session_end_map.get(entry_session_name, 8)
+        # Determine which session the trade was entered in from the entry timestamp
+        entry_hour = position.entry_time.hour if position.entry_time else 0
+        entry_session = _current_session(entry_hour)
+
+        if entry_session is None:
+            return True  # Entered between sessions — shouldn't happen, exit immediately
+
+        end_hour = entry_session.end_hour
+
+        # For sessions that span past midnight this would need adjustment,
+        # but all three sessions end before 24:00 UTC so a simple hour
+        # comparison works.  We also need to handle the day boundary: only
+        # exit if we are on the same day or later AND past the end hour.
+        entry_date = position.entry_time.date() if position.entry_time else current_ts.date()
+        current_date = current_ts.date()
+
+        if current_date > entry_date:
+            # Next day — session has definitely ended
+            return True
+        # Same day: exit once the session's end hour is reached
         return current_ts.hour >= end_hour
 
     # ------------------------------------------------------------------
@@ -440,29 +453,33 @@ class ForexSessionMomentumStrategy(BaseStrategy):
         vol_ratio: float,
         adx_value: float,
         is_overlap: bool,
+        atr_expanding: bool = False,
     ) -> float:
         """
         Conviction is signed: positive = bullish, negative = bearish.
 
         Score breakdown:
-            0.45  base (strategy has edge at session open breakouts)
+            0.40  base (strategy has edge at session open breakouts)
             0.15  all three momentum indicators aligned
             0.15  volume surge > volume_surge_mult  (institutional flow)
-            0.15  ADX > adx_trend_threshold          (confirmed trend)
+            0.10  ADX > adx_trend_threshold          (confirmed trend)
+            0.10  ATR expanding (breakout confirmed by volatility expansion)
             0.10  London–NY overlap window            (highest liquidity)
         """
-        score = 0.45
+        score = 0.40
 
         if momentum_aligned:
             score += 0.15
 
         if vol_ratio >= self.volume_surge_mult:
-            # Scale bonus — capped at the full 0.15 for 3x average volume
             vol_bonus = min((vol_ratio - 1.0) / 2.0, 1.0) * 0.15
             score += vol_bonus
 
         if adx_value >= self.adx_trend_threshold:
-            score += 0.15
+            score += 0.10
+
+        if atr_expanding:
+            score += 0.10
 
         if is_overlap:
             score += 0.10

@@ -221,14 +221,15 @@ class TradingPlaybook:
         elif regime == "CHOPPY":
             g.preferred_strategies = [
                 "rsi_mean_reversion", "vwap_bounce", "volume_profile",
+                "bollinger_squeeze",  # squeeze breakouts thrive in compressed ranges
             ]
             g.avoid_strategies = [
-                "ema_crossover", "ichimoku_trend", "bollinger_squeeze",
+                "ema_crossover", "ichimoku_trend",
             ]
             g.size_multiplier *= 0.8
             g.trailing_stop_multiplier = 2.0  # tight for mean-reversion
             g.entry_patience = "PATIENT"
-            g.rules_applied.append("CHOPPY: mean-reversion only, 80% size")
+            g.rules_applied.append("CHOPPY: mean-reversion + squeeze preferred, 80% size")
 
         elif regime == "HIGH_VOL":
             g.size_multiplier *= 0.5  # half size in high vol

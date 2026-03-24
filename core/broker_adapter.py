@@ -53,7 +53,7 @@ logger = logging.getLogger("atlas.broker_adapter")
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-_DEFAULT_TIMEOUT_S: float = 10.0
+_DEFAULT_TIMEOUT_S: float = 30.0
 
 # Patterns used by BrokerRegistry for symbol routing
 _CRYPTO_PATTERN = re.compile(r".+/[A-Z]{2,6}$")          # BTC/USDT, ETH/BTC
@@ -411,22 +411,40 @@ class CCXTAdapter(BrokerAdapter):
         timeframe: str,
         limit: int = 500,
         timeout: float = _DEFAULT_TIMEOUT_S,
+        max_retries: int = 3,
     ) -> list[list[float]]:
         self._require_connected()
-        try:
-            raw: list[list[Any]] = await asyncio.wait_for(
-                self._exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit),
-                timeout=timeout,
-            )
-            return [[int(c[0]), float(c[1]), float(c[2]), float(c[3]), float(c[4]), float(c[5])] for c in raw]
-        except asyncio.TimeoutError:
-            logger.error("CCXTAdapter fetch_ohlcv timeout: %s/%s", symbol, timeframe)
-            raise
-        except self._ccxt.BadSymbol as exc:
-            raise ValueError(f"Symbol not available on {self._exchange_id}: {symbol}") from exc
-        except self._ccxt.BaseError as exc:
-            logger.error("CCXTAdapter fetch_ohlcv error %s/%s: %s", symbol, timeframe, exc)
-            raise
+        last_exc: Exception | None = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                raw: list[list[Any]] = await asyncio.wait_for(
+                    self._exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit),
+                    timeout=timeout,
+                )
+                return [[int(c[0]), float(c[1]), float(c[2]), float(c[3]), float(c[4]), float(c[5])] for c in raw]
+            except asyncio.TimeoutError as exc:
+                last_exc = exc
+                logger.warning(
+                    "CCXTAdapter fetch_ohlcv timeout: %s/%s (attempt %d/%d)",
+                    symbol, timeframe, attempt, max_retries,
+                )
+                if attempt < max_retries:
+                    await asyncio.sleep(2 ** attempt)  # 2s, 4s
+            except self._ccxt.BadSymbol as exc:
+                raise ValueError(f"Symbol not available on {self._exchange_id}: {symbol}") from exc
+            except self._ccxt.BaseError as exc:
+                last_exc = exc
+                logger.warning(
+                    "CCXTAdapter fetch_ohlcv error %s/%s (attempt %d/%d): %s",
+                    symbol, timeframe, attempt, max_retries, exc,
+                )
+                if attempt < max_retries:
+                    await asyncio.sleep(2 ** attempt)  # 2s, 4s
+        logger.error(
+            "CCXTAdapter fetch_ohlcv failed after %d attempts: %s/%s — %s",
+            max_retries, symbol, timeframe, last_exc,
+        )
+        raise last_exc  # type: ignore[misc]
 
     async def fetch_ticker(
         self,
@@ -1062,11 +1080,11 @@ class OANDAAdapter(BrokerAdapter):
         self,
         token: str | None = None,
         account_id: str | None = None,
-        practice: bool = True,
+        practice: bool | None = None,
     ) -> None:
         self._token = token or settings.oanda.oanda_token
         self._account_id = account_id or settings.oanda.oanda_account_id
-        self._practice = practice
+        self._practice = practice if practice is not None else settings.oanda.oanda_practice
         self._api: Any = None  # oandapyV20.API — typed as Any to avoid import at class level
 
     # -- Identity --

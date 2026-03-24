@@ -12,8 +12,11 @@ Usage
     # Paper-trading view (reads DB)
     python dashboard.py
 
-    # Backtest view (reads logs/*.csv files)
+    # Backtest view (reads logs/*.csv files — enabled strategies only)
     python dashboard.py --backtest
+
+    # Backtest view including disabled strategies (historical analysis)
+    python dashboard.py --backtest --all
 
     # Suppress auto-open
     python dashboard.py --no-open
@@ -31,6 +34,17 @@ import sys
 import webbrowser
 from pathlib import Path
 from typing import Any
+
+try:
+    import yaml
+except ImportError as exc:
+    print(
+        "ERROR: PyYAML is not installed.\n"
+        "Run:  pip install PyYAML\n"
+        f"Details: {exc}",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Path setup — must happen before project imports
@@ -210,18 +224,57 @@ def _load_paper_data() -> dict[str, Any]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+#  Strategy config helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+_STRATEGIES_YAML = _ROOT / "config" / "strategies.yaml"
+
+
+def _load_enabled_strategies() -> set[str]:
+    """
+    Read config/strategies.yaml and return the set of strategy names that have
+    ``enabled: true``.  Falls back to an empty set (meaning: show all) if the
+    file cannot be read or parsed.
+    """
+    try:
+        with _STRATEGIES_YAML.open(encoding="utf-8") as fh:
+            config = yaml.safe_load(fh)
+        strategies: dict[str, Any] = config.get("strategies", {}) or {}
+        return {
+            name
+            for name, cfg in strategies.items()
+            if isinstance(cfg, dict) and cfg.get("enabled", False)
+        }
+    except Exception:  # noqa: BLE001 — dashboard must never crash on config load
+        logger.warning("Could not read %s — showing all strategies", _STRATEGIES_YAML)
+        return set()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 #  Data layer — backtest mode (reads logs/*.csv)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def _load_backtest_data() -> dict[str, Any]:
+def _load_backtest_data(
+    enabled_strategies: set[str] | None = None,
+) -> dict[str, Any]:
     """
     Load backtest trade logs from all trades_*.csv files in logs/.
 
+    Parameters
+    ----------
+    enabled_strategies:
+        When provided (non-None), only trades whose ``strategy`` column
+        matches a name in this set are included.  Pass ``None`` to load
+        every trade regardless of enabled status (``--all`` mode).
+
     Returns the same shape dict as _load_paper_data() so the chart
-    functions work identically for both modes.
+    functions work identically for both modes.  Two extra keys are added
+    for the filter summary message:
+        ``total_trades_all``   – raw count before any filtering
+        ``enabled_strategies`` – the set that was applied (or None)
     """
-    trades_data: list[dict[str, Any]] = []
+    all_trades: list[dict[str, Any]] = []
 
     csv_files = sorted(_LOGS_DIR.glob("trades_*.csv"))
     if not csv_files:
@@ -232,6 +285,8 @@ def _load_backtest_data() -> dict[str, Any]:
             "signals": [],
             "start_value": 10_000.0,
             "source": "backtest",
+            "total_trades_all": 0,
+            "enabled_strategies": enabled_strategies,
         }
 
     for csv_path in csv_files:
@@ -247,7 +302,7 @@ def _load_backtest_data() -> dict[str, Any]:
                             if abs(pnl_pct_raw) < 1.0
                             else pnl_pct_raw
                         )
-                        trades_data.append(
+                        all_trades.append(
                             {
                                 "id": int(row.get("trade_id", 0)),
                                 "symbol": row.get("symbol", ""),
@@ -271,6 +326,17 @@ def _load_backtest_data() -> dict[str, Any]:
                         continue
         except OSError:
             continue
+
+    total_trades_all = len(all_trades)
+
+    # Apply strategy filter when a whitelist is provided
+    if enabled_strategies is not None:
+        trades_data = [
+            t for t in all_trades
+            if t["strategy"] in enabled_strategies
+        ]
+    else:
+        trades_data = all_trades
 
     # Sort by closed_at descending (most recent first — matches paper mode)
     trades_data.sort(
@@ -310,6 +376,8 @@ def _load_backtest_data() -> dict[str, Any]:
         "signals": [],     # not available for backtests
         "start_value": 10_000.0,
         "source": "backtest",
+        "total_trades_all": total_trades_all,
+        "enabled_strategies": enabled_strategies,
     }
 
 
@@ -1201,7 +1269,11 @@ def _build_html(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def build_dashboard(use_backtest: bool = False, auto_open: bool = True) -> Path:
+def build_dashboard(
+    use_backtest: bool = False,
+    auto_open: bool = True,
+    show_all: bool = False,
+) -> Path:
     """
     Build the dashboard HTML file and return its path.
 
@@ -1211,13 +1283,22 @@ def build_dashboard(use_backtest: bool = False, auto_open: bool = True) -> Path:
         If True, load from logs/*.csv instead of the SQLite database.
     auto_open : bool
         If True, open the generated file in the default browser.
+    show_all : bool
+        When True (and use_backtest is True), include trades from ALL
+        strategies regardless of their enabled status in strategies.yaml.
+        When False (the default), only enabled strategies are shown.
     """
     generated_at = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
 
     # ── Load data ─────────────────────────────────────────────────────────
     if use_backtest:
         print("Loading backtest results from logs/ directory...")
-        data = _load_backtest_data()
+        if show_all:
+            # Pass None to skip filtering entirely
+            data = _load_backtest_data(enabled_strategies=None)
+        else:
+            enabled = _load_enabled_strategies()
+            data = _load_backtest_data(enabled_strategies=enabled)
     else:
         print("Loading paper-trading data from database...")
         data = _load_paper_data()
@@ -1231,10 +1312,40 @@ def build_dashboard(use_backtest: bool = False, auto_open: bool = True) -> Path:
 
     has_data = bool(trades or snapshots)
 
-    print(
-        f"  Trades: {len(trades)} | Snapshots: {len(snapshots)} | "
-        f"Daily rows: {len(daily_pnl)} | Signals: {len(signals)}"
-    )
+    # ── Filter summary message (backtest mode only) ────────────────────────
+    if use_backtest:
+        total_all: int = data.get("total_trades_all", len(trades))
+        applied_filter: set[str] | None = data.get("enabled_strategies")
+
+        if applied_filter is not None:
+            # Determine which enabled strategies actually have CSV data
+            present_strategies = {t["strategy"] for t in trades}
+            enabled_with_data = applied_filter & present_strategies
+            enabled_no_data = applied_filter - present_strategies
+
+            print(
+                f"  Showing {len(enabled_with_data)} enabled "
+                f"{'strategy' if len(enabled_with_data) == 1 else 'strategies'} "
+                f"({len(trades)} trades). "
+                f"Use --all to include disabled strategies ({total_all} total)."
+            )
+            if enabled_no_data:
+                print(
+                    f"  Note: {len(enabled_no_data)} enabled "
+                    f"{'strategy has' if len(enabled_no_data) == 1 else 'strategies have'} "
+                    f"no backtest CSV yet: {', '.join(sorted(enabled_no_data))}"
+                )
+        else:
+            present_strategies = {t["strategy"] for t in trades}
+            print(
+                f"  Showing ALL strategies ({len(present_strategies)} unique, "
+                f"{len(trades)} trades). Enabled-only view: run without --all."
+            )
+    else:
+        print(
+            f"  Trades: {len(trades)} | Snapshots: {len(snapshots)} | "
+            f"Daily rows: {len(daily_pnl)} | Signals: {len(signals)}"
+        )
 
     # ── Analytics ─────────────────────────────────────────────────────────
     stats = _compute_summary_stats(trades, snapshots, start_value)
@@ -1300,9 +1411,10 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
-            "  python dashboard.py                # paper-trading view\n"
-            "  python dashboard.py --backtest     # backtest results view\n"
-            "  python dashboard.py --no-open      # generate without opening browser\n"
+            "  python dashboard.py                      # paper-trading view\n"
+            "  python dashboard.py --backtest           # backtest — enabled strategies only\n"
+            "  python dashboard.py --backtest --all     # backtest — all strategies (historical)\n"
+            "  python dashboard.py --no-open            # generate without opening browser\n"
         ),
     )
     parser.add_argument(
@@ -1310,6 +1422,16 @@ def main() -> None:
         action="store_true",
         default=False,
         help="Load backtest results from logs/*.csv instead of the live DB.",
+    )
+    parser.add_argument(
+        "--all",
+        dest="show_all",
+        action="store_true",
+        default=False,
+        help=(
+            "Include trades from ALL strategies (enabled and disabled). "
+            "Only meaningful with --backtest. Default is enabled-only."
+        ),
     )
     parser.add_argument(
         "--no-open",
@@ -1322,6 +1444,7 @@ def main() -> None:
     output = build_dashboard(
         use_backtest=args.backtest,
         auto_open=not args.no_open,
+        show_all=args.show_all,
     )
     print(f"Done. Dashboard: {output}")
 

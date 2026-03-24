@@ -41,6 +41,10 @@ from strategies.technical import grid_dca  # noqa: F401
 from strategies.technical import forex_carry_momentum  # noqa: F401
 from strategies.technical import donchian_breakout  # noqa: F401
 from strategies.technical import momentum_exhaustion  # noqa: F401 — side-effect import: registers MomentumExhaustionStrategy with StrategyRegistry
+from strategies.technical import pairs_mean_reversion  # noqa: F401
+from strategies.technical import equity_mean_reversion  # noqa: F401
+from strategies.technical import gold_trend_follower  # noqa: F401
+from strategies.technical import stock_gap_fade  # noqa: F401
 
 __all__ = [
     "rsi",

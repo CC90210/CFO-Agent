@@ -66,8 +66,12 @@ logger = logging.getLogger("atlas.telegram_bridge")
 # ─────────────────────────────────────────────────────────────────────────────
 
 from config.settings import settings  # noqa: E402
-from db.database import get_session  # noqa: E402
+from db.database import get_session, init_db  # noqa: E402
 from db.models import DailyPnL, PortfolioSnapshot, Signal, Trade  # noqa: E402
+
+# Ensure all tables exist before any handler queries the DB.
+# Safe to call multiple times — uses CREATE TABLE IF NOT EXISTS semantics.
+init_db()
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Constants
@@ -148,11 +152,11 @@ def _query_portfolio_state() -> dict[str, Any]:
         if snapshot and snapshot.positions_json:
             open_positions = list(snapshot.positions_json)
 
-    portfolio_value = snapshot.total_value if snapshot else 10_000.0
-    drawdown = snapshot.drawdown_pct if snapshot else 0.0
-    daily_pnl = daily.realized_pnl if daily else 0.0
-    wins = sum(1 for t in closed_trades if (t.pnl or 0.0) > 0)
-    losses = sum(1 for t in closed_trades if (t.pnl or 0.0) <= 0)
+        portfolio_value = snapshot.total_value if snapshot else 0.0
+        drawdown = snapshot.drawdown_pct if snapshot else 0.0
+        daily_pnl = daily.realized_pnl if daily else 0.0
+        wins = sum(1 for t in closed_trades if (t.pnl or 0.0) > 0)
+        losses = sum(1 for t in closed_trades if (t.pnl or 0.0) <= 0)
 
     return {
         "portfolio_value": portfolio_value,
@@ -173,10 +177,12 @@ def _query_pnl_summary() -> dict[str, float]:
 
     with get_session() as session:
         rows = session.query(DailyPnL).filter(DailyPnL.date >= month_start).all()
+        # Extract values inside session to avoid DetachedInstanceError
+        pnl_entries = [(r.date, r.realized_pnl) for r in rows]
 
-    daily_pnl = next((r.realized_pnl for r in rows if r.date == today), 0.0)
-    weekly_pnl = sum(r.realized_pnl for r in rows if r.date >= week_start)
-    monthly_pnl = sum(r.realized_pnl for r in rows)
+    daily_pnl = next((pnl for d, pnl in pnl_entries if d == today), 0.0)
+    weekly_pnl = sum(pnl for d, pnl in pnl_entries if d >= week_start)
+    monthly_pnl = sum(pnl for _, pnl in pnl_entries)
 
     return {
         "daily": daily_pnl,
@@ -197,11 +203,11 @@ def _query_risk_metrics() -> dict[str, Any]:
         )
         daily = session.query(DailyPnL).filter(DailyPnL.date == today).first()
 
-    portfolio_value = snapshot.total_value if snapshot else 10_000.0
-    drawdown = snapshot.drawdown_pct if snapshot else 0.0
-    daily_pnl = daily.realized_pnl if daily else 0.0
-    daily_loss_pct = (daily_pnl / portfolio_value * 100.0) if portfolio_value else 0.0
-    positions = snapshot.positions_json if snapshot else []
+        portfolio_value = snapshot.total_value if snapshot else 0.0
+        drawdown = snapshot.drawdown_pct if snapshot else 0.0
+        daily_pnl = daily.realized_pnl if daily else 0.0
+        daily_loss_pct = (daily_pnl / portfolio_value * 100.0) if portfolio_value else 0.0
+        positions = list(snapshot.positions_json) if snapshot and snapshot.positions_json else []
 
     return {
         "portfolio_value": portfolio_value,
@@ -448,6 +454,7 @@ class TelegramBridge:
             async with self._http.get(url, params=params) as resp:
                 if resp.status != 200:
                     logger.warning("getUpdates returned HTTP %d", resp.status)
+                    await asyncio.sleep(5)  # back off on errors to avoid hammering
                     return []
                 data: dict[str, Any] = await resp.json()
                 if not data.get("ok"):
@@ -481,7 +488,6 @@ class TelegramBridge:
             payload: dict[str, Any] = {
                 "chat_id": target_chat,
                 "text": chunk,
-                "parse_mode": "HTML",
                 "disable_web_page_preview": True,
             }
             try:
