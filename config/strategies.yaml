@@ -108,14 +108,12 @@ strategies:
       secondary: "1h"
       confirmation: "15m"
     symbols:
-      # 2026-03-24 fresh 721-bar Kraken backtest — Sharpe > 0.65 only
-      - "DOGE/USD"   # +9.45% Sharpe 2.00, 55% WR, PF 2.72 — BEST MULTI-TF PAIR
-      - "XRP/USD"    # +7.70% Sharpe 1.59, 53% WR, PF 1.96 — STRONG
-      - "LINK/USD"   # +2.97% Sharpe 0.70, 33% WR, PF 1.36 — MARGINAL, keep for diversity
+      # 2026-03-26 fresh 500-bar revalidation — only DOGE profitable, XRP/LINK zero TP hits
+      - "DOGE/USD"   # +9.94% PF 1.41, Sharpe +0.61 — only viable MTF crypto pair
+      # CUT 2026-03-26: XRP (-17.60% 0 TP hits), LINK (-19.39% 0 TP hits)
       # Gold/Silver — validated on real OANDA data (prior sessions)
       - "XAU_USD"    # +10.94% Sharpe 2.10 — GOLD CHAMPION
       - "XAG_USD"    # +7.21% Sharpe 1.43 — SILVER STRONG
-      # Removed: BTC (+0.95% marginal), ETH (-1.26%), SOL (-4.08%), all others negative
     risk_per_trade: 1.5
     max_positions: 3
     parameters:
