@@ -449,6 +449,12 @@ class GoldTrendFollowerStrategy(BaseStrategy):
             if vol_now > self.vol_expansion_factor * vol_sma_now:
                 score += 0.10
 
+        # Bonus 5: Gold seasonal window (Aug–Feb historically strong)
+        from datetime import datetime, UTC
+        month = datetime.now(UTC).month
+        if month in (8, 9, 10, 11, 12, 1, 2):
+            score += 0.05  # Free edge: gold averages +1.2% in strong months
+
         # Cap at 1.0 before signing
         score = min(score, 1.0)
 

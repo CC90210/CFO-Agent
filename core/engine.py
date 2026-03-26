@@ -342,6 +342,34 @@ class TradingEngine:
                 pos.stop_loss, pos.take_profit, pos.size,
             )
 
+    async def _validate_positions_on_startup(self) -> None:
+        """Check exchange balance for each restored position. Remove ghosts."""
+        try:
+            exchange = self._executor._exchange
+            balance = await exchange.fetch_balance()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Startup balance check failed: %s — skipping validation", exc)
+            return
+
+        ghosts: list[str] = []
+        for sym, pos in list(self._paper_positions.items()):
+            base_asset = sym.split("/")[0]
+            asset_bal = balance.get(base_asset, {}).get("total", 0) or 0
+            if asset_bal < pos.size * 0.5:
+                logger.warning(
+                    "GHOST position detected: %s — balance %.6f < position %.6f. "
+                    "Exchange SL likely fired. Removing from tracking.",
+                    sym, asset_bal, pos.size,
+                )
+                ghosts.append(sym)
+
+        for sym in ghosts:
+            del self._paper_positions[sym]
+
+        if ghosts:
+            self._save_positions()
+            logger.info("Removed %d ghost position(s): %s", len(ghosts), ", ".join(ghosts))
+
     # ── Lifecycle ─────────────────────────────────────────────────────────
 
     async def start(self) -> None:
@@ -414,6 +442,10 @@ class TradingEngine:
         # Restore any open positions from a prior daemon instance
         if self.mode != TradingMode.BACKTEST:
             self._load_positions()
+
+        # Validate restored positions against exchange balance (LIVE only)
+        if self.mode == TradingMode.LIVE and self._paper_positions:
+            await self._validate_positions_on_startup()
 
         logger.info("Engine setup complete.")
 
@@ -1163,6 +1195,15 @@ class TradingEngine:
             )
             return
 
+        # ── Spot exchange short-selling guard ──────────────────────────────
+        # Kraken spot doesn't support short selling. Block SHORT signals for
+        # crypto pairs. OANDA supports shorts natively via CFDs.
+        if signal.direction == Direction.SHORT:
+            is_oanda_symbol = "_" in signal.symbol  # OANDA uses underscores: XAU_USD
+            if not is_oanda_symbol:
+                logger.debug("Skipping SHORT %s — spot exchange does not support short selling", signal.symbol)
+                return
+
         entry_price = signal.metadata.get("entry_price", 0.0)
 
         # ── Risk profile override ───────────────────────────────────────
@@ -1325,7 +1366,7 @@ class TradingEngine:
                 try:
                     exchange = self._executor._exchange  # noqa: SLF001
                     if exchange:
-                        open_orders = exchange.fetch_open_orders(signal.symbol)
+                        open_orders = await exchange.fetch_open_orders(signal.symbol)
                         for order in open_orders:
                             stop_price = order.get("stopPrice") or 0
                             if order["side"] == ("sell" if signal.direction == Direction.LONG else "buy") and stop_price > 0:
@@ -1505,18 +1546,18 @@ class TradingEngine:
             # Cancel old SL order if we have an ID
             if pos.exchange_sl_order_id:
                 try:
-                    exchange.cancel_order(pos.exchange_sl_order_id, pos.symbol)
+                    await exchange.cancel_order(pos.exchange_sl_order_id, pos.symbol)
                     logger.info("Cancelled old exchange SL %s for %s", pos.exchange_sl_order_id, pos.symbol)
                 except Exception:  # noqa: BLE001
                     logger.debug("Old SL order %s already gone (exchange may have filled it)", pos.exchange_sl_order_id)
             else:
                 # No tracked order ID — cancel all open SL orders for this symbol
                 try:
-                    open_orders = exchange.fetch_open_orders(pos.symbol)
+                    open_orders = await exchange.fetch_open_orders(pos.symbol)
                     for order in open_orders:
                         stop_price = order.get("stopPrice") or 0
                         if order["side"] == ("sell" if pos.direction == Direction.LONG else "buy") and stop_price > 0:
-                            exchange.cancel_order(order["id"], pos.symbol)
+                            await exchange.cancel_order(order["id"], pos.symbol)
                             logger.info("Cancelled untracked SL order %s for %s", order["id"], pos.symbol)
                 except Exception:  # noqa: BLE001
                     pass
@@ -1567,7 +1608,7 @@ class TradingEngine:
             # Check if asset already sold by exchange SL order
             try:
                 base_asset = symbol.split("/")[0]
-                balance = await asyncio.to_thread(self._exchange.fetch_balance)
+                balance = await self._exchange.fetch_balance()
                 asset_balance = balance.get(base_asset, {}).get("total", 0) or 0
                 if asset_balance < pos.size * 0.5:  # Less than half the position = already sold
                     logger.info(
@@ -1598,14 +1639,10 @@ class TradingEngine:
                         close_success = True
                         # Cancel any remaining SL/TP orders for this symbol
                         try:
-                            open_orders = await asyncio.to_thread(
-                                self._exchange.fetch_open_orders, symbol
-                            )
+                            open_orders = await self._exchange.fetch_open_orders(symbol)
                             for oo in open_orders:
                                 try:
-                                    await asyncio.to_thread(
-                                        self._exchange.cancel_order, oo["id"], symbol
-                                    )
+                                    await self._exchange.cancel_order(oo["id"], symbol)
                                     logger.info(
                                         "Cancelled orphan %s order %s for %s",
                                         oo["type"], oo["id"], symbol,
@@ -1632,15 +1669,25 @@ class TradingEngine:
                     await asyncio.sleep(2 ** attempt)
 
             if not close_success:
-                logger.error(
-                    "LIVE close FAILED after 3 attempts for %s — "
-                    "ZOMBIE POSITION may exist on exchange! Using monitored exit_price=%.4f",
-                    symbol, exit_price,
-                )
-                # Re-add to tracking so next cycle retries
-                self._paper_positions[symbol] = pos
-                self._save_positions()
-                return  # Don't record as closed — will retry next monitoring cycle
+                # Check if failure was InsufficientFunds — means exchange SL already fired
+                # and we no longer hold the asset.  Don't re-add; let it close as a loss.
+                last_error = str(close_record.error) if close_record and close_record.error else ""
+                if "InsufficientFunds" in last_error or "Insufficient funds" in last_error:
+                    logger.warning(
+                        "GHOST detected: %s close failed with InsufficientFunds — "
+                        "exchange SL likely fired. Removing ghost position.",
+                        symbol,
+                    )
+                    # Fall through to PnL recording below — treat as SL-hit loss
+                else:
+                    logger.error(
+                        "LIVE close FAILED after 3 attempts for %s — "
+                        "ZOMBIE POSITION may exist on exchange! Re-adding for retry. exit_price=%.4f",
+                        symbol, exit_price,
+                    )
+                    self._paper_positions[symbol] = pos
+                    self._save_positions()
+                    return  # Will retry next monitoring cycle
 
         # Calculate PnL
         if pos.direction == Direction.LONG:
