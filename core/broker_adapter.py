@@ -45,6 +45,8 @@ import re
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
 from typing import Any
+from http.client import RemoteDisconnected
+import requests.exceptions as _req_exc
 
 from config.settings import settings
 
@@ -1149,13 +1151,7 @@ class OANDAAdapter(BrokerAdapter):
             params = {"count": str(limit), "granularity": granularity}
             request = InstrumentsCandles(instrument=symbol, params=params)
 
-            raw_response: dict[str, Any] = await asyncio.wait_for(
-                asyncio.get_event_loop().run_in_executor(
-                    None,
-                    lambda: self._api.request(request),
-                ),
-                timeout=timeout,
-            )
+            raw_response: dict[str, Any] = await self._execute_request(request, timeout)
 
             candles = raw_response.get("candles", [])
             result: list[list[float]] = []
@@ -1196,13 +1192,7 @@ class OANDAAdapter(BrokerAdapter):
             params = {"instruments": symbol}
             request = PricingInfo(accountID=self._account_id, params=params)
 
-            raw_response: dict[str, Any] = await asyncio.wait_for(
-                asyncio.get_event_loop().run_in_executor(
-                    None,
-                    lambda: self._api.request(request),
-                ),
-                timeout=timeout,
-            )
+            raw_response: dict[str, Any] = await self._execute_request(request, timeout)
 
             prices = raw_response.get("prices", [])
             if not prices:
@@ -1255,13 +1245,7 @@ class OANDAAdapter(BrokerAdapter):
             }
             request = OrderCreate(accountID=self._account_id, data=order_body)
 
-            raw_response: dict[str, Any] = await asyncio.wait_for(
-                asyncio.get_event_loop().run_in_executor(
-                    None,
-                    lambda: self._api.request(request),
-                ),
-                timeout=timeout,
-            )
+            raw_response: dict[str, Any] = await self._execute_request(request, timeout)
             return self._normalise_order(raw_response, symbol, side, abs(units))
         except asyncio.TimeoutError:
             logger.error("OANDAAdapter place_market_order timeout: %s", symbol)
@@ -1295,13 +1279,7 @@ class OANDAAdapter(BrokerAdapter):
             }
             request = OrderCreate(accountID=self._account_id, data=order_body)
 
-            raw_response: dict[str, Any] = await asyncio.wait_for(
-                asyncio.get_event_loop().run_in_executor(
-                    None,
-                    lambda: self._api.request(request),
-                ),
-                timeout=timeout,
-            )
+            raw_response: dict[str, Any] = await self._execute_request(request, timeout)
             return self._normalise_order(raw_response, symbol, side, abs(units))
         except asyncio.TimeoutError:
             logger.error("OANDAAdapter place_limit_order timeout: %s", symbol)
@@ -1321,13 +1299,7 @@ class OANDAAdapter(BrokerAdapter):
             from oandapyV20.endpoints.orders import OrderCancel
 
             request = OrderCancel(accountID=self._account_id, orderID=order_id)
-            await asyncio.wait_for(
-                asyncio.get_event_loop().run_in_executor(
-                    None,
-                    lambda: self._api.request(request),
-                ),
-                timeout=timeout,
-            )
+            await self._execute_request(request, timeout)
             return True
         except asyncio.TimeoutError:
             logger.error("OANDAAdapter cancel_order timeout: %s", order_id)
@@ -1347,13 +1319,7 @@ class OANDAAdapter(BrokerAdapter):
             from oandapyV20.endpoints.accounts import AccountSummary
 
             request = AccountSummary(accountID=self._account_id)
-            raw_response: dict[str, Any] = await asyncio.wait_for(
-                asyncio.get_event_loop().run_in_executor(
-                    None,
-                    lambda: self._api.request(request),
-                ),
-                timeout=timeout,
-            )
+            raw_response: dict[str, Any] = await self._execute_request(request, timeout)
 
             account = raw_response.get("account", {})
             return {
@@ -1378,13 +1344,7 @@ class OANDAAdapter(BrokerAdapter):
             from oandapyV20.endpoints.positions import OpenPositions
 
             request = OpenPositions(accountID=self._account_id)
-            raw_response: dict[str, Any] = await asyncio.wait_for(
-                asyncio.get_event_loop().run_in_executor(
-                    None,
-                    lambda: self._api.request(request),
-                ),
-                timeout=timeout,
-            )
+            raw_response: dict[str, Any] = await self._execute_request(request, timeout)
 
             positions: list[dict[str, Any]] = []
             for p in raw_response.get("positions", []):
@@ -1421,6 +1381,48 @@ class OANDAAdapter(BrokerAdapter):
     def _require_connected(self) -> None:
         if self._api is None:
             raise RuntimeError("OANDAAdapter not connected. Call connect() first.")
+
+    def _recreate_api(self) -> None:
+        """Tear down the stale requests.Session and build a fresh oandapyV20.API."""
+        import oandapyV20
+        try:
+            if self._api is not None:
+                self._api.client.close()
+        except Exception:
+            pass
+        self._api = None
+        environment = "practice" if self._practice else "live"
+        self._api = oandapyV20.API(
+            access_token=self._token,
+            environment=environment,
+        )
+        logger.info("OANDAAdapter: HTTP session recreated after connection drop")
+
+    async def _execute_request(self, request: Any, timeout: float) -> Any:
+        """Run an oandapyV20 endpoint request in a thread executor.
+
+        On ``RemoteDisconnected`` or ``ConnectionError`` (OANDA drops idle
+        connections), the underlying requests.Session is stale.  We recreate
+        the API client once and retry before letting the exception propagate.
+        """
+        for attempt in range(2):
+            try:
+                return await asyncio.wait_for(
+                    asyncio.get_event_loop().run_in_executor(
+                        None,
+                        lambda: self._api.request(request),
+                    ),
+                    timeout=timeout,
+                )
+            except (RemoteDisconnected, ConnectionError, _req_exc.ConnectionError, OSError) as exc:
+                if attempt == 0:
+                    logger.warning(
+                        "OANDAAdapter: connection dropped (%s), recreating session and retrying",
+                        exc,
+                    )
+                    self._recreate_api()
+                    continue
+                raise
 
     def _map_timeframe(self, ccxt_tf: str) -> str:
         granularity = self._TIMEFRAME_MAP.get(ccxt_tf)

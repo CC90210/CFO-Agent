@@ -370,6 +370,38 @@ class TradingEngine:
             self._save_positions()
             logger.info("Removed %d ghost position(s): %s", len(ghosts), ", ".join(ghosts))
 
+        # ── Orphan detection: cancel stale exchange orders for symbols we're NOT tracking ──
+        # This prevents the daemon from accumulating duplicate SL/TP orders from
+        # positions that were opened but never saved (e.g., daemon crash after order fill).
+        try:
+            open_orders = await exchange.fetch_open_orders()
+            tracked_symbols = set(self._paper_positions.keys())
+            orphan_symbols: set[str] = set()
+            for order in open_orders:
+                sym = order.get("symbol", "")
+                if sym and sym not in tracked_symbols:
+                    orphan_symbols.add(sym)
+
+            for sym in orphan_symbols:
+                sym_orders = [o for o in open_orders if o.get("symbol") == sym]
+                logger.warning(
+                    "ORPHAN orders detected: %d orders for %s (not in tracked positions). Cancelling.",
+                    len(sym_orders), sym,
+                )
+                for o in sym_orders:
+                    try:
+                        await exchange.cancel_order(o["id"], sym)
+                        logger.info("Cancelled orphan order %s (%s %s)", o["id"], sym, o.get("type"))
+                    except Exception as cancel_exc:  # noqa: BLE001
+                        logger.warning("Failed to cancel orphan order %s: %s", o["id"], cancel_exc)
+
+            if orphan_symbols:
+                logger.info(
+                    "Orphan cleanup done: cancelled orders for %s", ", ".join(orphan_symbols),
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Orphan order check failed: %s — skipping", exc)
+
     # ── Lifecycle ─────────────────────────────────────────────────────────
 
     async def start(self) -> None:
@@ -1605,20 +1637,46 @@ class TradingEngine:
             close_side = "sell" if pos.direction == Direction.LONG else "buy"
             close_success = False
 
-            # Check if asset already sold by exchange SL order
+            # Check if asset already sold by exchange SL order.
+            # Also resolve the actual sell quantity — the exchange balance may be
+            # less than our tracked size (partial fills, dust, fees).  Selling more
+            # than we hold causes an InsufficientFunds rejection on Kraken.
+            sell_size = pos.size  # default; may be adjusted below
             try:
                 base_asset = symbol.split("/")[0]
                 balance = await self._exchange.fetch_balance()
                 asset_balance = balance.get(base_asset, {}).get("total", 0) or 0
-                if asset_balance < pos.size * 0.5:  # Less than half the position = already sold
+                if asset_balance < pos.size * 0.01:  # Essentially zero — treat as ghost
                     logger.info(
-                        "Exchange already closed %s (balance %.6f < position %.6f) — "
+                        "Exchange already closed %s (balance %.6f vs tracked %.6f) — "
                         "SL order on exchange fired. Recording at exit_price=%.4f",
                         symbol, asset_balance, pos.size, exit_price,
                     )
                     close_success = True  # Skip sell attempts, go straight to PnL recording
+                elif asset_balance < pos.size:
+                    # Actual balance is less than tracked — use real balance to avoid
+                    # InsufficientFunds rejection.
+                    logger.info(
+                        "Balance drift detected for %s: tracked=%.6f, actual=%.6f — "
+                        "selling actual balance only.",
+                        symbol, pos.size, asset_balance,
+                    )
+                    sell_size = asset_balance
+
+                # Check if adjusted sell_size is below exchange minimum order size.
+                # If so, it's unsellable dust — treat as ghost and skip sell attempt.
+                if self._exchange is not None and symbol in self._exchange.markets:
+                    market = self._exchange.markets[symbol]
+                    min_amount = (market.get("limits", {}).get("amount", {}).get("min") or 0)
+                    if sell_size < min_amount and sell_size > 0:
+                        logger.warning(
+                            "DUST position %s: balance %.6f < exchange minimum %.6f — "
+                            "unsellable, treating as ghost. Writing off at exit_price=%.4f",
+                            symbol, sell_size, min_amount, exit_price,
+                        )
+                        close_success = True  # Skip sell, go straight to PnL
             except Exception:  # noqa: BLE001
-                pass  # If balance check fails, proceed with sell attempts
+                pass  # If balance check fails, proceed with tracked size
 
             for attempt in range(1, 4):
                 if close_success:
@@ -1627,7 +1685,7 @@ class TradingEngine:
                     close_record = await self._executor.execute_close(
                         symbol=symbol,
                         side=close_side,
-                        size=pos.size,
+                        size=sell_size,
                         current_price=exit_price,
                     )
                     if close_record and close_record.success:
@@ -1672,11 +1730,13 @@ class TradingEngine:
                 # Check if failure was InsufficientFunds — means exchange SL already fired
                 # and we no longer hold the asset.  Don't re-add; let it close as a loss.
                 last_error = str(close_record.error) if close_record and close_record.error else ""
-                if "InsufficientFunds" in last_error or "Insufficient funds" in last_error:
+                terminal_errors = ("InsufficientFunds", "Insufficient funds",
+                                   "InvalidOrder", "Invalid arguments", "volume minimum")
+                if any(err in last_error for err in terminal_errors):
                     logger.warning(
-                        "GHOST detected: %s close failed with InsufficientFunds — "
-                        "exchange SL likely fired. Removing ghost position.",
-                        symbol,
+                        "GHOST/DUST detected: %s close failed with terminal error (%s) — "
+                        "removing position from tracking.",
+                        symbol, last_error[:80],
                     )
                     # Fall through to PnL recording below — treat as SL-hit loss
                 else:
