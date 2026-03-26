@@ -79,6 +79,8 @@ class _PaperPosition:
     # Trailing stop state
     highest_since_entry: float = 0.0
     lowest_since_entry: float = float("inf")
+    # Exchange order tracking — allows updating SL on exchange when trailing stop tightens
+    exchange_sl_order_id: str | None = None
 
 # How often the heartbeat snapshot is written (seconds)
 HEARTBEAT_INTERVAL_S: int = 60
@@ -303,6 +305,7 @@ class TradingEngine:
                 "db_trade_id": pos.db_trade_id,
                 "highest_since_entry": pos.highest_since_entry,
                 "lowest_since_entry": pos.lowest_since_entry,
+                "exchange_sl_order_id": pos.exchange_sl_order_id,
             }
         _POSITIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
         _POSITIONS_FILE.write_text(json.dumps(data, indent=2))
@@ -330,6 +333,7 @@ class TradingEngine:
                 db_trade_id=pdata.get("db_trade_id"),
                 highest_since_entry=pdata.get("highest_since_entry", 0.0),
                 lowest_since_entry=pdata.get("lowest_since_entry", float("inf")),
+                exchange_sl_order_id=pdata.get("exchange_sl_order_id"),
             )
             self._paper_positions[sym] = pos
             logger.info(
@@ -1313,6 +1317,20 @@ class TradingEngine:
                 session.add(db_trade)
                 session.flush()
                 tracked_pos.db_trade_id = db_trade.id
+            # Capture exchange SL order ID (LIVE mode) for trailing stop updates
+            if self.mode == TradingMode.LIVE:
+                try:
+                    exchange = self._executor._exchange  # noqa: SLF001
+                    if exchange:
+                        open_orders = exchange.fetch_open_orders(signal.symbol)
+                        for order in open_orders:
+                            stop_price = order.get("stopPrice") or 0
+                            if order["side"] == ("sell" if signal.direction == Direction.LONG else "buy") and stop_price > 0:
+                                tracked_pos.exchange_sl_order_id = order["id"]
+                                logger.info("Captured exchange SL order %s for %s", order["id"], signal.symbol)
+                                break
+                except Exception:  # noqa: BLE001
+                    pass  # Non-critical — trailing stop update will search by symbol
             self._paper_positions[signal.symbol] = tracked_pos
             self._risk.open_positions = len(self._paper_positions)
             self._save_positions()
@@ -1410,6 +1428,8 @@ class TradingEngine:
                     lowest_since_entry=pos.lowest_since_entry,
                 )
                 # Tighten SL if trailing stop is better than current fixed SL
+                old_sl = pos.stop_loss
+                sl_tightened = False
                 if pos.direction == Direction.LONG:
                     if ts_result.stop_price > pos.stop_loss:
                         logger.info(
@@ -1418,6 +1438,7 @@ class TradingEngine:
                             ts_result.method, ts_result.profit_locked_pct * 100,
                         )
                         pos.stop_loss = ts_result.stop_price
+                        sl_tightened = True
                 else:  # SHORT
                     if ts_result.stop_price < pos.stop_loss:
                         logger.info(
@@ -1426,6 +1447,11 @@ class TradingEngine:
                             ts_result.method, ts_result.profit_locked_pct * 100,
                         )
                         pos.stop_loss = ts_result.stop_price
+                        sl_tightened = True
+
+                # Update exchange SL order when trailing stop tightens (LIVE mode)
+                if sl_tightened and self.mode == TradingMode.LIVE:
+                    await self._update_exchange_sl(pos, old_sl)
 
             # Check SL/TP
             if pos.direction == Direction.LONG:
@@ -1462,6 +1488,61 @@ class TradingEngine:
         for symbol, exit_price, reason in symbols_to_close:
             await self._close_tracked_position(symbol, exit_price, reason)
 
+    async def _update_exchange_sl(self, pos: _PaperPosition, old_sl: float) -> None:
+        """Cancel old exchange SL order and place a new one at the tighter price.
+
+        This ensures the exchange-side stop-loss always matches the trailing stop,
+        so positions are protected even when the daemon isn't running.
+        """
+        try:
+            exchange = self._executor._exchange  # noqa: SLF001 — direct access needed
+            if exchange is None:
+                return
+
+            # Cancel old SL order if we have an ID
+            if pos.exchange_sl_order_id:
+                try:
+                    exchange.cancel_order(pos.exchange_sl_order_id, pos.symbol)
+                    logger.info("Cancelled old exchange SL %s for %s", pos.exchange_sl_order_id, pos.symbol)
+                except Exception:  # noqa: BLE001
+                    logger.debug("Old SL order %s already gone (exchange may have filled it)", pos.exchange_sl_order_id)
+            else:
+                # No tracked order ID — cancel all open SL orders for this symbol
+                try:
+                    open_orders = exchange.fetch_open_orders(pos.symbol)
+                    for order in open_orders:
+                        stop_price = order.get("stopPrice") or 0
+                        if order["side"] == ("sell" if pos.direction == Direction.LONG else "buy") and stop_price > 0:
+                            exchange.cancel_order(order["id"], pos.symbol)
+                            logger.info("Cancelled untracked SL order %s for %s", order["id"], pos.symbol)
+                except Exception:  # noqa: BLE001
+                    pass
+
+            # Place new SL at tighter price
+            from core.order_executor import OrderType, OrderRequest
+            close_side = "sell" if pos.direction == Direction.LONG else "buy"
+            request = OrderRequest(
+                symbol=pos.symbol,
+                side=close_side,
+                order_type=OrderType.STOP_LOSS,
+                quantity=pos.size,
+                stop_price=pos.stop_loss,
+            )
+            record = await self._executor._dispatch(request, reference_price=pos.stop_loss)  # noqa: SLF001
+            if record.success:
+                pos.exchange_sl_order_id = record.order_id
+                logger.info(
+                    "Exchange SL updated for %s: %.4f -> %.4f (order %s)",
+                    pos.symbol, old_sl, pos.stop_loss, record.order_id,
+                )
+            else:
+                logger.warning(
+                    "Failed to place new exchange SL for %s at %.4f: %s",
+                    pos.symbol, pos.stop_loss, record.error,
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Exchange SL update failed for %s: %s", pos.symbol, exc)
+
     async def _close_tracked_position(
         self, symbol: str, exit_price: float, reason: str
     ) -> None:
@@ -1474,11 +1555,30 @@ class TradingEngine:
         mode_str = "LIVE" if self.mode == TradingMode.LIVE else "PAPER"
 
         # ── LIVE MODE: place a real closing order on the exchange ──────────
-        # Retries up to 3 times to prevent zombie positions on the exchange.
+        # First check if the exchange already closed this (SL order on exchange fired).
+        # If balance is zero, the exchange handled it — skip the sell attempt.
         if self.mode == TradingMode.LIVE:
             close_side = "sell" if pos.direction == Direction.LONG else "buy"
             close_success = False
+
+            # Check if asset already sold by exchange SL order
+            try:
+                base_asset = symbol.split("/")[0]
+                balance = await asyncio.to_thread(self._exchange.fetch_balance)
+                asset_balance = balance.get(base_asset, {}).get("total", 0) or 0
+                if asset_balance < pos.size * 0.5:  # Less than half the position = already sold
+                    logger.info(
+                        "Exchange already closed %s (balance %.6f < position %.6f) — "
+                        "SL order on exchange fired. Recording at exit_price=%.4f",
+                        symbol, asset_balance, pos.size, exit_price,
+                    )
+                    close_success = True  # Skip sell attempts, go straight to PnL recording
+            except Exception:  # noqa: BLE001
+                pass  # If balance check fails, proceed with sell attempts
+
             for attempt in range(1, 4):
+                if close_success:
+                    break  # Already handled by exchange
                 try:
                     close_record = await self._executor.execute_close(
                         symbol=symbol,
