@@ -387,6 +387,9 @@ class TradingEngine:
             # Connect the OrderExecutor to the exchange for live order placement
             if self._executor is not None:
                 await self._executor.connect()
+                # Wire BrokerRegistry into executor for multi-asset order routing
+                if self._broker_registry is not None:
+                    self._executor.set_broker_registry(self._broker_registry)
                 logger.info("OrderExecutor connected.")
 
         # 4. Restore risk state from DB

@@ -156,7 +156,15 @@ class OrderExecutor:
         # CCXT exchange (lazy — only created for LIVE)
         self._exchange: ccxt_async.Exchange | None = None
 
+        # Multi-asset broker registry — routes OANDA/Alpaca symbols to correct adapter
+        self._broker_registry = None
+
         logger.info("OrderExecutor initialised in %s mode", mode.value)
+
+    def set_broker_registry(self, registry) -> None:
+        """Attach the BrokerRegistry for multi-asset order routing."""
+        self._broker_registry = registry
+        logger.info("OrderExecutor: BrokerRegistry attached for multi-asset routing")
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -583,7 +591,17 @@ class OrderExecutor:
         return record
 
     async def _live_order(self, request: OrderRequest) -> ExecutionRecord:
-        """Place a real order via CCXT and normalise the response."""
+        """Place a real order via CCXT or BrokerRegistry adapter."""
+        # ── Multi-asset routing: check if this symbol routes to OANDA/Alpaca ──
+        if self._broker_registry is not None:
+            try:
+                from core.broker_adapter import OANDAAdapter, AlpacaAdapter
+                adapter = self._broker_registry.get_adapter_for_symbol(request.symbol)
+                if isinstance(adapter, (OANDAAdapter, AlpacaAdapter)):
+                    return await self._broker_order(adapter, request)
+            except Exception:  # noqa: BLE001
+                pass  # Fall through to CCXT for crypto
+
         if self._exchange is None:
             raise RuntimeError("Call connect() before placing live orders")
 
@@ -662,3 +680,83 @@ class OrderExecutor:
             success=is_success,
             raw_response=order,
         )
+
+    async def _broker_order(self, adapter, request: OrderRequest) -> ExecutionRecord:
+        """Route an order through a BrokerAdapter (OANDA, Alpaca) instead of CCXT."""
+        adapter_name = type(adapter).__name__
+
+        logger.info(
+            "Routing %s %s %s qty=%.6f via %s",
+            request.order_type.value, request.side, request.symbol,
+            request.quantity, adapter_name,
+        )
+
+        try:
+            if request.order_type in (OrderType.MARKET, OrderType.STOP_LOSS):
+                result = await adapter.place_market_order(
+                    symbol=request.symbol,
+                    side=request.side,
+                    size=request.quantity,
+                )
+            elif request.order_type == OrderType.LIMIT:
+                price = request.price or request.stop_price or 0.0
+                result = await adapter.place_limit_order(
+                    symbol=request.symbol,
+                    side=request.side,
+                    size=request.quantity,
+                    price=price,
+                )
+            else:
+                result = await adapter.place_market_order(
+                    symbol=request.symbol,
+                    side=request.side,
+                    size=request.quantity,
+                )
+
+            order_id = str(result.get("order_id", ""))
+            fill_price = float(result.get("fill_price", 0.0))
+            filled_qty = float(result.get("size", request.quantity))
+            status = result.get("status", "")
+            is_success = status in ("filled", "open", "closed")
+            fee = filled_qty * fill_price * self.taker_fee_pct if fill_price > 0 else 0.0
+
+            logger.info(
+                "%s order response: id=%s status=%s filled=%.6f price=%.6f success=%s",
+                adapter_name, order_id, status, filled_qty, fill_price, is_success,
+            )
+
+            return ExecutionRecord(
+                order_id=order_id,
+                symbol=request.symbol,
+                side=request.side,
+                order_type=request.order_type,
+                requested_quantity=request.quantity,
+                filled_quantity=filled_qty,
+                requested_price=request.price,
+                fill_price=fill_price,
+                fee=fee,
+                mode=ExecutionMode.LIVE,
+                timestamp=datetime.now(UTC),
+                success=is_success,
+                raw_response=result,
+            )
+        except Exception as exc:
+            logger.error(
+                "%s order FAILED for %s: %s — %s",
+                adapter_name, request.symbol, type(exc).__name__, exc,
+            )
+            return ExecutionRecord(
+                order_id="",
+                symbol=request.symbol,
+                side=request.side,
+                order_type=request.order_type,
+                requested_quantity=request.quantity,
+                filled_quantity=0.0,
+                requested_price=request.price,
+                fill_price=0.0,
+                fee=0.0,
+                mode=ExecutionMode.LIVE,
+                timestamp=datetime.now(UTC),
+                success=False,
+                error=f"{type(exc).__name__}: {exc}",
+            )
