@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import json
 import logging
 import signal
 import sys
@@ -54,10 +55,12 @@ from db.models import (
 )
 from strategies.base import BaseStrategy, Direction, Signal as StrategySignal, StrategyRegistry
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("atlas.engine")
 
 # Path to the strategy config relative to this file
 _STRATEGIES_YAML = Path(__file__).resolve().parent.parent / "config" / "strategies.yaml"
+# Persistent position state file — survives daemon restarts
+_POSITIONS_FILE = Path(__file__).resolve().parent.parent / "data" / "open_positions.json"
 
 
 @dataclass
@@ -109,6 +112,7 @@ class _RiskState:
     def __init__(self, equity_peak: float = 0.0) -> None:
         self.equity_peak: float = equity_peak
         self.current_equity: float = equity_peak
+        self.starting_day_equity: float = equity_peak  # Set at start of day for daily loss calc
         self.daily_pnl: float = 0.0
         self.open_positions: int = 0
         self.daily_limit_hit: bool = False
@@ -125,10 +129,11 @@ class _RiskState:
 
     @property
     def daily_loss_pct(self) -> float:
-        """Today's loss as a negative percentage of opening equity."""
-        if self.current_equity <= 0:
+        """Today's loss as a negative percentage of starting equity."""
+        denom = self.starting_day_equity if self.starting_day_equity > 0 else self.current_equity
+        if denom <= 0:
             return 0.0
-        return (self.daily_pnl / self.current_equity) * 100.0
+        return (self.daily_pnl / denom) * 100.0
 
     # ── Guards ────────────────────────────────────────────────────────────
 
@@ -173,6 +178,7 @@ class _RiskState:
 
     def reset_daily(self) -> None:
         """Call at UTC midnight to reset the daily loss counter."""
+        self.starting_day_equity = self.current_equity
         self.daily_pnl = 0.0
         self.daily_limit_hit = False
         logger.info("Daily risk state reset.")
@@ -275,6 +281,63 @@ class TradingEngine:
             strategy_names,
         )
 
+    # ── Position persistence (survives daemon restarts) ─────────────────
+
+    def _save_positions(self) -> None:
+        """Persist open positions to disk so they survive daemon restarts."""
+        if not self._paper_positions:
+            if _POSITIONS_FILE.exists():
+                _POSITIONS_FILE.unlink()
+            return
+        data = {}
+        for sym, pos in self._paper_positions.items():
+            data[sym] = {
+                "symbol": pos.symbol,
+                "direction": pos.direction.value,
+                "entry_price": pos.entry_price,
+                "size": pos.size,
+                "stop_loss": pos.stop_loss,
+                "take_profit": pos.take_profit,
+                "strategy_name": pos.strategy_name,
+                "opened_at": pos.opened_at.isoformat(),
+                "db_trade_id": pos.db_trade_id,
+                "highest_since_entry": pos.highest_since_entry,
+                "lowest_since_entry": pos.lowest_since_entry,
+            }
+        _POSITIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _POSITIONS_FILE.write_text(json.dumps(data, indent=2))
+        logger.debug("Saved %d open positions to %s", len(data), _POSITIONS_FILE)
+
+    def _load_positions(self) -> None:
+        """Restore open positions from disk after a daemon restart."""
+        if not _POSITIONS_FILE.exists():
+            return
+        try:
+            data = json.loads(_POSITIONS_FILE.read_text())
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Failed to load positions from %s: %s", _POSITIONS_FILE, exc)
+            return
+        for sym, pdata in data.items():
+            pos = _PaperPosition(
+                symbol=pdata["symbol"],
+                direction=Direction(pdata["direction"]),
+                entry_price=pdata["entry_price"],
+                size=pdata["size"],
+                stop_loss=pdata["stop_loss"],
+                take_profit=pdata["take_profit"],
+                strategy_name=pdata["strategy_name"],
+                opened_at=datetime.datetime.fromisoformat(pdata["opened_at"]),
+                db_trade_id=pdata.get("db_trade_id"),
+                highest_since_entry=pdata.get("highest_since_entry", 0.0),
+                lowest_since_entry=pdata.get("lowest_since_entry", float("inf")),
+            )
+            self._paper_positions[sym] = pos
+            logger.info(
+                "Restored position: %s %s @ %.4f SL=%.4f TP=%.4f size=%.6f",
+                pos.direction.value, sym, pos.entry_price,
+                pos.stop_loss, pos.take_profit, pos.size,
+            )
+
     # ── Lifecycle ─────────────────────────────────────────────────────────
 
     async def start(self) -> None:
@@ -317,6 +380,10 @@ class TradingEngine:
         if self.mode != TradingMode.BACKTEST:
             await self._connect_exchange()
             await self._connect_broker_adapters()
+            # Connect the OrderExecutor to the exchange for live order placement
+            if self._executor is not None:
+                await self._executor.connect()
+                logger.info("OrderExecutor connected.")
 
         # 4. Restore risk state from DB
         await self._restore_risk_state()
@@ -336,6 +403,10 @@ class TradingEngine:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Telegram alerts unavailable: %s", exc)
                 self._alert = None
+
+        # Restore any open positions from a prior daemon instance
+        if self.mode != TradingMode.BACKTEST:
+            self._load_positions()
 
         logger.info("Engine setup complete.")
 
@@ -522,6 +593,25 @@ class TradingEngine:
                 equity = latest_snapshot.total_value
             elif self._initial_equity:
                 equity = self._initial_equity
+            elif self.mode == TradingMode.LIVE and self._exchange is not None:
+                # Fetch real balance from exchange for live mode
+                try:
+                    balance = await self._exchange.fetch_balance()
+                    equity = float(balance.get("total", {}).get("USD", 0.0))
+                    # Include value of held crypto positions
+                    for currency, amount in balance.get("total", {}).items():
+                        if currency != "USD" and amount > 0:
+                            try:
+                                ticker = await self._exchange.fetch_ticker(f"{currency}/USD")
+                                equity += amount * ticker["last"]
+                            except Exception:  # noqa: BLE001
+                                pass
+                    if equity <= 0:
+                        equity = 100.0  # fallback
+                    logger.info("Live equity fetched from exchange: $%.2f", equity)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Failed to fetch live balance: %s — using $100 default", exc)
+                    equity = 100.0
             else:
                 equity = 10_000.0  # default paper balance
         self._risk = _RiskState(equity_peak=equity)
@@ -542,15 +632,27 @@ class TradingEngine:
         """
         Continuous event loop for PAPER and LIVE modes.
 
-        Runs strategy analysis on each tick interval and writes a
-        heartbeat snapshot every HEARTBEAT_INTERVAL_S seconds.
+        Uses a split-frequency design:
+        - Position monitoring runs every _MONITOR_INTERVAL_S (120s) when
+          positions are open, ensuring trailing stops and SL/TP are checked
+          frequently.
+        - Signal scanning runs every _tick_interval_seconds() (up to 30 min),
+          looking for new trade entries.
+
+        This prevents the common failure mode where a 30-min scan interval
+        means open positions are only checked twice per hour.
         """
+        _MONITOR_INTERVAL_S = 120  # Check open positions every 2 minutes
+
         self._running = True
         mode_label = "PAPER" if self.mode == TradingMode.PAPER else "LIVE"
         logger.info("Starting %s trading loop...", mode_label)
 
         heartbeat_task = asyncio.create_task(self._heartbeat_loop())
         last_midnight = datetime.date.today()
+        last_signal_scan = 0.0  # epoch — force immediate first scan
+        last_status_log = 0.0  # periodic alive-check log
+        import time as _time
 
         try:
             while not self._shutdown_event.is_set():
@@ -570,25 +672,47 @@ class TradingEngine:
                 except ImportError:
                     pass
 
-                # Pre-trade risk check
+                # ── Always monitor open positions (fast path) ─────────────
+                # Must run BEFORE the risk check — positions need SL/TP checks
+                # even when max positions is reached or daily loss limit is hit.
+                await self._monitor_positions()
+
+                # Pre-trade risk check (for new entries only)
                 allowed, reason = self._risk.can_trade()
                 if not allowed:
                     logger.warning("Trading paused: %s", reason)
                     await asyncio.sleep(60)
                     continue
 
-                # Monitor open positions for SL/TP hits before new entries
-                await self._monitor_positions()
+                # ── Signal scan only when interval has elapsed ────────────
+                now = _time.monotonic()
+                scan_interval = self._tick_interval_seconds()
 
-                # Main tick — run all strategies concurrently for speed
-                tick_tasks = [
-                    self._tick(name, cfg)
-                    for name, cfg in self._strategies.items()
-                ]
-                await asyncio.gather(*tick_tasks, return_exceptions=True)
+                # ── Periodic status log (every 10 min) ──────────────────
+                if now - last_status_log >= 600:
+                    n_pos = len(self._paper_positions)
+                    pos_summary = ", ".join(
+                        f"{s} {p.direction.value}" for s, p in self._paper_positions.items()
+                    ) if n_pos else "none"
+                    logger.info(
+                        "Heartbeat: %d open positions [%s] | next scan in %.0fs",
+                        n_pos, pos_summary,
+                        max(0, scan_interval - (now - last_signal_scan)),
+                    )
+                    last_status_log = now
+                if now - last_signal_scan >= scan_interval:
+                    tick_tasks = [
+                        self._tick(name, cfg)
+                        for name, cfg in self._strategies.items()
+                    ]
+                    await asyncio.gather(*tick_tasks, return_exceptions=True)
+                    last_signal_scan = now
 
-                # Sleep before next tick (use the shortest configured timeframe)
-                await asyncio.sleep(self._tick_interval_seconds())
+                # Sleep at the faster monitoring rate when positions are open,
+                # otherwise sleep at the full scan interval.
+                has_positions = bool(self._paper_positions)
+                sleep_s = _MONITOR_INTERVAL_S if has_positions else scan_interval
+                await asyncio.sleep(sleep_s)
 
         finally:
             heartbeat_task.cancel()
@@ -712,11 +836,21 @@ class TradingEngine:
                 self._tick_count,
             )
 
-        # 4. Check for critical correlation alerts
-        alerts = self._correlation_tracker.check_alerts()
-        for alert in alerts:
-            if alert.correlation >= 0.85:
-                logger.warning("Correlation alert: %s", alert.message)
+        # 4. Check for critical correlation alerts (throttle to once per hour)
+        import time as _corr_time
+        _now = _corr_time.monotonic()
+        if not hasattr(self, "_last_corr_log"):
+            self._last_corr_log = 0.0
+        if self._risk.open_positions > 0 and _now - self._last_corr_log >= 3600:
+            alerts = self._correlation_tracker.check_alerts()
+            critical = [a for a in alerts if a.correlation >= 0.85]
+            if critical:
+                logger.warning(
+                    "Correlation: %d critical pairs (highest: %.2f). "
+                    "Details suppressed — check only when entering new positions.",
+                    len(critical), max(a.correlation for a in critical),
+                )
+            self._last_corr_log = _now
 
         # 5. Log effective position count when multiple positions are open
         if self._risk.open_positions > 1:
@@ -887,6 +1021,7 @@ class TradingEngine:
         for col in ("open", "high", "low", "close", "volume"):
             df[col] = pd.to_numeric(df[col], errors="coerce")
         df = df.dropna(subset=["open", "high", "low", "close"])
+        df.attrs["symbol"] = symbol  # strategies use this for logging
 
         if len(df) < 2:
             return None
@@ -898,7 +1033,7 @@ class TradingEngine:
         regime_weight = strategy_weights.get(strategy_name, 1.0)
 
         # If regime strongly disfavours this strategy, skip it entirely
-        if regime_weight <= 0.5:
+        if regime_weight <= 0.3:
             logger.info(
                 "No signal [%s/%s]: regime %s suppressed (weight=%.2f)",
                 strategy_name, symbol, regime_result.regime.value, regime_weight,
@@ -918,7 +1053,7 @@ class TradingEngine:
             logger.info(
                 "Playbook HALT for %s/%s: %s",
                 strategy_name, symbol,
-                "; ".join(playbook_guidance.active_rules),
+                "; ".join(playbook_guidance.rules_applied),
             )
             return None
 
@@ -930,7 +1065,7 @@ class TradingEngine:
 
         # Check entry condition then generate signal
         if not strategy.should_enter(df):
-            logger.info(
+            logger.debug(
                 "No signal [%s/%s]: should_enter=False (regime=%s weight=%.2f)",
                 strategy_name, symbol, regime_result.regime.value, regime_weight,
             )
@@ -1014,6 +1149,13 @@ class TradingEngine:
             Kelly-sizer output and this protocol cap, keeping both constraints
             in force simultaneously.
         """
+        # ── Duplicate position guard ─────────────────────────────────────
+        if signal.symbol in self._paper_positions:
+            logger.debug(
+                "Skipping %s — already have an open position", signal.symbol,
+            )
+            return
+
         entry_price = signal.metadata.get("entry_price", 0.0)
 
         # ── Risk profile override ───────────────────────────────────────
@@ -1084,6 +1226,39 @@ class TradingEngine:
             logger.info("PositionSizer returned size=0 for %s — trade skipped.", signal.symbol)
             return
 
+        # ── Exchange minimum order size enforcement ─────────────────────
+        # Micro accounts may calculate sizes below exchange minimums.
+        # Bump to minimum if safe (< 10% of equity).
+        if self._exchange is not None and signal.symbol in self._exchange.markets:
+            market = self._exchange.markets[signal.symbol]
+            min_amount = (market.get("limits", {}).get("amount", {}).get("min") or 0)
+            min_cost = (market.get("limits", {}).get("cost", {}).get("min") or 0)
+            order_cost = size * entry_price
+            max_micro_bump = self._risk.current_equity * 0.10  # 10% of equity cap
+
+            if size < min_amount:
+                bump_cost = min_amount * entry_price
+                if bump_cost <= max_micro_bump:
+                    logger.info(
+                        "Micro-bump %s: %.6f → %.6f (exchange min_amount=%.6f, cost=$%.2f)",
+                        signal.symbol, size, min_amount, min_amount, bump_cost,
+                    )
+                    size = min_amount
+                else:
+                    logger.info(
+                        "Skipping %s: min_amount %.6f costs $%.2f > 10%% equity ($%.2f)",
+                        signal.symbol, min_amount, bump_cost, max_micro_bump,
+                    )
+                    return
+
+            if order_cost < min_cost:
+                min_size_for_cost = min_cost / entry_price if entry_price > 0 else 0
+                if min_size_for_cost * entry_price <= max_micro_bump:
+                    size = max(size, min_size_for_cost)
+                else:
+                    logger.info("Skipping %s: min_cost $%.2f too high for equity", signal.symbol, min_cost)
+                    return
+
         if self.mode == TradingMode.LIVE and not settings.is_live:
             logger.warning(
                 "Live order blocked: PAPER_TRADE is still true or CONFIRM_LIVE is not set."
@@ -1106,23 +1281,22 @@ class TradingEngine:
             strategy_name=strategy_config.get("name", signal.strategy_name),
         )
 
-        if position is not None:
-            self._risk.open_positions += 1
-
         # Track position for SL/TP monitoring (both paper AND live)
         if record and record.success and self.mode in (TradingMode.PAPER, TradingMode.LIVE):
             mode_str = "paper" if self.mode == TradingMode.PAPER else "live"
+            # Use actual fill price from executor (accounts for slippage in LIVE mode)
+            actual_entry = record.fill_price if record.fill_price > 0 else entry_price
             tracked_pos = _PaperPosition(
                 symbol=signal.symbol,
                 direction=signal.direction,
-                entry_price=entry_price,
-                size=size,
+                entry_price=actual_entry,
+                size=record.filled_quantity if record.filled_quantity > 0 else size,
                 stop_loss=signal.stop_loss,
                 take_profit=signal.take_profit,
                 strategy_name=strategy_config.get("name", signal.strategy_name),
                 opened_at=datetime.datetime.now(datetime.UTC),
-                highest_since_entry=entry_price,
-                lowest_since_entry=entry_price,
+                highest_since_entry=actual_entry,
+                lowest_since_entry=actual_entry,
             )
             # Persist trade entry to DB
             db_trade = DBTrade(
@@ -1140,9 +1314,11 @@ class TradingEngine:
                 session.flush()
                 tracked_pos.db_trade_id = db_trade.id
             self._paper_positions[signal.symbol] = tracked_pos
+            self._risk.open_positions = len(self._paper_positions)
+            self._save_positions()
             logger.info(
                 "%s position opened: %s %s @ %.4f SL=%.4f TP=%.4f",
-                mode_str.upper(), signal.direction.value, signal.symbol, entry_price,
+                mode_str.upper(), signal.direction.value, signal.symbol, actual_entry,
                 signal.stop_loss, signal.take_profit,
             )
             # Telegram alert
@@ -1156,7 +1332,7 @@ class TradingEngine:
                         stop_loss=signal.stop_loss,
                         take_profit=signal.take_profit,
                         conviction=signal.conviction,
-                        strategy=paper_pos.strategy_name,
+                        strategy=tracked_pos.strategy_name,
                     )
                 except Exception:  # noqa: BLE001
                     pass  # alerts are best-effort
@@ -1192,7 +1368,8 @@ class TradingEngine:
                 mark_price = float(ohlcv[-1][4])  # close price
                 bar_high = float(ohlcv[-1][2])
                 bar_low = float(ohlcv[-1][3])
-            except Exception:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Monitor: OHLCV fetch failed for %s: %s — skipping tick", symbol, exc)
                 continue
 
             # Update position high/low tracking for trailing stop
@@ -1218,7 +1395,8 @@ class TradingEngine:
                     current_atr = float(np.mean(trs)) if trs else 0.0
                 else:
                     current_atr = 0.0
-            except Exception:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Monitor: ATR calc failed for %s: %s — using fixed SL", symbol, exc)
                 current_atr = 0.0
 
             # Update trailing stop if ATR is available
@@ -1261,6 +1439,26 @@ class TradingEngine:
                 elif mark_price <= pos.take_profit:
                     symbols_to_close.append((symbol, pos.take_profit, "TAKE_PROFIT"))
 
+        # Periodic position P&L summary (every ~10 min = 5 monitoring ticks)
+        if not hasattr(self, "_monitor_tick_count"):
+            self._monitor_tick_count = 0
+        self._monitor_tick_count += 1
+        if self._monitor_tick_count % 5 == 0 and self._paper_positions:
+            parts = []
+            for sym, p in self._paper_positions.items():
+                try:
+                    last_ohlcv = await self._fetch_ohlcv(sym, "1m", limit=1)
+                    px = float(last_ohlcv[-1][4]) if last_ohlcv else p.entry_price
+                except Exception:  # noqa: BLE001
+                    px = p.entry_price
+                pnl_pct = (px / p.entry_price - 1) * 100 if p.direction == Direction.LONG else (p.entry_price / px - 1) * 100
+                parts.append(f"{sym} {pnl_pct:+.2f}%")
+            logger.info("Position check: %s", " | ".join(parts))
+
+        # Persist any trailing-stop SL changes
+        if self._paper_positions:
+            self._save_positions()
+
         for symbol, exit_price, reason in symbols_to_close:
             await self._close_tracked_position(symbol, exit_price, reason)
 
@@ -1269,36 +1467,77 @@ class TradingEngine:
     ) -> None:
         """Close a tracked position (paper or live) and record the outcome."""
         pos = self._paper_positions.pop(symbol, None)
+        self._save_positions()
         if pos is None:
             return
 
         mode_str = "LIVE" if self.mode == TradingMode.LIVE else "PAPER"
 
         # ── LIVE MODE: place a real closing order on the exchange ──────────
+        # Retries up to 3 times to prevent zombie positions on the exchange.
         if self.mode == TradingMode.LIVE:
             close_side = "sell" if pos.direction == Direction.LONG else "buy"
-            try:
-                close_record = await self._executor.execute_close(
-                    symbol=symbol,
-                    side=close_side,
-                    size=pos.size,
-                )
-                if close_record and close_record.success:
-                    exit_price = close_record.fill_price
-                    logger.info(
-                        "LIVE close order FILLED: %s %s size=%.6f @ %.4f",
-                        close_side.upper(), symbol, pos.size, exit_price,
+            close_success = False
+            for attempt in range(1, 4):
+                try:
+                    close_record = await self._executor.execute_close(
+                        symbol=symbol,
+                        side=close_side,
+                        size=pos.size,
+                        current_price=exit_price,
                     )
-                else:
-                    logger.error(
-                        "LIVE close order FAILED for %s — keeping exit_price=%.4f from monitor",
-                        symbol, exit_price,
+                    if close_record and close_record.success:
+                        exit_price = close_record.fill_price or exit_price
+                        logger.info(
+                            "LIVE close order FILLED: %s %s size=%.6f @ %.4f",
+                            close_side.upper(), symbol, pos.size, exit_price,
+                        )
+                        close_success = True
+                        # Cancel any remaining SL/TP orders for this symbol
+                        try:
+                            open_orders = await asyncio.to_thread(
+                                self._exchange.fetch_open_orders, symbol
+                            )
+                            for oo in open_orders:
+                                try:
+                                    await asyncio.to_thread(
+                                        self._exchange.cancel_order, oo["id"], symbol
+                                    )
+                                    logger.info(
+                                        "Cancelled orphan %s order %s for %s",
+                                        oo["type"], oo["id"], symbol,
+                                    )
+                                except Exception as cancel_exc:  # noqa: BLE001
+                                    logger.warning(
+                                        "Failed to cancel order %s: %s", oo["id"], cancel_exc,
+                                    )
+                        except Exception as fetch_exc:  # noqa: BLE001
+                            logger.warning("Could not fetch open orders for %s: %s", symbol, fetch_exc)
+                        break
+                    else:
+                        logger.warning(
+                            "LIVE close attempt %d/3 FAILED for %s: %s",
+                            attempt, symbol,
+                            close_record.error if close_record else "no record",
+                        )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "LIVE close attempt %d/3 EXCEPTION for %s: %s",
+                        attempt, symbol, exc,
                     )
-            except Exception as exc:  # noqa: BLE001
+                if attempt < 3:
+                    await asyncio.sleep(2 ** attempt)
+
+            if not close_success:
                 logger.error(
-                    "LIVE close order EXCEPTION for %s: %s — using monitored exit_price=%.4f",
-                    symbol, exc, exit_price,
+                    "LIVE close FAILED after 3 attempts for %s — "
+                    "ZOMBIE POSITION may exist on exchange! Using monitored exit_price=%.4f",
+                    symbol, exit_price,
                 )
+                # Re-add to tracking so next cycle retries
+                self._paper_positions[symbol] = pos
+                self._save_positions()
+                return  # Don't record as closed — will retry next monitoring cycle
 
         # Calculate PnL
         if pos.direction == Direction.LONG:
@@ -1311,7 +1550,7 @@ class TradingEngine:
         # Update risk state
         self._risk.current_equity += pnl
         self._risk.daily_pnl += pnl
-        self._risk.open_positions = max(0, self._risk.open_positions - 1)
+        self._risk.open_positions = len(self._paper_positions)
         if self._risk.current_equity > self._risk.equity_peak:
             self._risk.equity_peak = self._risk.current_equity
 
@@ -1331,6 +1570,28 @@ class TradingEngine:
                     db_trade.pnl = pnl
                     db_trade.pnl_pct = pnl_pct
                     db_trade.closed_at = now
+        else:
+            # Position opened before DB tracking — create a full record now
+            try:
+                with get_session() as session:
+                    db_trade = DBTrade(
+                        symbol=symbol,
+                        exchange=self._exchange_name if hasattr(self, "_exchange_name") else "kraken",
+                        side=pos.direction.value.lower(),
+                        size=pos.size,
+                        entry_price=pos.entry_price,
+                        exit_price=exit_price,
+                        pnl=pnl,
+                        pnl_pct=pnl_pct,
+                        strategy=pos.strategy_name,
+                        mode=mode_str.lower(),
+                        opened_at=pos.opened_at if hasattr(pos, "opened_at") else now,
+                        closed_at=now,
+                    )
+                    session.add(db_trade)
+                logger.info("Created DB trade record for %s (was missing db_trade_id)", symbol)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Failed to create DB trade for %s: %s", symbol, exc)
 
         # Update strategy performance in agent_performance table (Darwinian learning)
         agent_key = f"{pos.strategy_name}_{symbol.replace('/', '')}"
@@ -1373,15 +1634,15 @@ class TradingEngine:
                     .first()
                 )
                 if record is None or record.total_trades < 5:
-                    return 0.30  # Default for new/untested strategies
+                    return 0.15  # Lowered from 0.30 — new strategies need trade data before penalizing
 
-                # Map weight (0.3 to 2.5) → threshold (0.50 to 0.25)
+                # Map weight (0.3 to 2.5) → threshold (0.40 to 0.15)
                 # Higher weight = lower threshold (trusted strategy)
                 weight = record.weight
-                threshold = 0.50 - (weight - 0.3) * (0.25 / 2.2)
-                return max(0.25, min(0.50, threshold))
+                threshold = 0.40 - (weight - 0.3) * (0.25 / 2.2)
+                return max(0.15, min(0.40, threshold))
         except Exception:  # noqa: BLE001
-            return 0.30
+            return 0.15
 
     def _update_strategy_performance(self, strategy_name: str, pnl_pct: float) -> None:
         """
@@ -1525,7 +1786,9 @@ class TradingEngine:
             _tf_map.get(cfg.get("timeframe", "1h"), 3600)
             for cfg in self._strategies.values()
         )
-        return min_interval
+        # Cap at 30 minutes — check more frequently to catch signal transitions
+        # even on 4h timeframes (new candle data arrives, indicators update)
+        return min(min_interval, 1800)
 
     # ── OS signal handling ─────────────────────────────────────────────────
 

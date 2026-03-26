@@ -186,7 +186,7 @@ class TradingPlaybook:
         # Clamp size multiplier
         g.size_multiplier = max(0.1, min(2.0, g.size_multiplier))
 
-        logger.info("Playbook: %s", g.summary())
+        logger.debug("Playbook: %s", g.summary())
         return g
 
     # ------------------------------------------------------------------
@@ -199,7 +199,7 @@ class TradingPlaybook:
 
         if regime == "BULL_TREND":
             g.preferred_strategies = [
-                "ema_crossover", "multi_timeframe", "ichimoku_trend",
+                "multi_timeframe", "donchian_breakout",
             ]
             g.avoid_strategies = ["zscore_mean_reversion"]
             g.trailing_stop_multiplier = 3.5  # wider for trends
@@ -208,10 +208,10 @@ class TradingPlaybook:
 
         elif regime == "BEAR_TREND":
             g.preferred_strategies = [
-                "rsi_mean_reversion", "zscore_mean_reversion",
+                "rsi_mean_reversion", "bb_mean_reversion",
             ]
             g.avoid_strategies = [
-                "ema_crossover", "multi_timeframe", "ichimoku_trend",
+                "donchian_breakout", "multi_timeframe",
             ]
             g.size_multiplier *= 0.7  # smaller positions in bear
             g.trailing_stop_multiplier = 2.5  # tighter for reversals
@@ -220,11 +220,10 @@ class TradingPlaybook:
 
         elif regime == "CHOPPY":
             g.preferred_strategies = [
-                "rsi_mean_reversion", "vwap_bounce", "volume_profile",
-                "bollinger_squeeze",  # squeeze breakouts thrive in compressed ranges
+                "rsi_mean_reversion", "bb_mean_reversion",
             ]
             g.avoid_strategies = [
-                "ema_crossover", "ichimoku_trend",
+                "ema_crossover", "ichimoku_trend", "london_breakout",
             ]
             g.size_multiplier *= 0.8
             g.trailing_stop_multiplier = 2.0  # tight for mean-reversion

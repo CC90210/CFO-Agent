@@ -129,7 +129,6 @@ class DonchianBreakoutStrategy(BaseStrategy):
         vol_avg = df["volume"].rolling(self.volume_period).mean()
         vol_avg_now = vol_avg.iloc[-1]
         vol_now = df["volume"].iloc[-1]
-        volume_ok = (vol_avg_now > 0) and (vol_now >= self.volume_mult * vol_avg_now)
 
         sma_200 = sma(close, self.sma_trend_period)
         sma_200_now = sma_200.iloc[-1]
@@ -155,9 +154,11 @@ class DonchianBreakoutStrategy(BaseStrategy):
         long_breakout = close_now > entry_high_now
         short_breakout = close_now < entry_low_now
 
-        if long_breakout and adx_ok and volume_ok and rsi_now < self.rsi_max_long:
+        # Volume is a conviction modifier, not a hard gate — in consolidation
+        # markets volume is structurally lower but breakouts are still valid.
+        if long_breakout and adx_ok and rsi_now < self.rsi_max_long:
             direction = Direction.LONG
-        elif short_breakout and adx_ok and volume_ok and rsi_now > self.rsi_min_short:
+        elif short_breakout and adx_ok and rsi_now > self.rsi_min_short:
             direction = Direction.SHORT
         else:
             return None

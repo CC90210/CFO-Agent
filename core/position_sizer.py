@@ -29,7 +29,7 @@ logger = logging.getLogger("atlas.sizer")
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-_MIN_CONVICTION: float = 0.3
+_MIN_CONVICTION: float = 0.15  # Lowered from 0.3 — micro-account needs more trade opportunities
 _ATR_SL_MULTIPLIER_LONG: float = 1.5   # entry - 1.5 × ATR for LONG stop
 _ATR_SL_MULTIPLIER_SHORT: float = 1.5  # entry + 1.5 × ATR for SHORT stop
 _DEFAULT_RR_RATIO: float = 3.0          # risk-reward ratio used for TP calculation
@@ -169,9 +169,16 @@ class PositionSizer:
             logger.warning("entry_price == stop_loss, cannot size position")
             return 0.0
 
-        # Per-trade risk budget: 1% of portfolio (conservative; the
-        # risk manager will further cap with its own per_trade_risk_pct).
-        risk_budget = portfolio_value * 0.01
+        # Per-trade risk budget: scale with account size.
+        # Micro accounts (< $500) need 2.5% risk to meet exchange minimums.
+        # Standard accounts use 1% (conservative).
+        if portfolio_value < 500:
+            risk_pct = 0.025  # micro account — need larger % to clear exchange minimums
+        elif portfolio_value < 2000:
+            risk_pct = 0.015  # small account
+        else:
+            risk_pct = 0.01   # standard
+        risk_budget = portfolio_value * risk_pct
         units_from_risk = risk_budget / stop_distance
 
         # Take the smaller of the two sizing methods for extra conservatism.

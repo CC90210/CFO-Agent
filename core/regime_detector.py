@@ -288,6 +288,7 @@ class RegimeResult:
                 "multi_timeframe": 1.3,
                 "ichimoku_trend": 1.2,
                 "rsi_mean_reversion": 0.7,  # Mean reversion risky in trends
+                "bb_mean_reversion": 0.8,  # Range trader — reduced in trends but still viable for pullbacks
                 "bollinger_squeeze": 1.1,
                 "vwap_bounce": 0.8,
                 "london_breakout": 1.1,
@@ -313,6 +314,7 @@ class RegimeResult:
                 "london_breakout": 0.5,    # Not tested on bear crypto
                 "opening_range": 0.3,      # Not tested, block conservatively
                 "smart_money": 1.0,        # PROFITABLE: +$275, 52.6% WR
+                "bb_mean_reversion": 1.0,  # Range trader — neutral in bear (ADX gate self-selects)
                 "order_flow_imbalance": 0.3,  # LOSING: -$837, blocked
                 "zscore_mean_reversion": 0.3, # LOSING: -$50, blocked
                 "volume_profile": 0.3,     # LOSING: -$76, blocked
@@ -330,6 +332,7 @@ class RegimeResult:
                 "london_breakout": 0.6,
                 "opening_range": 0.5,
                 "smart_money": 0.6,
+                "bb_mean_reversion": 0.5,  # Range trader — dangerous in high vol
                 "order_flow_imbalance": 0.5,  # Too noisy for flow analysis
                 "zscore_mean_reversion": 0.4,  # Extreme vol invalidates z-score
                 "volume_profile": 0.6,  # Profiles less reliable in chaos
@@ -342,6 +345,7 @@ class RegimeResult:
                 "multi_timeframe": 0.9,
                 "ichimoku_trend": 0.8,
                 "rsi_mean_reversion": 1.3,  # Mean reversion thrives in ranges
+                "bb_mean_reversion": 1.4,  # DESIGNED for choppy — highest boost
                 "bollinger_squeeze": 1.2,
                 "vwap_bounce": 1.3,
                 "london_breakout": 1.1,

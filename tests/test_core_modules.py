@@ -91,7 +91,7 @@ class TestTradingPlaybook:
         pb = TradingPlaybook()
         g = pb.evaluate(regime="BULL_TREND")
         assert g.should_trade
-        assert "ema_crossover" in g.preferred_strategies
+        assert "multi_timeframe" in g.preferred_strategies
         assert g.trailing_stop_multiplier == 3.5
 
     def test_bear_regime_reduces_size(self):

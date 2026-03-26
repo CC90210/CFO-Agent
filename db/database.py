@@ -81,6 +81,8 @@ def _enable_sqlite_wal(engine: Engine) -> None:
         cursor = dbapi_conn.cursor()  # type: ignore[attr-defined]
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA busy_timeout=5000")  # Wait 5s on lock instead of failing
+        cursor.execute("PRAGMA wal_autocheckpoint=100")  # Checkpoint every 100 pages
         cursor.close()
 
 

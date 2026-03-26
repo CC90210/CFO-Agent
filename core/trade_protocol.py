@@ -137,7 +137,7 @@ class TradeProtocol:
 
     def __init__(
         self,
-        min_confluence: float = 0.4,
+        min_confluence: float = 0.15,  # 2026-03-25: Lowered from 0.4 — engine adaptive threshold already gates quality
         max_risk_score: float = 7.0,
         min_position_pct: float = 0.001,
         regime_detector: RegimeDetector | None = None,

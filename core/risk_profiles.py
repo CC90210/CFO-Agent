@@ -169,11 +169,22 @@ OPTIMAL_PROFILES: dict[tuple[str, str], str] = {
     ("rsi_mean_reversion", "BTC/USD"):  "aggressive",   # +6.55% 30d, Sharpe 4.62, 100% WR
     ("rsi_mean_reversion", "ATOM/USD"): "aggressive",   # +3.27% 166d, 71% WR — confirmed long-term
     ("rsi_mean_reversion", "SOL/USD"):  "conservative", # +1.61% 166d, 75% WR — confirmed but smaller edge
-    # ── bollinger_squeeze (choppy-market edge, 4h, 2026-03-21) ───────────────
-    ("bollinger_squeeze", "ATOM/USD"):  "aggressive",   # +3.38% 166d, 100% WR, Sharpe 4.17 — confirmed
-    ("bollinger_squeeze", "BTC/USD"):   "conservative", # +0.69% 30d only — conservative sizing
-    ("bollinger_squeeze", "ETH/USD"):   "conservative", # +0.68% 30d, Sharpe 3.28
-    ("bollinger_squeeze", "DOGE/USD"):  "conservative", # +0.32% 30d — small edge, conservative
+    # ── bollinger_squeeze (1h, 500-bar backtest 2026-03-25) ────────────────────
+    ("bollinger_squeeze", "ADA/USD"):   "aggressive",    # +6.33% WR 45%, PF 1.7x — BEST squeeze pair
+    ("bollinger_squeeze", "DOGE/USD"):  "aggressive",    # +3.46% WR 36%, PF 1.4x
+    ("bollinger_squeeze", "ATOM/USD"):  "aggressive",    # +3.00% WR 50%, PF 1.9x
+    ("bollinger_squeeze", "LINK/USD"):  "conservative",  # +2.44% WR 44%, PF 1.4x
+    ("bollinger_squeeze", "LTC/USD"):   "conservative",  # +2.19% WR 40%, PF 1.3x
+    ("bollinger_squeeze", "BTC/USD"):   "conservative",  # +1.00% WR 43%, PF 1.1x — marginal
+    ("bollinger_squeeze", "XRP/USD"):   "conservative",  # +0.54% WR 40%, PF 1.1x — marginal
+    # ── bb_mean_reversion (1h opposite-TP backtest, 500 bars, 2026-03-25) ────
+    ("bb_mean_reversion", "DOGE/USD"):  "aggressive",    # +7.53%, WR 43%, best BB-MR pair
+    ("bb_mean_reversion", "BTC/USD"):   "aggressive",    # +5.22%, WR 56%, PF 2.6 — UPGRADED
+    ("bb_mean_reversion", "ADA/USD"):   "sniper",        # +3.02%, WR 50%, PF 1.4 — UPGRADED
+    ("bb_mean_reversion", "LTC/USD"):   "aggressive",    # +3.16%, WR 55%, PF 1.8 — UPGRADED
+    ("bb_mean_reversion", "ATOM/USD"):  "aggressive",    # +3.63%, WR 57%, PF 2.4 — NEW
+    ("bb_mean_reversion", "LINK/USD"):  "conservative",  # +2.50%, WR 50%, PF 1.4 — NEW
+    ("bb_mean_reversion", "XRP/USD"):   "conservative",  # -0.59%, marginal
     # ── gold (validated on real OANDA data 2026-03-20) ──────────────────────
     ("gold_trend_follower", "XAU_USD"): "aggressive", # +3.80%, WR 54.5%, Sharpe 0.87
     ("donchian_breakout",   "XAU_USD"): "aggressive", # +15.70%, Sharpe 2.49 — GOLD CHAMPION

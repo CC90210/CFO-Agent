@@ -45,7 +45,7 @@ from typing import NamedTuple
 from db.database import get_session
 from db.models import Trade
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("atlas.strategy_health")
 
 
 # ---------------------------------------------------------------------------

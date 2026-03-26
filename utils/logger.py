@@ -64,6 +64,14 @@ _LOGGER_NAMES = {
 # ---------------------------------------------------------------------------
 
 
+class _AutoFlushHandler(logging.handlers.RotatingFileHandler):
+    """RotatingFileHandler that flushes after every emit (fixes Windows buffering)."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        super().emit(record)
+        self.flush()
+
+
 class _JsonLinesFormatter(logging.Formatter):
     """
     Emit each log record as a single-line JSON object.
@@ -163,10 +171,24 @@ def setup_logging(force: bool = False) -> None:
     )
     root.addHandler(console_handler)
 
+    # ── Master file handler (ALL atlas.* logs → atlas_master.log) ─────────
+    master_log_path = log_dir / "atlas_master.log"
+    master_fh = _AutoFlushHandler(
+        master_log_path,
+        maxBytes=_MAX_BYTES,
+        backupCount=_BACKUP_COUNT,
+        encoding="utf-8",
+    )
+    master_fh.setLevel(logging.INFO)
+    master_fh.setFormatter(logging.Formatter(
+        fmt=_CONSOLE_FORMAT, datefmt=_DATE_FORMAT,
+    ))
+    root.addHandler(master_fh)
+
     # ── File handlers (one per domain logger) ────────────────────────────────
     for domain, logger_name in _LOGGER_NAMES.items():
         log_path = log_dir / f"{domain}.jsonl"
-        file_handler = logging.handlers.RotatingFileHandler(
+        file_handler = _AutoFlushHandler(
             log_path,
             maxBytes=_MAX_BYTES,
             backupCount=_BACKUP_COUNT,
@@ -180,6 +202,20 @@ def setup_logging(force: bool = False) -> None:
         domain_logger.addHandler(file_handler)
         # Do NOT propagate — file records go to the domain file only
         # (they will still appear on console via the parent root handler)
+
+    # ── Engine file handler (atlas.engine → engine.jsonl) ───────────────────
+    engine_log_path = log_dir / "engine.jsonl"
+    engine_fh = _AutoFlushHandler(
+        engine_log_path,
+        maxBytes=_MAX_BYTES,
+        backupCount=_BACKUP_COUNT,
+        encoding="utf-8",
+    )
+    engine_fh.setLevel(logging.DEBUG)
+    engine_fh.setFormatter(_JsonLinesFormatter())
+    engine_logger = logging.getLogger("atlas.engine")
+    engine_logger.setLevel(logging.DEBUG)
+    engine_logger.addHandler(engine_fh)
 
     _configured = True
     logging.getLogger("atlas").info(

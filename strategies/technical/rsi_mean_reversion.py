@@ -125,12 +125,14 @@ class RSIMeanReversionStrategy(BaseStrategy):
         if adx_now >= self.adx_max:
             return None
 
-        # Volume confirmation required — above-average volume on the signal bar
-        if vol_ratio < self.volume_mult:
-            return None
+        # Volume confirmation — use as conviction bonus instead of hard gate.
+        # In consolidation markets volume is structurally lower; hard filter
+        # prevents ALL entries even when RSI + BB conditions are met.
+        volume_bonus = vol_ratio >= self.volume_mult
 
-        # 200 EMA trend filter — only active when enough bars exist for a reliable read.
-        # Avoids fading dips in a macro downtrend (LONG) or rallies in an uptrend (SHORT).
+        # 200 EMA trend context — used for conviction scoring, not as hard gate.
+        # Mean reversion explicitly trades against the trend; blocking longs below
+        # EMA200 defeats the purpose in crypto bear/choppy markets.
         ema_trend: float | None = None
         if len(df) >= self._ema_min_bars:
             ema_series = ema(close, self.ema_trend_period)
@@ -139,14 +141,14 @@ class RSIMeanReversionStrategy(BaseStrategy):
         direction: Direction | None = None
 
         if rsi_now < self.rsi_oversold and close_now <= bb_lower:
-            # Trend filter: skip LONG if price is in a macro downtrend
-            if ema_trend is not None and close_now < ema_trend:
-                return None
             direction = Direction.LONG
         elif rsi_now > self.rsi_overbought and close_now >= bb_upper:
-            # Trend filter: skip SHORT if price is in a macro uptrend
-            if ema_trend is not None and close_now > ema_trend:
-                return None
+            direction = Direction.SHORT
+        elif rsi_now < self.rsi_oversold:
+            # RSI oversold but price not at BB lower — still valid with lower conviction
+            direction = Direction.LONG
+        elif rsi_now > self.rsi_overbought:
+            # RSI overbought but price not at BB upper — still valid with lower conviction
             direction = Direction.SHORT
 
         if direction is None:
@@ -176,7 +178,19 @@ class RSIMeanReversionStrategy(BaseStrategy):
         if take_profit <= 0:
             return None
 
-        conviction = self._score_conviction(rsi_now, bb_pct, vol_ratio, direction)
+        conviction = self._score_conviction(
+            rsi_now, bb_pct, vol_ratio, direction,
+            at_bb_band=(
+                (direction == Direction.LONG and close_now <= bb_lower)
+                or (direction == Direction.SHORT and close_now >= bb_upper)
+            ),
+            volume_confirmed=volume_bonus,
+            trend_aligned=(
+                ema_trend is None
+                or (direction == Direction.LONG and close_now >= ema_trend)
+                or (direction == Direction.SHORT and close_now <= ema_trend)
+            ),
+        )
 
         return Signal(
             symbol=symbol,
@@ -237,30 +251,43 @@ class RSIMeanReversionStrategy(BaseStrategy):
         pct_b: float,
         vol_ratio: float,
         direction: Direction,
+        at_bb_band: bool = True,
+        volume_confirmed: bool = True,
+        trend_aligned: bool = True,
     ) -> float:
         score = 0.0
 
-        # RSI distance from extreme (deeper = more conviction)
+        # RSI distance from extreme — primary driver (deeper = more conviction)
         if direction == Direction.LONG:
             rsi_extreme = self.rsi_oversold - rsi_val  # positive when below oversold
             rsi_norm = min(rsi_extreme / self.rsi_oversold, 1.0)
         else:
             rsi_extreme = rsi_val - self.rsi_overbought
             rsi_norm = min(rsi_extreme / (100.0 - self.rsi_overbought), 1.0)
-        score += 0.35 * max(0.0, rsi_norm)
+        score += 0.40 * max(0.0, rsi_norm)
 
-        # Bollinger %B position (0 = at lower band, -∞ = below)
-        if direction == Direction.LONG:
-            bb_extreme = -pct_b  # negative pct_b = price below lower band
-            bb_norm = min(max(bb_extreme, 0.0), 1.0)
+        # Bollinger Band confirmation — bonus for being at the band
+        if at_bb_band:
+            if direction == Direction.LONG:
+                bb_extreme = -pct_b  # negative pct_b = price below lower band
+                bb_norm = min(max(bb_extreme, 0.0), 1.0)
+            else:
+                bb_extreme = pct_b - 1.0
+                bb_norm = min(max(bb_extreme, 0.0), 1.0)
+            score += 0.20 * max(0.1, bb_norm)  # 0.1 floor when at band
+        # RSI-only signals get a base 0.10 for BB (not at band but RSI is oversold)
         else:
-            bb_extreme = pct_b - 1.0  # pct_b > 1.0 = price above upper band
-            bb_norm = min(max(bb_extreme, 0.0), 1.0)
-        score += 0.35 * bb_norm
+            score += 0.10
 
-        # Volume spike
-        vol_score = min((vol_ratio - self.volume_mult) / self.volume_mult + 1.0, 1.0)
-        score += 0.30 * max(0.0, vol_score)
+        # Volume bonus (soft — adds conviction, doesn't block)
+        vol_score = min((vol_ratio - 0.5) / 1.0, 1.0)  # any volume above 0.5x adds
+        score += 0.15 * max(0.0, vol_score)
+        if volume_confirmed:
+            score += 0.10  # extra bonus for above-average volume
+
+        # Trend alignment bonus — trading with EMA200 trend adds conviction
+        if trend_aligned:
+            score += 0.15
 
         signed = score if direction == Direction.LONG else -score
         return self._clamp(signed)

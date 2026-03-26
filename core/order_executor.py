@@ -259,9 +259,18 @@ class OrderExecutor:
         if self.mode == ExecutionMode.PAPER:
             self._paper_positions[signal_symbol] = position
         else:
-            # Attach SL and TP orders immediately after fill
+            # Attach SL and TP orders immediately after fill.
+            # SL is critical (exchange-side protection); TP is best-effort
+            # (client-side monitoring catches it if exchange rejects due to
+            # insufficient collateral on micro accounts).
             await self.place_stop_loss(position, stop_loss)
-            await self.place_take_profit(position, take_profit)
+            tp_result = await self.place_take_profit(position, take_profit)
+            if tp_result is not None and not tp_result.success:
+                logger.info(
+                    "TP order failed for %s (likely insufficient funds on micro account). "
+                    "Client-side monitoring will handle TP exit at %.4f.",
+                    signal_symbol, take_profit,
+                )
 
         logger.info(
             "Trade OPENED: %s %s @ %.4f size=%.6f fee=%.4f [%s]",
@@ -319,6 +328,7 @@ class OrderExecutor:
         symbol: str,
         side: str,
         size: float,
+        current_price: float = 0.0,
     ) -> ExecutionRecord:
         """
         Place a market close order (called by engine when SL/TP is hit client-side).
@@ -328,6 +338,7 @@ class OrderExecutor:
         symbol : e.g. "BTC/USD"
         side   : "sell" to close a long, "buy" to close a short
         size   : quantity to close
+        current_price : reference price for paper fills (mark price at exit)
         """
         request = OrderRequest(
             symbol=symbol,
@@ -335,7 +346,7 @@ class OrderExecutor:
             order_type=OrderType.MARKET,
             quantity=size,
         )
-        return await self._dispatch(request, reference_price=0.0)
+        return await self._dispatch(request, reference_price=current_price)
 
     async def close_position(
         self,
@@ -462,6 +473,26 @@ class OrderExecutor:
                 if self.mode == ExecutionMode.PAPER:
                     return self._paper_fill(request, reference_price)
                 return await self._live_order(request)
+            except (ccxt.InsufficientFunds, ccxt.InvalidOrder) as exc:
+                logger.error(
+                    "Order rejected for %s: %s — %s (not retrying)",
+                    request.symbol, type(exc).__name__, exc,
+                )
+                return ExecutionRecord(
+                    order_id="",
+                    symbol=request.symbol,
+                    side=request.side,
+                    order_type=request.order_type,
+                    requested_quantity=request.quantity,
+                    filled_quantity=0.0,
+                    requested_price=request.price,
+                    fill_price=0.0,
+                    fee=0.0,
+                    mode=self.mode,
+                    timestamp=datetime.now(UTC),
+                    success=False,
+                    error=f"{type(exc).__name__}: {exc}",
+                )
             except (ccxt.NetworkError, ccxt.RequestTimeout) as exc:
                 if attempt >= MAX_RETRIES:
                     logger.error(
@@ -556,18 +587,37 @@ class OrderExecutor:
         if self._exchange is None:
             raise RuntimeError("Call connect() before placing live orders")
 
-        params: dict[str, Any] = {"newClientOrderId": request.client_order_id}
+        # Build exchange-agnostic params (CCXT handles exchange-specific mapping)
+        params: dict[str, Any] = {}
         if request.stop_price is not None:
             params["stopPrice"] = request.stop_price
         if request.trailing_offset is not None:
             params["trailingPercent"] = request.trailing_offset
 
+        # Map Atlas order types to CCXT-compatible types
+        ccxt_type = request.order_type.value  # "market", "limit"
+        ccxt_price = request.price
+        if request.order_type == OrderType.STOP_LOSS:
+            # Kraken uses stop-loss order type; CCXT handles this via params
+            ccxt_type = "market"
+            params["stopLossPrice"] = request.stop_price
+        elif request.order_type == OrderType.TAKE_PROFIT:
+            ccxt_type = "limit"
+            params["takeProfitPrice"] = request.stop_price
+            ccxt_price = request.price or request.stop_price
+
+        logger.info(
+            "Placing LIVE %s %s %s qty=%.6f price=%s params=%s",
+            ccxt_type, request.side, request.symbol, request.quantity,
+            ccxt_price, {k: v for k, v in params.items() if k != "stopPrice"},
+        )
+
         order = await self._exchange.create_order(
             symbol=request.symbol,
-            type=request.order_type.value,
+            type=ccxt_type,
             side=request.side,
             amount=request.quantity,
-            price=request.price,
+            price=ccxt_price,
             params=params,
         )
 
@@ -575,9 +625,30 @@ class OrderExecutor:
         filled_qty = float(order.get("filled") or 0.0)
         fee_info = order.get("fee") or {}
         fee = float(fee_info.get("cost") or filled_qty * fill_price * self.taker_fee_pct)
+        status = order.get("status", "")
+        order_id = str(order.get("id", ""))
+
+        # Kraken often returns status=None for market orders that fill async.
+        # If we got a valid order ID, consider it success — the fill will be
+        # confirmed when we fetch the order status later.
+        has_order_id = bool(order_id and order_id != "None")
+        is_success = status in ("closed", "filled", "open") or (
+            has_order_id and status in (None, "", "None")
+        )
+
+        # If Kraken returned no fill price yet, use the reference price
+        if is_success and fill_price == 0.0 and request.price:
+            fill_price = float(request.price)
+        if is_success and filled_qty == 0.0:
+            filled_qty = request.quantity  # Assume full fill for market orders
+
+        logger.info(
+            "LIVE order response: id=%s status=%s filled=%.6f price=%.6f fee=%.6f success=%s",
+            order_id, status, filled_qty, fill_price, fee, is_success,
+        )
 
         return ExecutionRecord(
-            order_id=str(order.get("id", "")),
+            order_id=order_id,
             symbol=request.symbol,
             side=request.side,
             order_type=request.order_type,
@@ -588,6 +659,6 @@ class OrderExecutor:
             fee=fee,
             mode=ExecutionMode.LIVE,
             timestamp=datetime.now(UTC),
-            success=order.get("status") in ("closed", "filled"),
+            success=is_success,
             raw_response=order,
         )

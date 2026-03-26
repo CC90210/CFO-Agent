@@ -26,6 +26,13 @@ import logging
 import sys
 from pathlib import Path
 
+# Force line-buffered stdout so daemon logs flush immediately to watchdog log files.
+# On Windows, PYTHONUNBUFFERED alone doesn't fix file-redirected stdout.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(line_buffering=True)
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(line_buffering=True)
+
 # Ensure the project root is on sys.path when running as a script
 _ROOT = Path(__file__).resolve().parent
 if str(_ROOT) not in sys.path:
@@ -289,6 +296,11 @@ async def _cmd_paper_trade(args: argparse.Namespace) -> int:
 
 async def _cmd_live(args: argparse.Namespace) -> int:
     """Handle the ``live`` sub-command."""
+    # Activate the full Atlas logging infrastructure (domain files, master log,
+    # auto-flushing handlers) — replaces the basicConfig console-only setup.
+    from utils.logger import setup_logging  # noqa: PLC0415
+    setup_logging(force=True)
+
     from config.settings import settings  # noqa: PLC0415
     from core.engine import TradingEngine, TradingMode  # noqa: PLC0415
 

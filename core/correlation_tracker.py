@@ -153,13 +153,8 @@ class CorrelationTracker:
                         ),
                     ))
 
-        import time
-        now = time.monotonic()
-        if now - self._last_alert_time >= 600 and alerts:  # Log at most once per 10 min
-            self._last_alert_time = now
-            for alert in alerts:
-                logger.warning(alert.message)
-
+        # Individual alert logging disabled — engine summarises at the scan level.
+        # Callers can inspect the returned list for per-pair details.
         return alerts
 
     def effective_position_count(self, positions: list[dict[str, Any]]) -> float:

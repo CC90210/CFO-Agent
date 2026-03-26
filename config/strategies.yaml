@@ -13,23 +13,24 @@ strategies:
 
   # ── 1. RSI Mean Reversion ──────────────────────────────────────────────────
   rsi_mean_reversion:
-    enabled: true  # 2026-03-21: 4h choppy-market edge — ATOM +9.22% (Sharpe 1.86, 721bars), SOL +2.69% (Sharpe 0.92)
+    enabled: true  # 2026-03-24 revalidated: BTC Sharpe 1.97, AVAX Sharpe 2.03, ETH Sharpe 1.16
     description: "Buy oversold, sell overbought using RSI."
     timeframe: "4h"
     symbols:
-      # 2026-03-21 validated on 4h Kraken data (30-day + 166-day + 721-bar confirmation)
-      - "ATOM/USD"   # +9.22% 721bar, Sharpe 1.86, 60% WR (5 trades) — CONFIRMED
-      - "SOL/USD"    # +2.69% 721bar, Sharpe 0.92, 50% WR (2 trades) — CONFIRMED
-      # Removed: BTC/USDT — profitable 30d but -1.80% on 721-bar backtest
+      # 2026-03-26 comprehensive Jan-Mar backtest — only pairs profitable in BOTH tests kept
+      - "BTC/USD"    # +2.77% Sharpe 0.47, 47% WR — consistent across both tests
+      - "SOL/USD"    # +10.27% Sharpe 1.37, 48% WR, PF 1.43 — NEW: best RSI discovery
+      - "LTC/USD"    # +2.53% Sharpe 0.39, 44% WR — marginal but positive long-term
+      # CUT 2026-03-26: DOGE (-5.73% long-term), AVAX (-1.03%), LINK (-4.19%), ETH (-2.83%), ADA (-2.55%)
     risk_per_trade: 1.0
-    max_positions: 2
+    max_positions: 3
     parameters:
       rsi_period: 10              # Optimized from 14 — faster RSI catches reversals quicker (Sharpe +2.30)
-      rsi_oversold: 25            # Optimized from 30 — only enter at deeper oversold levels
-      rsi_overbought: 75          # Optimized from 70 — hold winners longer before exit
+      rsi_oversold: 35            # 2026-03-25: Relaxed from 30 — catches more dips in consolidation
+      rsi_overbought: 65          # 2026-03-25: Relaxed from 70 — catches more rallies in consolidation
       rsi_exit: 50
       atr_stop_mult: 1.0         # Keep original — 0.8x dropped WR from 58% to 45%
-      volume_mult: 1.2
+      volume_mult: 1.0            # Relaxed from 1.2 — volume is lower in consolidation
       ema_trend_period: 200
       rr_min: 2.0
 
@@ -55,22 +56,28 @@ strategies:
 
   # ── 3. Bollinger Band Squeeze Breakout ───────────────────────────────────
   bollinger_squeeze:
-    enabled: true  # 2026-03-21: 4h choppy-market edge — ATOM +2.70% (100% WR, Sharpe 1.45, 721bars)
+    enabled: true   # 2026-03-25: 500-bar 1h backtest — 7/9 pairs profitable, +13.61% aggregate, 97 trades
     description: "Squeeze breakout — 2-bar confirmation, ATR stops, volume exhaustion filter."
-    timeframe: "4h"
+    timeframe: "1h"
     symbols:
-      # 2026-03-21 validated on 4h Kraken data (721-bar confirmation only)
-      - "ATOM/USD"   # +2.70% 721bar, 100% WR, Sharpe 1.45 — CONFIRMED
-      # Removed: BTC/USDT (-1.82% 721bar), DOGE/USDT (-0.80%), ETH/USDT (+0.38% marginal)
+      # 2026-03-25: Revalidated on 1h Kraken (500 bars). Sorted by return.
+      - "ADA/USD"    # +6.33% WR 45%, PF 1.7x — BEST squeeze pair
+      - "DOGE/USD"   # +3.46% WR 36%, PF 1.4x
+      - "ATOM/USD"   # +3.00% WR 50%, PF 1.9x
+      - "LINK/USD"   # +2.44% WR 44%, PF 1.4x
+      - "LTC/USD"    # +2.19% WR 40%, PF 1.3x
+      - "BTC/USD"    # +1.00% WR 43%, PF 1.1x — marginal, keep for liquidity
+      - "XRP/USD"    # +0.54% WR 40%, PF 1.1x — marginal, keep for liquidity
+      # Excluded: ETH (-3.58%), AVAX (-1.77%)
     risk_per_trade: 1.0
-    max_positions: 2
+    max_positions: 3
     parameters:
       bb_period: 20
       bb_std: 2.0
-      atr_stop_mult: 3.0         # 3.0x + 6.0 TP = +1.74% SOL (2.0x was only +0.11%)
-      atr_tp_mult: 6.0           # Wider TP lets squeeze resolution play out
-      squeeze_percentile: 10.0
-      exhaustion_vol_mult: 2.0
+      atr_stop_mult: 1.5         # 2026-03-25: tightened from 3.0 to match validated backtest
+      atr_tp_mult: 3.0           # 2026-03-25: tightened from 6.0 to match 1:2 R:R that tested well
+      squeeze_percentile: 15.0    # Relaxed from 10 — more squeeze opportunities
+      exhaustion_vol_mult: 1.5    # Relaxed from 2.0 — lower volume in consolidation
 
   # ── 4. VWAP Bounce ────────────────────────────────────────────────────────
   vwap_bounce:
@@ -93,7 +100,7 @@ strategies:
   # Baseline (50/200 EMA): -1.10% avg, 3/7 GO
   # Aggressive (30/100 EMA): +0.44% avg, 3/7 GO — DOGE +5.98%, DOT +3.25%, XRP +2.75%
   multi_timeframe:
-    enabled: true  # 2026-03-20: Resurrected — aggressive params on DOGE/DOT/XRP profitable on live Kraken
+    enabled: true  # 2026-03-24 revalidated: DOGE Sharpe 2.0, XRP Sharpe 1.59
     description: "Align momentum across 3 timeframes before entering."
     timeframe: "4h"
     timeframes:
@@ -101,15 +108,14 @@ strategies:
       secondary: "1h"
       confirmation: "15m"
     symbols:
-      # 2026-03-20 fresh Kraken validation (1000 bars, 4h)
-      - "XRP/USD"   # +13.75% aggressive, Sharpe 1.99 — TOP PERFORMER
-      # Removed: DOGE/USDT — flipped to -0.32% on 2026-03-21 fresh validation
-      # Gold/Silver — validated on real OANDA data (2026-03-20)
-      - "XAU_USD"    # +10.94% conservative, Sharpe 2.10
-      - "XAG_USD"    # +7.21% conservative, Sharpe 1.43, WR 50%, PF 2.82
-      # Removed: DOT/USDT — flipped to -3.73% on fresh data
-      # Removed: BTC (GO baseline only, not aggressive), ETH/SOL/ADA/AVAX/LINK (losing)
-      # Removed: All stocks/forex (no live data to validate)
+      # 2026-03-24 fresh 721-bar Kraken backtest — Sharpe > 0.65 only
+      - "DOGE/USD"   # +9.45% Sharpe 2.00, 55% WR, PF 2.72 — BEST MULTI-TF PAIR
+      - "XRP/USD"    # +7.70% Sharpe 1.59, 53% WR, PF 1.96 — STRONG
+      - "LINK/USD"   # +2.97% Sharpe 0.70, 33% WR, PF 1.36 — MARGINAL, keep for diversity
+      # Gold/Silver — validated on real OANDA data (prior sessions)
+      - "XAU_USD"    # +10.94% Sharpe 2.10 — GOLD CHAMPION
+      - "XAG_USD"    # +7.21% Sharpe 1.43 — SILVER STRONG
+      # Removed: BTC (+0.95% marginal), ETH (-1.26%), SOL (-4.08%), all others negative
     risk_per_trade: 1.5
     max_positions: 3
     parameters:
@@ -188,15 +194,14 @@ strategies:
 
   # ── 8. Smart Money Concepts ──────────────────────────────────────────────
   smart_money:
-    enabled: true
+    enabled: false  # 2026-03-24: Fresh 721-bar backtest — ETH -5.37%, ADA -3.88%. Only XRP marginal +0.94% (1 trade). Strategy unreliable.
     description: "Order blocks, fair value gaps, and liquidity sweeps."
     timeframe: "4h"
     symbols:
-      # 2026-03-23 revalidated on 2000-bar Kraken backtest (regime filter ON)
-      - "ETH/USD"    # +1.45% Sharpe 0.58, 33% WR — profitable, keep
-      - "XRP/USD"    # +2.19% Sharpe 1.90, 100% WR — best SM pair
-      - "ADA/USD"    # +0.95% Sharpe 0.67, 75% WR — newly validated
-      # Removed 2026-03-23: SOL (-1.24%), AVAX (0 trades), DOGE (marginal +0.08%)
+      # 2026-03-24: ALL pairs losing or near-zero on fresh data. Disabled until fundamental rework.
+      - "XRP/USD"    # +0.94% but only 1 trade — not statistically significant
+      - "ETH/USD"    # -5.37% Sharpe -2.00 — LOSING
+      - "ADA/USD"    # -3.88% Sharpe -1.76 — LOSING
     risk_per_trade: 1.0
     max_positions: 3
     parameters:
@@ -320,6 +325,46 @@ strategies:
       adx_min_trend: 10.0             # Relaxed (was 20) — the key change that unlocks trades
       min_distance_atr: 0.3           # Relaxed (was 1.0) — allows entries closer to levels
       min_rr: 1.5                     # Relaxed (was 2.0) — more setups qualify
+
+  # ── 24. BB Mean Reversion (RANGE-BOUND) ────────────────────────────────
+  # 2026-03-24: NEW — designed to trade when all other strategies go silent.
+  # Targets BB band bounces in range-bound markets (ADX < 25) with StochRSI
+  # confirmation. Fills the signal gap when RSI is 35-65 and no trends exist.
+  bb_mean_reversion:
+    enabled: false  # 2026-03-26: DISABLED — comprehensive backtest Jan-Mar shows -20% to -27% on ALL symbols. Catastrophic Sharpe -6 to -9. Existing positions will play out via SL/TP.
+    description: "Range-bound mean reversion: buy lower BB + oversold StochRSI, sell upper BB + overbought StochRSI."
+    timeframe: "1h"            # 2026-03-25: Switched from 4h to 1h — 50x more signal frequency
+    symbols:
+      # 2026-03-25 500-bar 1h backtest (opposite TP) — profitable symbols
+      - "DOGE/USD"   # +7.53% WR 43% — BEST BB-MR PAIR (opposite TP)
+      - "BTC/USD"    # +5.22% WR 56% — revalidated strong (simplified test)
+      - "ADA/USD"    # +3.02% WR 50% — revalidated positive
+      - "LTC/USD"    # +3.16% WR 55% — revalidated strong
+      - "ATOM/USD"   # +3.63% WR 57%, PF 2.4 — NEW: added from fresh backtest
+      - "LINK/USD"   # +2.50% WR 50%, PF 1.4 — NEW: added from fresh backtest
+      - "XRP/USD"    # -0.59% — marginal, keep for liquidity and near-miss signals
+      # Removed: ETH (-0.33%), SOL (+0.28% marginal), AVAX (-0.60%), DOT (-1.58%)
+    risk_per_trade: 1.0
+    max_positions: 3
+    parameters:
+      bb_period: 20
+      bb_std: 2.0
+      adx_period: 14
+      adx_max: 30.0            # 2026-03-25: Relaxed from 25 — catches 8x more signals while staying non-trending
+      atr_period: 14
+      atr_stop_mult: 1.5       # Tight stops for mean reversion
+      pctb_long_threshold: 0.25   # 2026-03-25: Relaxed from 0.15 — wider band proximity catches more pullbacks
+      pctb_short_threshold: 0.75  # 2026-03-25: Relaxed from 0.85 — wider band proximity catches more rallies
+      stoch_rsi_period: 14
+      stoch_k_smooth: 3
+      stoch_d_smooth: 3
+      stoch_oversold: 25.0     # 2026-03-25: Relaxed from 20 — catch more oversold signals
+      stoch_overbought: 75.0   # 2026-03-25: Relaxed from 80 — catch more overbought signals
+      rsi_period: 14
+      volume_period: 20
+      squeeze_guard_percentile: 0.0  # 2026-03-25: DISABLED — bollinger_squeeze is off, don't block squeeze-zone signals
+      squeeze_lookback: 60
+      tp_target: "opposite"     # 2026-03-25: Changed from middle — opposite band gives better RR, +7.53% DOGE vs +1.10%
 
   # ── 13. Equity Mean Reversion (STOCKS) ──────────────────────────────────
   equity_mean_reversion:
@@ -606,36 +651,34 @@ strategies:
 
   # ── 21. Donchian Channel Breakout (TURTLE TRADERS) ─────────────────────
   donchian_breakout:
-    enabled: true  # 2026-03-20: 6/9 crypto GO on Kraken live data. Forex/gold removed (losing on synthetic).
+    enabled: true  # 2026-03-24 revalidated: 7/10 profitable, ATOM Sharpe 1.46, DOGE 1.51
     description: "Classic Turtle Traders breakout — 20-bar high/low channel. Proven profitable for 40+ years."
     timeframe: "4h"
     symbols:
-      # 2026-03-23 revalidated on 2000-bar Kraken data (Sharpe > 0.5 = KEEP)
-      - "ATOM/USD"   # +4.43% Sharpe 0.97, 46% WR, 13 trades — TOP CRYPTO
-      - "ETH/USD"    # +4.10% Sharpe 0.98, 44% WR — STRONG
-      - "AVAX/USD"   # +4.20% Sharpe 1.12, 62% WR — BEST WIN RATE
-      - "XRP/USD"    # +3.02% Sharpe 0.88, 33% WR — PROFITABLE
-      - "DOT/USD"    # +2.20% Sharpe 0.55, 33% WR — PROFITABLE
+      # 2026-03-26 comprehensive Jan-Mar backtest — Tier 1 + validated pairs
+      - "ATOM/USD"   # +10.50% Sharpe 1.56, 43% WR, PF 1.75 — BEST DONCHIAN (confirmed both tests)
+      - "DOT/USD"    # +2.80% Sharpe 0.55, 36% WR, PF 1.19 — positive both tests
+      - "XRP/USD"    # +11.50% Sharpe 1.80, 44% WR, PF 1.97 — NEW: 2nd best discovery
+      - "NEAR/USD"   # +10.29% Sharpe 1.60, 38% WR, PF 1.77 — NEW: strong breakout pair
+      # CUT: SOL, ETH, AVAX, BTC, DOGE — all negative in current regime
       # Gold/Silver — validated on real OANDA data (prior session: +$3,374)
       - "XAU_USD"     # +15.70% Sharpe 2.49 — GOLD CHAMPION
       - "XAG_USD"     # +12.44% Sharpe 2.08 — SILVER STRONG
-      # Removed 2026-03-23: BTC (Sharpe 0.07), SOL (Sharpe 0.48), DOGE (Sharpe 0.37),
-      #   ADA (Sharpe 0.25), SHIB, MANA — all marginal or losing on fresh data
     risk_per_trade: 1.5
     max_positions: 4
     parameters:
-      entry_period: 15       # Optimized from 20 — shorter channel catches breakouts faster (Sharpe +26%)
+      entry_period: 10       # 2026-03-25: Shortened from 15 — catches smaller breakouts, more trade frequency
       exit_period: 10
       atr_period: 14
       atr_stop_mult: 2.0
       rr_ratio: 3.0
       adx_period: 14
-      adx_min: 20.0
+      adx_min: 15.0           # Relaxed from 20 — catches emerging trends earlier in consolidation
       rsi_period: 14
       rsi_max_long: 75.0
       rsi_min_short: 25.0
       volume_period: 20
-      volume_mult: 1.5       # Optimized from 1.2 — tighter volume filter, fewer false entries
+      volume_mult: 1.2        # Relaxed from 1.5 — volume is lower during consolidation
       sma_trend_period: 200
 
   # ── 22. Momentum Exhaustion / Reversal (CHOPPY CRYPTO) ────────────────
