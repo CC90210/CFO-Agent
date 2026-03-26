@@ -420,31 +420,31 @@ class TestPerTradeRiskCap:
           → The risk cap won't fire because proposed risk < cap.
 
         To actually trigger the per-trade risk cap:
-          risk_budget = 1.5% * 10,000 = $150
+          risk_budget = 8% * 10,000 = $800
           stop_distance = 1 per unit
-          max_units = 150 / 1 = 150
-          proposed = 300 units, notional = 300 * 1 = $300 (3% exposure — within 20% cap)
+          max_units = 800 / 1 = 800
+          proposed = 1500 units, notional = 1500 * 1 = $1500 (15% exposure — within 80% cap)
         """
         rm = _make_risk_manager(portfolio_value=10_000.0)
-        # entry_price=1, stop=0 → distance=1; 300 units → $300 notional (3% of 10k → within limit)
+        # entry_price=1, stop=0.001 → distance≈$1; 1500 units → $1500 notional (15% of 10k → within limit)
         signal = _make_signal(
             symbol="TEST/USDT",
             entry_price=1.0,
             stop_loss=0.001,   # distance = 0.999 ≈ $1
             take_profit=4.0,
         )
-        # 300 units at $1 = $300 notional (3% of portfolio — within 20% cap)
-        # Risk = 300 * 0.999 ≈ $300 >> per_trade_risk_cap of $150
+        # 1500 units at $1 = $1500 notional (15% of portfolio — within 80% cap)
+        # Risk = 1500 * 0.999 ≈ $1500 >> per_trade_risk_cap of $800
         result = rm.validate_trade(
             signal=signal,
             portfolio_value=10_000.0,
-            proposed_size=300.0,
+            proposed_size=1500.0,
             current_atr=0.1,
             normal_atr=0.1,
         )
         assert result.approved is True
         # Adjusted size must be smaller than proposed due to per-trade risk cap
-        assert result.adjusted_size < 300.0
+        assert result.adjusted_size < 1500.0
         # The actual risk should not exceed per_trade_risk_pct of portfolio
         risk_value = result.adjusted_size * abs(1.0 - 0.001)
         max_risk = 10_000.0 * (rm.per_trade_risk_pct / 100.0)

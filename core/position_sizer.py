@@ -170,19 +170,30 @@ class PositionSizer:
             return 0.0
 
         # Per-trade risk budget: scale with account size.
-        # Micro accounts (< $500) need 2.5% risk to meet exchange minimums.
-        # Standard accounts use 1% (conservative).
+        # Micro accounts need meaningful risk % to generate real returns.
+        # Below $500, position sizes must be large enough to (a) clear exchange
+        # minimums and (b) produce P&L that compounds.  Conservative 1% risk
+        # on $138 = $1.38 per trade — mathematically useless.
         if portfolio_value < 500:
-            risk_pct = 0.025  # micro account — need larger % to clear exchange minimums
+            risk_pct = 0.08   # micro account — 8% risk for meaningful positions
         elif portfolio_value < 2000:
-            risk_pct = 0.015  # small account
+            risk_pct = 0.05   # small account — 5% risk
+        elif portfolio_value < 10000:
+            risk_pct = 0.03   # medium account — 3% risk
         else:
-            risk_pct = 0.01   # standard
+            risk_pct = 0.01   # standard — 1% risk
         risk_budget = portfolio_value * risk_pct
         units_from_risk = risk_budget / stop_distance
 
-        # Take the smaller of the two sizing methods for extra conservatism.
-        raw_size = min(units_from_allocation, units_from_risk)
+        # Micro accounts: use risk-budget sizing directly.  Kelly is designed
+        # for large portfolios making many small bets — with $138 you can't
+        # afford Kelly's conservatism.  For larger accounts, blend the two
+        # methods, respecting Kelly's edge-sizing signal.
+        if portfolio_value < 2000:
+            raw_size = units_from_risk  # risk-budget drives sizing
+        else:
+            # Standard accounts: Kelly as primary, risk-budget as cap
+            raw_size = min(units_from_allocation, units_from_risk)
 
         # ── Fee adjustment ─────────────────────────────────────────────────────
         fee_pct = self.taker_fee_pct if use_market_order else self.maker_fee_pct

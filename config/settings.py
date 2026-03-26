@@ -38,16 +38,16 @@ class RiskSettings(BaseSettings):
         description="Stop trading for the rest of the day when intraday loss exceeds this percentage.",
     )
     per_trade_risk_pct: float = Field(
-        default=1.5,
+        default=8.0,
         ge=0.1,
-        le=10.0,
+        le=15.0,
         description="Percentage of total equity risked on each individual trade.",
     )
     max_open_positions: int = Field(
-        default=5,
+        default=3,
         ge=1,
         le=50,
-        description="Maximum number of simultaneous open positions.",
+        description="Maximum number of simultaneous open positions. Fewer = more concentrated = more meaningful per trade.",
     )
 
 

@@ -39,10 +39,10 @@ logger = logging.getLogger("atlas.risk")
 # ---------------------------------------------------------------------------
 _FLOOR_MAX_DRAWDOWN_PCT: float = 15.0
 _FLOOR_DAILY_LOSS_PCT: float = 5.0
-_FLOOR_PER_TRADE_RISK_PCT: float = 1.5
+_FLOOR_PER_TRADE_RISK_PCT: float = 8.0   # micro account: meaningful risk per trade
 _FLOOR_MAX_OPEN_POSITIONS: int = 5
 _FLOOR_MAX_CORRELATED_POSITIONS: int = 3
-_FLOOR_MAX_SINGLE_ASSET_EXPOSURE_PCT: float = 20.0
+_FLOOR_MAX_SINGLE_ASSET_EXPOSURE_PCT: float = 80.0  # micro account: must concentrate to matter
 _HIGH_VOL_ATR_MULTIPLIER: float = 2.0  # ATR above this multiple ⇒ high-vol regime
 _HIGH_VOL_SIZE_DIVISOR: float = 2.0  # halve positions in high-vol regime
 _MAX_CORRELATION: float = 0.70  # refuse trades correlated above this threshold

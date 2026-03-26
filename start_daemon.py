@@ -5,27 +5,72 @@ Usage:
     python start_daemon.py          # Start daemon
     python start_daemon.py stop     # Stop daemon
     python start_daemon.py status   # Check daemon status
+
+Safety: Kills ALL existing trading processes before starting a new one.
+This prevents the multi-daemon problem that caused order spam.
 """
 import subprocess
 import sys
 import os
-import signal
 from pathlib import Path
 
 PID_FILE = Path(__file__).parent / "data" / "daemon.pid"
 LOG_FILE = Path(__file__).parent / "logs" / "daemon.log"
 
+# Command signature we search for when killing existing daemons
+_DAEMON_CMD_SIGNATURE = "main.py live"
+
+
+def _find_trading_pids() -> list[int]:
+    """Find all Python processes running the trading daemon."""
+    try:
+        result = subprocess.run(
+            ["wmic", "process", "where", "name='python.exe'", "get",
+             "ProcessId,CommandLine", "/FORMAT:CSV"],
+            capture_output=True, text=True, timeout=10,
+        )
+        pids = []
+        my_pid = os.getpid()
+        for line in result.stdout.splitlines():
+            if _DAEMON_CMD_SIGNATURE in line:
+                # CSV format: Node,CommandLine,ProcessId
+                parts = line.strip().rstrip(",").split(",")
+                try:
+                    pid = int(parts[-1].strip())
+                    if pid != my_pid:
+                        pids.append(pid)
+                except (ValueError, IndexError):
+                    continue
+        return pids
+    except Exception as exc:
+        print(f"Warning: Could not enumerate processes: {exc}")
+        return []
+
+
+def _kill_all_existing():
+    """Kill ALL running trading daemons — nuclear cleanup."""
+    pids = _find_trading_pids()
+    if not pids:
+        return 0
+    print(f"Found {len(pids)} existing daemon process(es). Killing...")
+    killed = 0
+    for pid in pids:
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/PID", str(pid)],
+                capture_output=True, timeout=5,
+            )
+            killed += 1
+        except Exception:
+            pass
+    print(f"Killed {killed}/{len(pids)} processes.")
+    return killed
+
 
 def start():
     """Launch the trading daemon as a detached process."""
-    if PID_FILE.exists():
-        pid = int(PID_FILE.read_text().strip())
-        try:
-            os.kill(pid, 0)  # Check if process is alive
-            print(f"Daemon already running (PID {pid}). Use 'stop' first.")
-            return
-        except OSError:
-            PID_FILE.unlink()  # Stale PID file
+    # ALWAYS kill existing daemons first — this is the #1 bug prevention
+    _kill_all_existing()
 
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
 
@@ -51,55 +96,27 @@ def start():
 
 
 def stop():
-    """Stop the running daemon."""
-    if not PID_FILE.exists():
-        print("No daemon PID file found.")
-        return
-
-    pid = int(PID_FILE.read_text().strip())
-    try:
-        os.kill(pid, signal.SIGTERM)
-        print(f"Daemon (PID {pid}) stopped.")
-    except OSError:
-        print(f"Daemon (PID {pid}) was not running.")
-    finally:
-        PID_FILE.unlink(missing_ok=True)
-
-
-def _is_pid_alive(pid: int) -> bool:
-    """Check if a process is running — works reliably on Windows detached processes."""
-    try:
-        result = subprocess.run(
-            ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
-            capture_output=True, text=True, timeout=5,
-        )
-        return str(pid) in result.stdout
-    except Exception:
-        # Fallback to os.kill
-        try:
-            os.kill(pid, 0)
-            return True
-        except OSError:
-            return False
+    """Stop ALL running daemon processes."""
+    killed = _kill_all_existing()
+    PID_FILE.unlink(missing_ok=True)
+    if killed:
+        print(f"Stopped {killed} daemon process(es).")
+    else:
+        print("No daemon processes found.")
 
 
 def status():
     """Check daemon status."""
-    if not PID_FILE.exists():
-        print("No daemon PID file found.")
-        return
-
-    pid = int(PID_FILE.read_text().strip())
-    if _is_pid_alive(pid):
-        print(f"Daemon RUNNING (PID {pid})")
-        # Show last 5 lines of log
+    pids = _find_trading_pids()
+    if pids:
+        print(f"Daemon RUNNING — {len(pids)} process(es): {pids}")
         if LOG_FILE.exists():
             lines = LOG_FILE.read_text(encoding="utf-8", errors="replace").splitlines()
             print(f"Log ({len(lines)} lines):")
             for line in lines[-5:]:
                 print(f"  {line}")
     else:
-        print(f"Daemon DEAD (stale PID {pid})")
+        print("No daemon processes running.")
         PID_FILE.unlink(missing_ok=True)
 
 

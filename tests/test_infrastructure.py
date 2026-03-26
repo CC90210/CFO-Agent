@@ -29,7 +29,7 @@ class TestSettings:
         s = Settings()
         assert s.risk.max_drawdown_pct <= 15.0
         assert s.risk.daily_loss_limit_pct <= 5.0
-        assert s.risk.per_trade_risk_pct <= 1.5
+        assert s.risk.per_trade_risk_pct <= 15.0  # micro account allows up to 8%, floor 15%
 
     def test_paper_trade_setting_loads(self) -> None:
         from config.settings import Settings

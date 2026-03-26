@@ -374,8 +374,20 @@ class TradeProtocol:
         equity: float,
     ) -> float:
         """Calculate position size as % of equity."""
-        # Base size: 1.5% of equity (max per-trade risk)
-        base_pct = 0.015
+        # Base size scales with account size — micro accounts need larger %
+        # to generate meaningful P&L. $138 * 1.5% = $2.07 — useless.
+        if equity < 500:
+            base_pct = 0.08    # micro account: 8% base
+            cap_pct = 0.10     # cap at 10%
+        elif equity < 2000:
+            base_pct = 0.05    # small account: 5% base
+            cap_pct = 0.06
+        elif equity < 10000:
+            base_pct = 0.03    # medium account: 3% base
+            cap_pct = 0.04
+        else:
+            base_pct = 0.015   # standard: 1.5% base
+            cap_pct = 0.02
 
         # Scale by conviction strength
         conviction_scalar = min(abs(confluence), 1.0)
@@ -386,5 +398,4 @@ class TradeProtocol:
         # Scale by regime
         final_pct = base_pct * conviction_scalar * risk_scalar * regime_multiplier
 
-        # Hard cap at 1.5% of equity
-        return min(final_pct, 0.015)
+        return min(final_pct, cap_pct)

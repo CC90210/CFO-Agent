@@ -1289,18 +1289,20 @@ class TradingEngine:
             sentiment_multiplier=sentiment_mult,
         )
 
-        # Cap by the protocol's sizing recommendation (convert pct → base units)
+        # Protocol sizing is advisory, not a hard cap.  The PositionSizer's
+        # risk-budget approach already accounts for stop distance, account size,
+        # and regime.  Letting the protocol override produces micro-positions
+        # on small accounts.  Log for audit trail only.
         if entry_price > 0 and protocol_size_pct > 0:
             protocol_size_units = (
                 protocol_size_pct * self._risk.current_equity
             ) / entry_price
             if protocol_size_units < size:
-                logger.debug(
-                    "Protocol size cap applied: sizer=%.6f protocol=%.6f",
+                logger.info(
+                    "Protocol advisory: sizer=%.6f protocol=%.6f (sizer wins)",
                     size,
                     protocol_size_units,
                 )
-                size = protocol_size_units
 
         if size <= 0:
             logger.info("PositionSizer returned size=0 for %s — trade skipped.", signal.symbol)
@@ -1314,7 +1316,7 @@ class TradingEngine:
             min_amount = (market.get("limits", {}).get("amount", {}).get("min") or 0)
             min_cost = (market.get("limits", {}).get("cost", {}).get("min") or 0)
             order_cost = size * entry_price
-            max_micro_bump = self._risk.current_equity * 0.10  # 10% of equity cap
+            max_micro_bump = self._risk.current_equity * 0.30  # 30% of equity cap for micro accounts
 
             if size < min_amount:
                 bump_cost = min_amount * entry_price
@@ -1344,6 +1346,46 @@ class TradingEngine:
                 "Live order blocked: PAPER_TRADE is still true or CONFIRM_LIVE is not set."
             )
             return
+
+        # ── Balance cap for LIVE mode ────────────────────────────────────
+        # Ensure we don't try to buy more than we can afford.  Divides
+        # available balance by remaining open slots so multiple positions
+        # each get a fair share of capital.
+        if self.mode == TradingMode.LIVE and self._exchange is not None:
+            try:
+                balance = await self._exchange.fetch_balance()
+                free_usd = float(balance.get("free", {}).get("USD", 0) or 0)
+                # Budget per position: divide free balance by remaining open slots
+                max_pos = settings.risk.max_open_positions
+                current_pos = len(self._paper_positions)
+                open_slots = max(1, max_pos - current_pos)
+                budget_per_slot = (free_usd * 0.95) / open_slots  # 5% fee buffer
+                order_cost = size * entry_price
+                if order_cost > budget_per_slot:
+                    affordable_size = budget_per_slot / entry_price
+                    # Check if affordable size is above exchange minimum
+                    if signal.symbol in self._exchange.markets:
+                        min_amount = (self._exchange.markets[signal.symbol]
+                                      .get("limits", {}).get("amount", {}).get("min") or 0)
+                        if affordable_size < min_amount:
+                            logger.info(
+                                "Skipping %s: budget $%.2f (slot %d/%d) → size %.6f < min %.6f",
+                                signal.symbol, budget_per_slot, current_pos + 1, max_pos,
+                                affordable_size, min_amount,
+                            )
+                            return
+                    if affordable_size > 0:
+                        logger.info(
+                            "Balance cap %s: %.6f ($%.2f) → %.6f ($%.2f) — budget=$%.2f/slot (%d slots)",
+                            signal.symbol, size, order_cost, affordable_size,
+                            affordable_size * entry_price, budget_per_slot, open_slots,
+                        )
+                        size = affordable_size
+                    else:
+                        logger.info("No USD for %s (free=$%.2f) — skipping", signal.symbol, free_usd)
+                        return
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Balance check failed: %s — proceeding with calculated size", exc)
 
         mode_label = "PAPER" if self.mode == TradingMode.PAPER else "LIVE"
         logger.info(
