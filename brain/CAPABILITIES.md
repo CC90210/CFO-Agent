@@ -6,11 +6,12 @@ tags: [capabilities, tools]
 
 > Master index of everything Atlas can do. Updated when new modules ship.
 
-## Capability Counts (2026-03-26)
+## Capability Counts (2026-03-27)
 
 - **Trading Strategies:** 12+ (RSI MR, Donchian, EMA crossover, Bollinger squeeze, VWAP, multi-TF momentum, London breakout, opening range, smart money, Ichimoku, order flow, Z-score, volume profile, RSI divergence, TSMOM, gold pullback)
 - **AI Agents:** 10 (4 analysts + debate + risk + portfolio + Darwinian evolution + financial advisor + budget)
 - **Finance Modules:** 4 (tax calculator, financial advisor, wealth tracker, budget)
+- **Tax/Accounting Documents:** 18 (core playbook + CRA intel + DeFi tax guide + incorporation + real estate + treaties/FIRE + wealth playbook + business structures + deductions + audit defense + insurance/estate + grants + pension/retirement + AI/SaaS tax guide + alternative investments + debt/leverage + bookkeeping systems + wealth psychology)
 - **Brokers:** 3 (Kraken/CCXT, OANDA, Alpaca — not configured)
 - **Skills:** 3 (accounting-advisor, tax-optimization, financial-planning)
 
@@ -40,10 +41,27 @@ tags: [capabilities, tools]
 | Document | Location | Purpose |
 |----------|----------|---------|
 | **Trading Algorithm** | `docs/ATLAS_ALGORITHM.md` | THE trading algorithm — every parameter validated |
-| **Tax Strategy** | `docs/ATLAS_TAX_STRATEGY.md` | Canadian tax optimization playbook (Ontario) |
+| **Tax Strategy** | `docs/ATLAS_TAX_STRATEGY.md` | 25-strategy tax playbook — domestic, offshore, shipping, CPA-grade elite (1,663 lines) |
 | **Strategy Research** | `docs/STRATEGY_RESEARCH.md` | Deep research — top repos, ML, profitable strategies |
 | **IBKR Research** | `docs/IBKR_STRATEGY_RESEARCH.md` | Options, bonds, futures strategies |
 | **Commodity/Forex Research** | `docs/COMMODITY_FOREX_STRATEGY_RESEARCH.md` | Top 10 commodity/forex by Sharpe |
+| **CRA Crypto Enforcement Intel** | `docs/CRA_CRYPTO_ENFORCEMENT_INTEL.md` | CRA audit program, exchange data orders, TCC case law, DeFi tax, CARF, penalties |
+| **DeFi Tax Guide** | `docs/ATLAS_DEFI_TAX_GUIDE.md` | Definitive Canadian DeFi tax treatment — staking (solo/delegated/liquid/re-staking), LP/yield farming, lending/borrowing, NFTs, bridges/wrapping/L2, DAOs/airdrops/forks, CARF, tax planning, CRA enforcement |
+| **Incorporation Tax Strategies** | `docs/ATLAS_INCORPORATION_TAX_STRATEGIES.md` | Elite CCPC playbook — RDTOH/ERDTOH, integration analysis, shareholder loans, reasonable salary, AAII/SBD grind, estate freeze (s.85/s.86), QSBC purification |
+| **Real Estate Tax Strategy** | `docs/ATLAS_REAL_ESTATE_TAX_STRATEGY.md` | PRE, rental CCA, flipping rules (s.12(12)), REITs, Smith Manoeuvre, LTT, HST, corporate RE, JV vs partnership |
+| **Treaty Network & FIRE Strategy** | `docs/ATLAS_TREATY_FIRE_STRATEGY.md` | Canada-US/Barbados/Ireland/UAE treaties, departure tax (s.128.1), FIRE drawdown, OAS/GIS optimization, dividend tax credit arbitrage |
+| **Wealth Playbook** | `docs/ATLAS_WEALTH_PLAYBOOK.md` | 10-book strategy extraction (Wheelwright, Chilton, Kiyosaki, KPMG, Stanley, Brown, Clason, Piper, Nolo) + billionaire tactics (Buy/Borrow/Die, Thiel TFSA, Walton estate freeze, Buffett unrealized gains). 50+ actionable strategies with NOW/FUTURE tags, ITA refs, dollar impacts. |
+| **Business Structures** | `docs/ATLAS_BUSINESS_STRUCTURES.md` | Entity types (CA/US/UK/SG/Dubai/Estonia/Georgia/Labuan), incorporation process, multi-entity architectures, banking |
+| **Deductions Masterlist** | `docs/ATLAS_DEDUCTIONS_MASTERLIST.md` | 30-item checklist: obscure federal deductions (s.62 moving, DTC mental health, s.20(1)(c) interest, stock options), Ontario credits (OIDMTC 40%, SR&ED+OITC 43%, co-op), creative strategies (family salaries, bad debts, prepaid timing), month-by-month tax calendar, CRA audit risk factors |
+| **Insurance, Estate & Asset Protection** | `docs/ATLAS_INSURANCE_ESTATE_PROTECTION.md` | COLI/insured retirement, disability/CI insurance, HSA, wills/POA, probate avoidance (multiple wills), OpCo/HoldCo, crypto estate planning, creditor protection |
+| **CRA Audit Defense** | `docs/ATLAS_CRA_AUDIT_DEFENSE.md` | Complete "when CRA comes knocking" playbook — audit selection/types, s.231 powers, Taxpayer Bill of Rights, VDP, Notice of Objection (s.165), Tax Court (informal/general), collections/garnishment, audit-proofing, crypto characterization, key case law (Stewart, Venne, Friedberg) |
+| **Government Grants Playbook** | `docs/ATLAS_GOVERNMENT_GRANTS.md` | 30+ federal/provincial/municipal/AI programs — CSBFP $1M, Futurpreneur $60K, IRAP $500K, OIDMTC 35%, SR&ED 43%, Starter Company $5K, cloud credits $450K, accelerators (CDL, YC, Techstars). Stacking strategy: $425K-$700K accessible Year 1. Step-by-step for top 5 programs. |
+| **AI/SaaS Tax Guide** | `docs/ATLAS_AI_SAAS_TAX_GUIDE.md` | SaaS revenue recognition (s.12(1)(a), s.20(1)(m) reserves), IP tax treatment (CCA classes, SR&ED 43%), DST, AI training cost deductions, international SaaS (treaty, PE, MoR), contractor vs employee (Wiebe Door), SaaS metrics driving tax planning (PSB risk, incorporation triggers, installments) |
+| **Pension & Retirement Optimization** | `docs/ATLAS_PENSION_RETIREMENT_GUIDE.md` | CPP deep optimization (timing/sharing/PRB/CRDO/disability), OAS mastery (clawback avoidance, deferral), GIS hidden wealth strategy (deplete RRSP before 65), RRSP/RRIF meltdown, pension splitting (s.60.03), 6-layer retirement income stack, CC-specific 20-year FIRE timeline |
+| **Alternative Investments & Exempt Market** | `docs/ATLAS_ALTERNATIVE_INVESTMENTS.md` | Accredited investor (NI 45-106), angel/VC (ABIL/LCGE/s.44.1), flow-through shares, MICs (s.130.1), private credit, farmland, gold, art (LPP), cultural property donation, LSVCCs, crypto ETFs in TFSA, SR&ED partnerships, CC's deployment roadmap |
+| **Debt Optimization & Leverage Strategy** | `docs/ATLAS_DEBT_LEVERAGE_STRATEGY.md` | OSAP/RAP optimization, s.20(1)(c) interest deductibility, Smith Manoeuvre, Singleton Shuffle, CSBFP/BDC business loans, margin tax treatment, mortgage optimization (fixed/variable/CMHC/prepayment), credit score building, FHSA+HBP $100K home strategy, debt payoff methods, s.80 forgiven debt, director liability s.227.1 |
+| **Bookkeeping & Financial Systems** | `docs/ATLAS_BOOKKEEPING_SYSTEMS.md` | T2125-aligned chart of accounts, software comparison (Wave/QBO/FreshBooks/Xero/Sage), automation stack (bank feeds, receipts, invoicing, crypto tracking, HST filing, payroll), bank account structure, monthly/quarterly routines, CRA document retention (6-year rules), KPIs and CFO report template |
+| **Wealth Psychology** | `docs/ATLAS_WEALTH_PSYCHOLOGY.md` | Behavioral finance operating system — 8 cognitive biases mapped to ATLAS mitigations, wealth psychology frameworks (Housel, Clear, Stoic, hedonic adaptation), 7 decision frameworks (EV thinking, inversion, regret minimization, optionality, margin of safety), 22-year-old compounding math, wealth protection (lifestyle inflation, insurance, fraud, relationships), ATLAS as behavioral guardrail |
 
 ## Broker Connections
 
@@ -68,3 +86,17 @@ tags: [capabilities, tools]
 | **Accounting Advisor** | `skills/accounting-advisor/SKILL.md` | tax, accounting, CRA, T2125, deduction |
 | **Tax Optimization** | `skills/tax-optimization/SKILL.md` | TFSA, RRSP, FHSA, tax-loss harvest, crypto tax |
 | **Financial Planning** | `skills/financial-planning/SKILL.md` | budget, FIRE, net worth, savings, allocation |
+
+## Cross-Project Integration (Bravo — CEO)
+
+| Resource | Path | Purpose |
+|----------|------|---------|
+| CC's Profile | `C:\Users\User\Business-Empire-Agent\brain\USER.md` | CC's identity, business portfolio, preferences |
+| Business State | `C:\Users\User\Business-Empire-Agent\brain\STATE.md` | Current operational state, MRR tracking, infrastructure status |
+| Active Tasks | `C:\Users\User\Business-Empire-Agent\memory\ACTIVE_TASKS.md` | What CC is working on across all brands |
+| Session Log | `C:\Users\User\Business-Empire-Agent\memory\SESSION_LOG.md` | Recent work done by all agents |
+| Patterns | `C:\Users\User\Business-Empire-Agent\memory\PATTERNS.md` | Proven approaches and lessons learned |
+| Mistakes | `C:\Users\User\Business-Empire-Agent\memory\MISTAKES.md` | Known failure modes and prevention |
+| Skills Library | `C:\Users\User\Business-Empire-Agent\skills/` | 50+ skills (debugging, TDD, browser automation, etc.) |
+
+**Rule:** READ only. Never write to Business-Empire-Agent files from Atlas.

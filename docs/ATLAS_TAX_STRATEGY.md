@@ -865,6 +865,799 @@ compliance costs.
 
 ---
 
-*Atlas Tax Strategy v1.0 — Last updated: 2026-03-26*
+---
+
+## SECTION 13: SHIPPING COMPANY & TONNAGE TAX STRATEGIES
+
+> How the global shipping industry pays near-0% effective tax — and whether any of it is accessible to Canadian investors.
+
+### How Shipping Companies Pay Near-Zero Tax
+
+The international shipping industry enjoys the most favorable tax treatment of any sector globally. The core mechanisms:
+
+| Mechanism | How It Works | Effective Rate |
+|-----------|-------------|----------------|
+| **Tonnage tax** | Tax based on vessel net tonnage, NOT profits. A ship earning $50M pays the same as one earning $500K. | 0.5-2% effective |
+| **Flag of convenience** | Register vessel in Marshall Islands, Panama, or Liberia — no corporate tax on shipping income | 0% in flag state |
+| **Exempt shipping income** | Most OECD countries exempt international shipping from domestic tax under bilateral treaties | 0% if structured correctly |
+| **Accelerated depreciation** | Vessels depreciate 20-25% per year (useful life 20-25 years) — creates paper losses for years | Defers tax 5-10 years |
+
+### Tonnage Tax Regimes by Country
+
+| Country | Tonnage Tax? | Rate (approx.) | Notes |
+|---------|-------------|----------------|-------|
+| **UK** | Yes (2000) | ~0.5-1% effective | Ring-fenced to qualifying shipping. Very generous. |
+| **Norway** | Yes (1996) | 0% on qualifying income | Must be in Norwegian tonnage tax scheme. Deferred tax on exit. |
+| **Singapore** | Yes (Maritime Sector Incentive) | 0% for 10 years | Approved International Shipping Enterprise scheme. |
+| **Greece** | Yes (constitutional) | Near 0% | Shipping income constitutionally exempt. Oldest regime. |
+| **Netherlands** | Yes (1996) | ~0.2-0.5% effective | Popular for ship management companies. |
+| **Canada** | **NO** | N/A | Canada has NO tonnage tax regime. Shipping income taxed as regular business income. |
+
+**Canada's position:** Canada never implemented tonnage tax. Canadian-resident shipping companies pay the full corporate rate (15% federal + provincial). This is why almost zero major shipping companies are Canadian-resident — they incorporate in Greece, Norway, Singapore, or Marshall Islands.
+
+### Flag of Convenience Jurisdictions
+
+| Jurisdiction | Annual Fee | Corporate Tax | Key Benefit |
+|-------------|-----------|---------------|-------------|
+| **Marshall Islands** | ~$2,500/year | 0% on shipping | NYSE-listed shipping cos use this (Frontline, Star Bulk) |
+| **Panama** | ~$1,500/year | 0% on foreign-source | Largest ship registry globally |
+| **Liberia** | ~$2,000/year | 0% on shipping | Second largest registry |
+| **Bermuda** | ~$5,000/year | 0% (no corporate tax) | Premium jurisdiction, insurance + shipping |
+| **Cyprus** | ~$3,000/year | 0% tonnage tax | EU-compliant, treaty access |
+
+### Maritime Depreciation (Accelerated CCA on Vessels)
+
+In Canada, vessels fall under **CCA Class 7 (15%)** — declining balance. This is actually SLOWER than most countries.
+
+| Country | Depreciation Method | Effective Write-off |
+|---------|-------------------|-------------------|
+| Canada | CCA Class 7, 15% declining | ~50% over 5 years |
+| Norway | 20% declining (tonnage tax makes this irrelevant) | N/A under tonnage tax |
+| UK | 25% first-year allowance + tonnage tax | Full write-off possible Year 1 |
+| US (Jones Act) | MACRS 10-year + bonus depreciation | 100% Year 1 (through 2026) |
+| Singapore | 33.3% per year | 100% in 3 years |
+
+### Shipping as an Investment Vehicle
+
+**How wealthy investors access shipping tax benefits:**
+
+1. **Shipping MLPs/LPs (US-listed):** Master Limited Partnerships like Knot Offshore Partners distribute tax-advantaged income. K-1 income includes depreciation pass-through. **Problem for Canadians:** US K-1 income creates US filing obligations + FAPI issues with CRA.
+
+2. **Shipping ETFs:** Breakwave Dry Bulk Shipping ETF (BDRY), SonicShares Global Shipping ETF (BOAT). These are commodity/equity funds — no special tax treatment. Taxed as regular capital gains or business income.
+
+3. **Direct LP interests:** Accredited investors can buy into shipping limited partnerships. Minimum typically $250K-$1M. These pass through depreciation and tonnage tax benefits. **CRA trap:** A Canadian LP investing in a foreign shipping LP triggers FAPI if the LP is a controlled foreign affiliate.
+
+4. **Norwegian KS (Kommandittselskap):** Traditional tax-shelter vehicle for Norwegian shipping. Foreign investors can participate but lose most tax benefits due to treaty limitations.
+
+### Applicability to CC — Honest Assessment
+
+| Factor | Assessment |
+|--------|-----------|
+| **Income level** | $49K — far too low. Shipping LP minimums start at $250K. |
+| **Canadian residence** | Canada has no tonnage tax. Zero domestic benefit. |
+| **FAPI risk** | Any foreign shipping investment triggers CRA reporting + possible FAPI inclusion |
+| **Practical access** | Shipping ETFs (BDRY, BOAT) are accessible but offer zero tax advantage — just sector exposure |
+| **Complexity cost** | International shipping structures require $10K-25K/year in legal/accounting |
+
+**Verdict: NOT applicable now. NOT applicable at $200K. Marginally interesting above $1M+ if building a diversified alternative investment portfolio. For CC, buying a shipping ETF in a TFSA is the only sensible exposure — and that's for returns, not tax benefits.**
+
+| Tag | Status |
+|-----|--------|
+| **NOW** | Buy shipping ETFs (BDRY/BOAT) in TFSA if bullish on global trade. No tax benefit. |
+| **FUTURE ($1M+)** | Consider shipping LP interests for portfolio diversification + depreciation pass-through. Requires international tax counsel. |
+| **CRA Audit Risk** | LOW for ETFs. HIGH for direct LP interests (T1135 + T1134 reporting required). |
+
+---
+
+## SECTION 14: LLC, TRUST & TAX HAVEN STRUCTURES
+
+> The real story on offshore structures for Canadian residents — what works, what's marketing BS, and where CRA draws the line.
+
+### US LLC Structures — Deep Dive
+
+#### Wyoming LLC
+
+| Parameter | Details |
+|-----------|---------|
+| **Formation cost** | ~$100 + $60 registered agent |
+| **Annual fee** | $60 (cheapest US state) |
+| **State income tax** | 0% (Wyoming has none) |
+| **Privacy** | No public ownership disclosure. Strong asset protection. |
+| **Single-member LLC (non-US owner)** | Disregarded for US federal tax = $0 US tax on non-US-source income |
+| **FinCEN BOI Report** | Required within 30 days of formation (2025+) |
+| **Best for** | US bank accounts, payment processing, contractor payments |
+
+#### Delaware LLC
+
+| Parameter | Details |
+|-----------|---------|
+| **Formation cost** | ~$90 + registered agent ($50-150/yr) |
+| **Annual fee** | $300 franchise tax |
+| **State income tax** | 0% on out-of-state income |
+| **Privacy** | Moderate — registered agent public, members are not |
+| **Court of Chancery** | Specialized business court — preferred for VC/investor structures |
+| **Best for** | Raising US investment, holding IP, venture-backed startups |
+
+#### New Mexico LLC
+
+| Parameter | Details |
+|-----------|---------|
+| **Formation cost** | ~$50 |
+| **Annual fee** | $0 (no annual report required) |
+| **State income tax** | 4.8-5.9% on NM-source income |
+| **Privacy** | Highest in US — no member/manager disclosure, no annual report |
+| **Best for** | Maximum privacy, holding companies, no ongoing compliance |
+
+#### THE CANADA TAX TRAP (Expanded from Strategy 12 above)
+
+**CRA does NOT recognize US LLCs as pass-through entities.** This is the #1 mistake Canadians make.
+
+**ITA Reference:** Section 95 (FAPI), Section 91 (foreign affiliate income inclusion), Section 233.4 (T1134 reporting)
+
+| What You Think Happens | What CRA Actually Does |
+|----------------------|----------------------|
+| LLC income flows to you like a sole proprietorship | CRA treats the LLC as a **foreign corporation** |
+| You pay US tax = no Canadian tax (treaty) | US tax is $0 (disregarded entity), so there's no FTC to claim in Canada |
+| You defer tax by leaving money in the LLC | CRA taxes you on FAPI immediately, whether you withdraw or not |
+| The LLC protects your assets | CRA pierces the structure via controlled foreign affiliate rules |
+
+**The double-tax trap in practice:**
+```
+1. You form Wyoming LLC (owned 100% by you, Canadian resident)
+2. LLC earns $100K USD from US clients
+3. US tax: $0 (single-member LLC = disregarded, no US-source income)
+4. CRA: "That's a controlled foreign corporation. FAPI applies."
+5. CRA includes $100K as your personal income at full marginal rate
+6. You get $0 Foreign Tax Credit (because US tax was $0)
+7. Net result: You pay FULL Canadian tax + LLC compliance costs
+   → WORSE than just operating as a sole proprietor
+```
+
+**When a US LLC DOES make sense (operational, not tax):**
+- US Stripe/payment processing (requires US entity)
+- US bank account (Wise Business, Mercury, Relay)
+- US client contracts (some enterprises require US entity)
+- US App Store / SaaS distribution
+- **None of these save tax** — they're operational necessities
+
+### Offshore Asset Protection Structures
+
+#### Nevis LLC (St. Kitts and Nevis)
+
+| Parameter | Details |
+|-----------|---------|
+| **Formation** | ~$2,000-3,000 |
+| **Annual fees** | ~$1,500/year |
+| **Statute of limitations** | 1 year (vs 2-6 years domestically) — creditors must file within 1 year |
+| **Charging order only** | Creditors can only get a charging order (right to distributions), cannot seize LLC assets |
+| **Burden of proof** | Creditor must prove fraudulent transfer **beyond reasonable doubt** (criminal standard) |
+| **Best for** | Asset protection against frivolous lawsuits |
+| **CRA implications** | T1135 reporting if > $100K. FAPI on passive income. T1134 if controlled foreign affiliate. |
+
+#### Cook Islands Trust
+
+| Parameter | Details |
+|-----------|---------|
+| **Formation** | ~$15,000-25,000 |
+| **Annual fees** | ~$3,000-5,000/year |
+| **Key feature** | Does not recognize foreign judgments. Creditor must re-litigate in Cook Islands court. |
+| **Fraudulent transfer lookback** | 2 years (vs 4-6 years in most jurisdictions) |
+| **Duress provision** | If you're forced by a court to repatriate funds, the trustee can legally refuse |
+| **Best for** | Ultra-high-net-worth asset protection ($5M+) |
+| **CRA implications** | Section 94 ITA — non-resident trust with Canadian beneficiary = fully taxable in Canada |
+
+### Tax Haven Holding Structures — Reality Check
+
+#### The Major Jurisdictions
+
+| Jurisdiction | Corporate Tax | Treaty with Canada? | Real Use Case | CRA Countermeasure |
+|-------------|--------------|-------------------|---------------|-------------------|
+| **Cayman Islands** | 0% | No | Investment funds, hedge funds | FAPI (s.95) — passive income taxed immediately |
+| **BVI (British Virgin Islands)** | 0% | No | Holding companies, IP holding | FAPI + no treaty = no FTC. Worst of both worlds for Canadians. |
+| **Isle of Man** | 0% (most income) | Yes (limited) | Insurance, e-gaming, family offices | Treaty doesn't override FAPI. Limited benefit. |
+| **Singapore** | 17% (but 0-8% effective with incentives) | Yes | Active business HQ, regional operations | Active business income may escape FAPI if genuine substance |
+| **Dubai/UAE** | 9% (2023+, was 0%) | Yes | Active business, trading, consulting | New 9% rate reduces advantage. Must have real substance (office, employees). |
+| **Ireland** | 15% (was 12.5%) | Yes | IP holding (Double Irish is dead), tech HQ | Requires genuine employees and operations. Transfer pricing scrutiny. |
+| **Luxembourg** | ~24% headline but effective 1-5% via structures | Yes | Holding companies, IP boxes, securitization | EU anti-avoidance directives tightening. BEPS compliance. |
+
+### CRA's Anti-Avoidance Arsenal
+
+#### 1. FAPI — Foreign Accrual Property Income (ITA s. 95)
+
+**The most important anti-avoidance rule for Canadians with offshore structures.**
+
+If you control a foreign corporation (directly or indirectly own ≥10% with related persons), ALL passive income (interest, dividends, rents, royalties, capital gains from non-active-business property) is included in YOUR Canadian taxable income **immediately** — whether distributed or not.
+
+**What counts as FAPI:**
+- Investment income (interest, dividends, portfolio gains)
+- Rental income from property
+- Royalties and licensing fees
+- Capital gains from selling investments
+- Income from services performed in Canada
+
+**What escapes FAPI:**
+- Active business income earned in a country with a tax treaty with Canada (if >5 full-time employees)
+- Active business income taxed at ≥ Canadian rate in the foreign country
+
+#### 2. Controlled Foreign Affiliate Rules (ITA s. 91, 95)
+
+| Test | Threshold | Consequence |
+|------|-----------|-------------|
+| **Controlled Foreign Affiliate (CFA)** | You + related persons own ≥ 50% equity or votes | FAPI included in your income annually |
+| **Foreign Affiliate (FA)** | You + related persons own ≥ 10% equity | Surplus/exempt surplus calculations on dividends |
+| **Reporting** | T1134 (if FA or CFA) + T1135 (if total foreign property > $100K) | Penalties: $2,500/month for late T1134 |
+
+#### 3. T1134 / T1135 Reporting
+
+| Form | Who Must File | What's Reported | Penalty |
+|------|--------------|----------------|---------|
+| **T1134** | Anyone with a foreign affiliate (≥10% ownership) | Income, assets, transactions of every foreign affiliate | $2,500/month late, max $12,000/year |
+| **T1135** | Anyone with specified foreign property > $100K CAD cost | Property type, cost, income, gain/loss | $25/day late (max $2,500) + extended reassessment |
+
+#### 4. Transfer Pricing (ITA s. 247)
+
+If you transact with a non-arm's-length foreign entity (your own LLC, offshore corp), CRA can recharacterize the transaction at **arm's-length prices**.
+
+**Example:** You pay your Cayman holding company $80K/year in "licensing fees" for your own software IP. CRA says the arm's-length price is $5K. They add $75K back to your Canadian income + 10% penalty on the adjustment.
+
+**Safe harbor:** Document transfer prices with a contemporaneous transfer pricing study. Cost: $5K-15K. Required for any intercompany transaction > $50K.
+
+#### 5. GAAR — General Anti-Avoidance Rule (ITA s. 245)
+
+**The nuclear option.** If a transaction:
+1. Results in a tax benefit, AND
+2. Is an avoidance transaction (primary purpose is tax), AND
+3. Is abusive (defeats the purpose of the ITA provisions)
+
+→ CRA can **recharacterize the entire structure** and deny all tax benefits.
+
+**GAAR has killed:**
+- Barbados CCPC structures (CRA won multiple cases)
+- Surplus-stripping via foreign affiliates
+- Back-to-back loan arrangements to avoid withholding tax
+- Trust structures designed purely to split income
+
+**GAAR does NOT kill:**
+- Legitimate RRSP/TFSA/FHSA contributions
+- Incorporation for genuine business purposes
+- Salary/dividend mix optimization (within reason)
+- LCGE planning if the business is real
+
+### What Actually Works vs Marketing BS — Honest Scorecard
+
+| Structure | Marketing Pitch | Reality for Canadian Residents | Verdict |
+|-----------|----------------|-------------------------------|---------|
+| **Wyoming LLC** | "Zero tax, privacy, asset protection" | $0 tax savings. CRA taxes you the same. Useful only for US operations. | **OPERATIONAL ONLY** — not a tax strategy |
+| **Nevis LLC** | "Bulletproof asset protection" | Real protection from lawsuits, BUT full CRA reporting + FAPI. $3K+/yr. | **WORKS for asset protection** at $500K+ net worth |
+| **Cook Islands Trust** | "Untouchable offshore trust" | Strong protection, but ITA s.94 makes it fully taxable. $25K setup + $5K/yr. | **WORKS for asset protection** at $5M+ net worth |
+| **Cayman holding co** | "Zero tax on investments" | FAPI includes all passive income in your Canadian return. Net savings: negative. | **MARKETING BS** for Canadian residents |
+| **BVI company** | "Tax-free, confidential" | No treaty, no FTC, full FAPI. Worst jurisdiction for Canadians. | **MARKETING BS** — avoid entirely |
+| **Dubai FZCO** | "0% tax, live in Dubai" | Works ONLY if you become a non-resident of Canada (cease Canadian tax residency). | **WORKS only if you leave Canada** |
+| **Singapore HoldCo** | "Low tax, treaty access" | 17% rate + active business exemption can work. Needs real substance (office, employees). | **WORKS at $500K+ revenue with real Singapore operations** |
+| **Irish IP HoldCo** | "Double Irish for tech" | Double Irish is dead (2020). 15% rate still decent but needs substance. | **MOSTLY DEAD** — legacy only |
+
+### The REAL Minimum Income for Offshore ROI
+
+| Income Level | Best Strategy | Why |
+|-------------|--------------|-----|
+| **< $80K** | Sole proprietor + FHSA/TFSA/RRSP | Compliance costs of ANY structure exceed tax savings |
+| **$80K-$200K** | Canadian CCPC incorporation | 12.2% corp rate vs 29-37% personal. $3K/yr compliance. Clear win. |
+| **$200K-$500K** | CCPC + HoldCo + family trust | OpCo/HoldCo split, income splitting, LCGE multiplication |
+| **$500K-$1M** | Above + consider US LLC (operational) | US LLC for payment processing. Still no offshore tax benefit. |
+| **$1M-$5M** | Above + Singapore/Dubai active business (if real operations) | Only if genuine business substance abroad. Not a paper structure. |
+| **$5M+** | Above + Cook Islands Trust (asset protection) + international tax counsel | At this level, $50K/yr in legal/accounting pays for itself |
+
+### Applicability to CC
+
+| Factor | Assessment |
+|--------|-----------|
+| **Current income** | ~$49K — offshore structures are net-negative ROI |
+| **Best current strategy** | Sole prop + maximize FHSA/TFSA + HST ITCs |
+| **When to revisit** | When OASIS crosses $80K → incorporate CCPC. When $200K+ → OpCo/HoldCo. |
+| **US LLC** | Consider ONLY when OASIS has consistent US clients requiring US entity. Operational, not tax. |
+| **Offshore** | Not until $500K+ AND genuine foreign business operations. |
+
+| Tag | Status |
+|-----|--------|
+| **NOW** | No offshore structures. US LLC only if US clients require it. Focus on domestic optimization. |
+| **FUTURE ($80K)** | Incorporate CCPC. This is the real inflection point. |
+| **FUTURE ($200K+)** | OpCo/HoldCo + family trust. |
+| **FUTURE ($500K+)** | Revisit Singapore/Dubai only with genuine business substance. |
+| **CRA Audit Risk** | EXTREME for any offshore structure without substance. GAAR kills paper structures. |
+
+---
+
+## SECTION 15: ELITE DOMESTIC STRATEGIES (CPA-GRADE)
+
+> The strategies $500+/hour CPAs deploy for Canadian entrepreneurs. Every one is legal under the ITA. The edge is knowing they exist and timing them to CC's growth trajectory.
+
+### Strategy 13: Individual Pension Plan (IPP)
+
+**ITA Reference:** Regulations 8503-8516 (Defined Benefit provisions)
+
+**What it is:** A defined-benefit pension plan for a single person (the business owner). Contributions are tax-deductible to the corporation and exceed RRSP limits.
+
+| Parameter | Details |
+|-----------|---------|
+| **Who qualifies** | Incorporated business owner (T4 employee of their own corp), age 40+ for real benefit |
+| **Contribution limit** | Based on actuarial formula — exceeds RRSP limits by 20-50% at age 50+ |
+| **At age 40** | ~$28K/year (vs RRSP max ~$31K — marginal benefit) |
+| **At age 50** | ~$35K/year (RRSP max still ~$31K — clear win) |
+| **At age 60** | ~$45K/year (RRSP max still ~$31K — significant benefit) |
+| **Setup cost** | $3,000-5,000 (actuarial valuation required) |
+| **Annual cost** | $1,500-2,500 (annual actuarial filing) |
+| **Tax treatment** | Corp deducts contributions. Growth is tax-sheltered. Taxed as pension income on withdrawal. |
+| **Bonus** | Can fund **past service** — retroactive contributions for years you were employed by the corp |
+
+**The real benefit:** At age 50+, an IPP shelters $4K-14K MORE per year than an RRSP. Over 15 years, that's $60K-$210K in additional tax-sheltered growth.
+
+| Tag | Status |
+|-----|--------|
+| **NOW** | NOT applicable. CC is 22. IPP benefit is negligible before age 40. |
+| **FUTURE (age 40+, incorporated)** | Strong play once RRSP room is consistently maxed. |
+| **CRA Audit Risk** | LOW — fully legislated, actuarially certified. |
+| **Estimated Savings** | $1,000-5,000/year (age 40+, depending on income) |
+
+### Strategy 14: Retirement Compensation Arrangement (RCA)
+
+**ITA Reference:** Section 248(1) definition, Part XI.3 (refundable tax)
+
+**What it is:** An employer-funded retirement arrangement with **no contribution limit**. The catch: 50% refundable tax.
+
+| Parameter | Details |
+|-----------|---------|
+| **Contribution limit** | **NONE** — unlimited contributions |
+| **Refundable tax** | 50% of contributions go to a refundable tax account at CRA |
+| **When you get the 50% back** | When benefits are paid out (retirement), the 50% refundable tax is returned |
+| **Corp deduction** | 100% of contributions are deductible to the corporation |
+| **Investment growth** | 50% refundable tax applies to investment income too |
+| **Best for** | High-income owners who have maxed RRSP/IPP and want more tax deferral |
+
+**How it actually works:**
+```
+1. Corp contributes $200K to RCA
+2. $100K goes to RCA investment account, $100K goes to CRA (refundable tax)
+3. Corp deducts full $200K (saves $200K × 12.2% = $24,400 in corp tax)
+4. At retirement, you withdraw from RCA → CRA refunds the 50% as you withdraw
+5. Net effect: massive tax DEFERRAL (not elimination) from high-income years to low-income retirement years
+```
+
+**The math only works if:** Your current marginal rate is significantly higher than your expected retirement rate. At 53.53% now vs 20% in retirement = 33.53% permanent savings on the deferred amount.
+
+| Tag | Status |
+|-----|--------|
+| **NOW** | NOT applicable. Requires incorporation + high income ($200K+). |
+| **FUTURE ($200K+ incorporated)** | Consider after RRSP + IPP are maxed. |
+| **CRA Audit Risk** | LOW — legislated. But CRA scrutinizes "reasonableness" of contributions. |
+| **Estimated Savings** | Variable — depends on income spread between contribution and withdrawal years |
+
+### Strategy 15: OpCo/HoldCo Structure
+
+**ITA Reference:** Section 186 (intercorporate dividends), Section 55 (anti-avoidance on dividends), Section 112 (dividend deduction)
+
+**What it is:** Two corporations — Operating Company (OpCo) runs the business, Holding Company (HoldCo) owns OpCo shares and holds investments/retained earnings.
+
+```
+CC (personally)
+  └── HoldCo (holding company — holds investments, real estate, excess cash)
+        └── OpCo (OASIS AI Solutions Inc. — runs the business)
+```
+
+**Why this matters:**
+
+| Benefit | How It Works |
+|---------|-------------|
+| **Asset protection** | OpCo gets sued → HoldCo's assets are separate and protected |
+| **Tax-free dividend pipeline** | OpCo pays dividends to HoldCo **tax-free** (ITA s. 112 intercorporate dividend deduction) |
+| **Investment income separation** | Passive investments in HoldCo don't contaminate OpCo's SBD eligibility |
+| **LCGE multiplication** | Each family member who owns HoldCo shares can claim their own $1.25M LCGE |
+| **Estate planning** | HoldCo shares can be structured for tax-efficient transfer to heirs |
+
+**Section 55 trap:** CRA's anti-surplus-stripping rule. If you pay dividends from OpCo to HoldCo to extract retained earnings as capital gains (instead of dividends), CRA can recharacterize as a taxable dividend. Need proper planning.
+
+**Setup cost:** ~$3,000-5,000 (lawyer + accountant). Annual compliance: ~$4,000-6,000 (two corporate T2 returns).
+
+| Tag | Status |
+|-----|--------|
+| **NOW** | NOT applicable. Need to incorporate first ($80K+ revenue). |
+| **FUTURE ($150K+ revenue)** | Strong play. OpCo/HoldCo is the standard Canadian entrepreneur structure. |
+| **CRA Audit Risk** | LOW if done properly. MEDIUM if using aggressive surplus stripping. |
+| **Estimated Savings** | $5,000-20,000/year (asset protection value + tax deferral on passive income) |
+
+### Strategy 16: Capital Dividend Account (CDA)
+
+**ITA Reference:** Section 89(1) definition, Section 83(2) (capital dividend election)
+
+**What it is:** A notional account inside a CCPC that tracks the tax-free portion of capital gains. Allows **tax-free extraction** of the non-taxable half of capital gains from the corporation.
+
+**How it works:**
+```
+1. Corp realizes $100K capital gain on selling an investment
+2. 50% inclusion = $50K taxable, $50K non-taxable
+3. The $50K non-taxable portion goes into the CDA
+4. Corp can elect to pay a $50K "capital dividend" to shareholders = COMPLETELY TAX-FREE
+5. No personal tax. No corporate tax. The $50K comes out clean.
+```
+
+**What adds to the CDA:**
+- 50% of net capital gains (the non-taxable portion)
+- Life insurance death benefit minus ACB of the policy
+- Capital dividends received from other CCPCs
+
+**Critical rule:** You must file a **Section 83(2) election** (Form T2054) BEFORE paying the dividend. If you pay a capital dividend exceeding the CDA balance, there's a **60% penalty** on the excess. Get your accountant to calculate the exact CDA balance.
+
+| Tag | Status |
+|-----|--------|
+| **NOW** | NOT applicable. Requires incorporation with realized capital gains inside corp. |
+| **FUTURE (incorporated + investment gains)** | Essential tool. Every incorporated Canadian should use CDA. |
+| **CRA Audit Risk** | LOW if election filed correctly. HIGH penalty (60%) if you exceed the CDA balance. |
+| **Estimated Savings** | Depends on capital gains — $50K gain = ~$12,500 tax-free extraction |
+
+### Strategy 17: Corporate-Owned Life Insurance (COLI)
+
+**ITA Reference:** Section 148 (life insurance policies), Section 89(1)(d.2) (CDA credit on death benefit)
+
+**What it is:** The corporation buys a permanent life insurance policy on the owner. Premiums are paid with after-tax corporate dollars (12.2% rate), the policy grows tax-sheltered, and the death benefit is paid tax-free to the corporation → credited to CDA → paid tax-free to heirs.
+
+**The Insured Retirement Strategy:**
+```
+1. Corp pays $20K/year in permanent life insurance premiums (not deductible, but paid at 12.2% corp rate)
+2. Policy cash value grows tax-sheltered for 20-30 years
+3. At retirement: borrow against the policy's cash value (loans are not income)
+4. Use loan proceeds as retirement income (tax-free since it's a loan)
+5. On death: insurance pays off the loan + remaining benefit → CDA → tax-free to estate
+```
+
+**Net effect:** Tax-free retirement income funded at 12.2% corporate rate instead of 53.53% personal rate.
+
+**Costs:** Insurance premiums ($10K-30K/year depending on age and coverage). The younger you start, the cheaper.
+
+| Tag | Status |
+|-----|--------|
+| **NOW** | NOT applicable. Need incorporation first. But age 22 = cheapest premiums — worth planning for. |
+| **FUTURE (incorporated, $100K+ revenue)** | Strong long-term wealth strategy. Start early = cheapest. |
+| **CRA Audit Risk** | LOW — fully legislated. CRA cannot challenge legitimate insurance. |
+| **Estimated Savings** | $100K-500K+ over a lifetime (tax-free retirement income + estate transfer) |
+
+### Strategy 18: Family Trust (Inter Vivos Trust)
+
+**ITA Reference:** Section 104 (trusts), Section 74.1-74.5 (attribution rules), Section 104(4) (21-year deemed disposition)
+
+**What it is:** A trust created during your lifetime to hold shares of your corporation. Beneficiaries (spouse, children, parents) can receive income distributions taxed at their lower marginal rates.
+
+**Structure:**
+```
+CC (personally)
+  └── Family Trust (inter vivos)
+        ├── Beneficiary: CC
+        ├── Beneficiary: Future spouse
+        ├── Beneficiary: Future children
+        └── Holds: HoldCo shares (or OpCo shares)
+```
+
+**Benefits:**
+
+| Benefit | How It Works | ITA Reference |
+|---------|-------------|---------------|
+| **Income splitting** | Trust distributes dividends to lower-income beneficiaries | s. 104(6) — trust deducts amounts paid to beneficiaries |
+| **LCGE multiplication** | Each beneficiary who holds qualifying shares gets their own $1.25M LCGE | s. 110.6 |
+| **Estate freeze** | Lock current value of shares, future growth accrues to trust beneficiaries | Common law + s. 86 share exchange |
+| **Probate avoidance** | Trust assets don't go through estate = no probate fees (1.5% in Ontario) | Provincial probate acts |
+
+**The 21-year rule:** Every 21 years, the trust has a **deemed disposition** at fair market value. Capital gains tax is triggered. This is the ticking clock on all Canadian family trusts — plan for it.
+
+**Attribution rules (TOSI — Tax on Split Income):**
+- Since 2018, income splitting with family members under 18 is taxed at top marginal rate (kiddie tax)
+- Adult family members must be "actively engaged" in the business on a regular, continuous, and substantial basis to receive split income at their own rate
+- Spouse must have meaningful involvement, not just be a name on paper
+
+| Tag | Status |
+|-----|--------|
+| **NOW** | NOT applicable. CC is single, no dependents, not incorporated. |
+| **FUTURE (incorporated + family)** | Powerful once there's a spouse/children. LCGE multiplication alone can save $300K+. |
+| **CRA Audit Risk** | MEDIUM — CRA actively audits TOSI compliance. Must have genuine business involvement. |
+| **Estimated Savings** | $10,000-50,000/year (income splitting) + $300K+ one-time (LCGE multiplication on sale) |
+
+### Strategy 19: SR&ED Tax Credits
+
+**ITA Reference:** Section 37 (SR&ED expenditures), Section 127(5)-(27) (Investment Tax Credit)
+
+**What it is:** Scientific Research and Experimental Development — Canada's most generous tax incentive. Refundable tax credits for R&D work.
+
+| Parameter | CCPC (small) | Other Corporations | Sole Proprietor |
+|-----------|-------------|-------------------|----------------|
+| **Credit rate** | **35% refundable** on first $3M of qualifying expenditures | 15% non-refundable | 15% non-refundable |
+| **What qualifies** | Salary, materials, contractor costs (80%), overhead (proxy method) | Same | Same |
+| **Refundable?** | Yes — CRA sends a cheque even if you owe $0 tax | No — credit only | No — credit only |
+
+**Does AI/software development qualify?**
+
+YES — if it involves **technological uncertainty**. Building ATLAS qualifies if:
+
+| Activity | Qualifies? | Why |
+|----------|-----------|-----|
+| Building novel ML trading strategies | **YES** | Technological uncertainty in whether the approach achieves the objective |
+| Developing autonomous agent architectures | **YES** | Novel system design with uncertain outcomes |
+| Implementing known algorithms from tutorials | **NO** | No technological uncertainty — just standard practice |
+| Routine web development / CRUD apps | **NO** | No advancement of technology |
+| Backtesting frameworks with novel statistical methods | **YES** | Advancing methodology beyond standard practice |
+
+**The 3-part test:** Every SR&ED claim must show:
+1. **Technological uncertainty** — you didn't know if the approach would work
+2. **Systematic investigation** — you used a scientific method (hypothesize, test, analyze)
+3. **Technological advancement** — the work advanced understanding beyond standard practice
+
+**Documentation requirement:** Keep contemporaneous records (lab notebooks, git commits with technical notes, experiment logs). CRA audits 20-30% of SR&ED claims.
+
+**Estimated credit for ATLAS development (if incorporated as CCPC):**
+- Developer salary allocated to R&D: $60K
+- 35% refundable credit: **$21,000 cash from CRA**
+- This is not a deduction — it's a **cheque from the government**
+
+| Tag | Status |
+|-----|--------|
+| **NOW** | Partially applicable as sole prop (15% non-refundable). Document R&D work NOW for future claims. |
+| **FUTURE (incorporated CCPC)** | **MAJOR opportunity.** 35% refundable credit on R&D salary. Could be $15K-25K/year. |
+| **CRA Audit Risk** | HIGH — SR&ED is heavily audited. Must have proper documentation and a defensible claim. |
+| **Estimated Savings** | $3,000-5,000/year (sole prop) → $15,000-25,000/year (CCPC) |
+
+### Strategy 20: Flow-Through Mining Shares
+
+**ITA Reference:** Section 66.1 (Canadian Exploration Expense), Section 66.2 (Canadian Development Expense)
+
+**What it is:** Junior mining companies issue shares where their exploration expenses "flow through" to investors as tax deductions. You get a 100% deduction on the purchase price PLUS potential capital gains on the shares.
+
+**How it works:**
+```
+1. Buy $10,000 in flow-through shares from a junior mining company
+2. Deduct $10,000 from your income (100% deduction in year of purchase)
+3. At your marginal rate (29.65%): immediate tax savings of $2,965
+4. If in Ontario: additional 5% Ontario FTS credit = $500
+5. ACB of shares becomes $0 (since you deducted the full cost)
+6. When you sell: entire proceeds are a capital gain (50% inclusion)
+7. Net savings: ~25-30% after accounting for the future capital gains tax
+```
+
+**The catch:** Flow-through mining shares are HIGH RISK. Many junior miners fail. The tax benefit subsidizes the risk but doesn't eliminate it.
+
+**Flow-through share funds:** Instead of picking individual miners, buy a diversified flow-through LP fund (offered by Ninepoint, Sprott, etc.). Minimum typically $5,000-25,000. The fund provides the T5013 slip with the deductions.
+
+| Tag | Status |
+|-----|--------|
+| **NOW** | Marginally applicable. $5K minimum. At 20% marginal rate, the tax savings are modest. |
+| **FUTURE ($100K+ income, 33%+ marginal rate)** | Much better — higher marginal rate = bigger deduction benefit. |
+| **CRA Audit Risk** | LOW — fully legislated. The mining company handles the tax paperwork. |
+| **Estimated Savings** | 25-30% net benefit on amount invested (after future CG tax). At $10K invested: ~$2,500-3,000. |
+
+### Strategy 21: Salary vs Dividend Optimization
+
+**ITA Reference:** Section 82 (dividend gross-up), Section 121 (dividend tax credit), Ontario Tax Act
+
+**What it is:** When incorporated, you choose how to extract money — salary or dividends. The "integration" principle says they should be equivalent, but they're NOT perfectly integrated in practice.
+
+**Ontario 2024 Integration Math:**
+
+| Factor | Salary | Eligible Dividend | Non-Eligible Dividend |
+|--------|--------|-------------------|----------------------|
+| **Corp deduction** | Yes (reduces corp tax) | No (paid from after-tax earnings) | No |
+| **CPP contributions** | Yes (builds CPP, creates RRSP room) | No | No |
+| **RRSP room** | Yes (18% of salary) | No | No |
+| **Personal tax rate (at ~$80K)** | ~31.5% | ~25.4% (eligible) | ~35.5% (non-eligible) |
+| **Combined corp + personal** | ~31.5% (corp deducts, personal pays) | ~38.3% (12.2% corp + 25.4% personal gross-up) | ~43.5% (12.2% corp + 35.5% personal) |
+
+**The optimal mix depends on CC's situation:**
+
+| Scenario | Best Approach |
+|----------|--------------|
+| **Need RRSP room** | Pay enough salary to generate 18% RRSP room |
+| **Building CPP retirement** | Pay salary up to YMPE ($68,500 in 2024) |
+| **Maximizing take-home now** | Salary to RRSP/CPP threshold, rest as eligible dividends |
+| **Revenue < $100K** | All salary (simpler, RRSP room, CPP, no gross-up complexity) |
+| **Revenue $100K-$500K** | Salary to $80K + eligible dividends for the rest |
+| **Revenue $500K+** | Salary to RRSP max + dividends + retain in corp |
+
+| Tag | Status |
+|-----|--------|
+| **NOW** | NOT applicable (not incorporated). |
+| **FUTURE (incorporated)** | Essential optimization. Wrong mix can cost $3K-8K/year. |
+| **CRA Audit Risk** | NONE — your choice. Just be consistent and reasonable. |
+| **Estimated Savings** | $2,000-8,000/year vs naive all-salary or all-dividend approach |
+
+### Strategy 22: The Smith Manoeuvre
+
+**ITA Reference:** Section 20(1)(c) — interest deductibility on money borrowed to earn income
+
+**What it is:** A strategy to make your mortgage interest tax-deductible (normally NOT deductible in Canada, unlike the US).
+
+**How it works:**
+```
+1. Get a readvanceable mortgage (HELOC that re-advances as you pay down principal)
+2. Each mortgage payment reduces principal → HELOC available credit increases
+3. Borrow from HELOC → invest in dividend-paying Canadian stocks
+4. Interest on the HELOC is now TAX-DEDUCTIBLE (because borrowed to earn investment income)
+5. Dividends from investments help make the HELOC interest payments
+6. Repeat monthly: pay mortgage → borrow from HELOC → invest → deduct interest
+```
+
+**Requirements:**
+- Must own a home with a readvanceable mortgage (Manulife One, Scotia STEP, National Bank All-In-One)
+- Investments must have a **reasonable expectation of income** (dividend stocks, REITs — NOT speculative crypto)
+- Must keep borrowed funds 100% separate from personal use (dedicated investment account)
+- CRA has upheld this strategy in court (Singleton v. Canada, 2001 SCC)
+
+**The math (on a $400K mortgage at 5%):**
+- Annual mortgage interest: ~$20,000
+- Over 25 years, gradually converting to deductible: total deductions ~$150,000-200,000
+- At 30% marginal rate: **$45,000-60,000 in tax savings** over the life of the mortgage
+
+| Tag | Status |
+|-----|--------|
+| **NOW** | NOT applicable. CC does not own property. |
+| **FUTURE (homeowner)** | Strong strategy. Combine with FHSA for the down payment, then Smith Manoeuvre on the mortgage. |
+| **CRA Audit Risk** | LOW — upheld by Supreme Court of Canada. Must keep clean separation of funds. |
+| **Estimated Savings** | $45,000-60,000 over 25-year mortgage at 30% marginal rate |
+
+### Strategy 23: Personal Services Business (PSB) Trap — How to AVOID It
+
+**ITA Reference:** Section 125(7) definition, Section 18(1)(p)
+
+**What it is:** If CRA determines your corporation is a PSB (you'd be an employee if not for the corp), you LOSE:
+- Small business deduction (12.2% rate → goes to ~33% combined rate)
+- Most business expense deductions
+- Only salary and benefits paid to the "incorporated employee" are deductible
+
+**The test — would you be an employee without the corp?**
+
+| Factor | Employee (PSB risk) | Independent Contractor (safe) |
+|--------|-------------------|------------------------------|
+| **Control** | Client dictates how, when, where | You choose methods and schedule |
+| **Tools** | Client provides equipment | You provide your own |
+| **Financial risk** | No risk of loss | You bear business risk |
+| **Integration** | You're integrated into client's org | You're an independent business |
+| **Multiple clients** | Only one client | Multiple clients |
+| **Substitution** | You personally must do the work | You can send a subcontractor |
+
+**How CC avoids PSB:**
+- OASIS serves **multiple clients** (not a single employer relationship)
+- CC uses **own equipment** (laptop, software, home office)
+- CC controls **how and when** work is done
+- CC bears **financial risk** (if project fails, no payment)
+- CC can **subcontract** work to others
+
+**If OASIS only has ONE major client for extended periods, PSB risk increases.** Diversify the client base.
+
+| Tag | Status |
+|-----|--------|
+| **NOW** | LOW risk — OASIS has multiple clients. Keep it that way. |
+| **FUTURE (incorporated)** | CRITICAL to maintain multiple-client structure. One client = PSB death sentence. |
+| **CRA Audit Risk** | HIGH if single-client. CRA actively targets PSB arrangements. |
+| **Estimated Cost if Caught** | $5,000-20,000/year in lost SBD + denied deductions + reassessment penalties |
+
+### Strategy 24: Loss Carryback (3yr) / Carryforward (20yr)
+
+**ITA Reference:** Section 111(1)(a) — non-capital losses, Section 111(1)(b) — net capital losses
+
+**What it is:** Business losses and capital losses can be carried backward or forward to offset income in other years.
+
+| Loss Type | Carry Back | Carry Forward | What It Offsets |
+|-----------|-----------|---------------|----------------|
+| **Non-capital losses** (business) | 3 years | 20 years | Any income (employment, business, investment) |
+| **Net capital losses** | 3 years | Indefinite | Capital gains ONLY |
+| **Allowable business investment losses (ABIL)** | 3 years | 10 years | Any income (50% inclusion) |
+
+**How to use this:**
+```
+If OASIS has a loss year (invested heavily in growth, R&D, equipment):
+1. File a T1A (Request for Loss Carryback) to get refund from prior profitable years
+2. OR carry forward to offset future profits when income is higher
+
+If crypto trading has net capital losses:
+1. Carry back 3 years against prior capital gains
+2. Carry forward indefinitely against future capital gains
+3. Cannot offset business income (capital losses ≠ business losses)
+```
+
+**ABIL bonus:** If you invest in a qualifying small business and it fails (goes bankrupt or becomes worthless), 50% of the loss is deductible against ANY income, not just capital gains.
+
+| Tag | Status |
+|-----|--------|
+| **NOW** | Applicable. If 2024 has net losses (business or capital), carry back against 2021-2023. |
+| **FUTURE** | Always applicable. Essential tax planning tool. |
+| **CRA Audit Risk** | NONE — standard filing. Just file the T1A. |
+| **Estimated Savings** | Depends on loss amount — $10K loss at 29.65% = $2,965 refund from a prior year |
+
+### Strategy 25: TFSA Aggressive Strategies — Private Shares & CRA Pitfalls
+
+**ITA Reference:** Section 146.2 (TFSA), Section 207.01 (prohibited/non-qualified investments), IT-320R3
+
+**What it is:** Using the TFSA for aggressive growth strategies. Legal but CRA-scrutinized.
+
+**What's allowed:**
+- Listed stocks, bonds, ETFs, GICs, mutual funds
+- Crypto ETFs (BTCC, ETHH, EBIT) — YES, qualified investments
+- US stocks (withholding tax on dividends = 15% non-recoverable)
+
+**What's NOT allowed (prohibited investments):**
+- Direct cryptocurrency (BTC, ETH in a wallet — NOT a qualified investment)
+- Shares of a corporation where you own ≥10% (or are connected to)
+- Private company shares where you have a significant interest
+- Land, gold bars, artwork, collectibles
+
+**CRA audit triggers for TFSA:**
+1. **Rapid growth** — TFSA balance > $100K triggers review. CRA considers it evidence of "carrying on a business" inside the TFSA.
+2. **Day trading inside TFSA** — CRA has reassessed people who actively traded. The growth becomes fully taxable as business income. Multiple Tax Court cases (Gupta, 2023).
+3. **Swap transactions** — Transferring undervalued private shares into TFSA, then shares appreciate = CRA applies s. 207.01 penalty (100% of the advantage).
+
+**The private share play (advanced, post-incorporation):**
+- Issue shares of your CCPC at nominal value ($0.01/share) to your TFSA
+- If the company grows, those shares appreciate tax-free inside the TFSA
+- **CRA explicitly targets this.** If the shares were undervalued at contribution, CRA applies the "advantage" penalty = 100% tax on the growth.
+- **Only works if:** The shares are valued by an independent valuator at fair market value AT THE TIME of contribution. Even then, CRA may challenge.
+
+| Tag | Status |
+|-----|--------|
+| **NOW** | Use TFSA for buy-and-hold ETFs only. Do NOT day trade inside TFSA. |
+| **FUTURE (incorporated)** | Private shares in TFSA = CRA magnet. Get independent valuation. High risk. |
+| **CRA Audit Risk** | HIGH for aggressive strategies. CRA has a dedicated TFSA audit program since 2023. |
+| **Estimated Savings** | Potentially massive (tax-free growth on private shares) but CRA risk equally massive. |
+
+---
+
+## ELITE DOMESTIC STRATEGIES — SUMMARY SCORECARD
+
+| # | Strategy | NOW or FUTURE | Min Income/Requirement | Est. Annual Savings | CRA Risk |
+|---|----------|--------------|----------------------|-------------------|----------|
+| 13 | Individual Pension Plan (IPP) | FUTURE (age 40+) | Incorporated + maxed RRSP | $1K-5K/yr | LOW |
+| 14 | Retirement Compensation Arrangement (RCA) | FUTURE ($200K+) | Incorporated + high income | Variable (deferral) | LOW |
+| 15 | OpCo/HoldCo Structure | FUTURE ($150K+) | Incorporated | $5K-20K/yr | LOW-MED |
+| 16 | Capital Dividend Account (CDA) | FUTURE (incorporated) | Corp with capital gains | Depends on gains | LOW |
+| 17 | Corporate Life Insurance (COLI) | FUTURE (incorporated) | $100K+ revenue | $100K-500K lifetime | LOW |
+| 18 | Family Trust | FUTURE (family) | Incorporated + dependents | $10K-50K/yr | MEDIUM |
+| 19 | SR&ED Tax Credits | **NOW (partial)** | Any R&D activity | $3K-5K now → $15K-25K CCPC | HIGH |
+| 20 | Flow-Through Mining Shares | NOW (marginal) | $5K minimum | 25-30% of invested | LOW |
+| 21 | Salary vs Dividend Optimization | FUTURE (incorporated) | Incorporated | $2K-8K/yr | NONE |
+| 22 | Smith Manoeuvre | FUTURE (homeowner) | Own property | $45K-60K over 25yr | LOW |
+| 23 | PSB Trap Avoidance | **NOW** | Multiple clients | Avoids $5K-20K/yr penalty | HIGH if single-client |
+| 24 | Loss Carryback/Forward | **NOW** | Any losses | Depends on losses | NONE |
+| 25 | TFSA Aggressive Strategies | **NOW (conservative)** | TFSA room | Tax-free growth | HIGH if aggressive |
+
+### CC's Priority Roadmap (Age 22, ~$49K Income, Sole Prop)
+
+**Do NOW (2024-2025):**
+1. FHSA + TFSA + RRSP (existing strategies 1-3) — $4K-8K savings
+2. All 12 existing strategies from above — $8K-16K total
+3. Document ATLAS R&D work for future SR&ED claim (Strategy 19)
+4. Maintain multiple OASIS clients to avoid PSB trap (Strategy 23)
+5. Use loss carryback if any 2024 losses (Strategy 24)
+6. Conservative TFSA investing — buy-and-hold ETFs only (Strategy 25)
+
+**Do at $80K+ revenue:**
+7. Incorporate OASIS as CCPC — unlock 12.2% corporate rate
+8. Begin salary vs dividend optimization (Strategy 21)
+9. File SR&ED as CCPC — 35% refundable credit (Strategy 19)
+10. Open Capital Dividend Account tracking (Strategy 16)
+
+**Do at $150K+ revenue:**
+11. OpCo/HoldCo structure (Strategy 15)
+12. Consider corporate life insurance (Strategy 17)
+13. Consider flow-through mining shares at higher marginal rate (Strategy 20)
+
+**Do when family/spouse:**
+14. Family trust for income splitting + LCGE multiplication (Strategy 18)
+
+**Do at $200K+:**
+15. RCA for excess retirement savings (Strategy 14)
+16. Full salary/dividend optimization with accountant (Strategy 21)
+
+**Do at age 40+ (incorporated):**
+17. Individual Pension Plan (Strategy 13)
+
+**Do when buying a home:**
+18. FHSA withdrawal + HBP → Smith Manoeuvre on the mortgage (Strategy 22)
+
+---
+
+*Atlas Tax Strategy v2.0 — Last updated: 2026-03-27*
 *Jurisdiction: Canada (Ontario) | Tax year: 2024*
+*Sections 1-12: Core domestic strategies. Section 13: Shipping & tonnage tax. Section 14: LLC, trust & offshore structures. Section 15: Elite CPA-grade domestic strategies.*
 *This is research-grade tax strategy, not professional legal advice. For audit protection on complex situations, a CPA review ($300-500) pays for itself.*

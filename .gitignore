@@ -36,6 +36,9 @@ dmypy.json
 
 # ── Database files ────────────────────────────
 *.db
+*.db-wal
+*.db-shm
+*.db-journal
 *.sqlite
 *.sqlite3
 
@@ -48,6 +51,7 @@ data/*.csv
 data/*.parquet
 data/*.json
 data/cache/
+data/daemon.pid
 
 # ── IDE ──────────────────────────────────────
 .vscode/

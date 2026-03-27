@@ -2,10 +2,11 @@
 name: financial-planning
 description: >
   Budgeting, net worth tracking, FIRE calculations, wealth projections,
-  and portfolio allocation for CC's complete financial picture.
-triggers: [budget, FIRE, net worth, savings, allocation, projection, wealth, portfolio, rebalance, emergency fund]
+  portfolio allocation, Canadian FIRE tax optimization (OAS/GIS, dividend
+  tax credit arbitrage, account drawdown order, geographic arbitrage).
+triggers: [budget, FIRE, net worth, savings, allocation, projection, wealth, portfolio, rebalance, emergency fund, retirement, OAS, GIS, drawdown, geographic arbitrage, dividend arbitrage, 4% rule]
 tier: core
-dependencies: []
+dependencies: [tax-optimization]
 ---
 
 # Financial Planning — Budget, Wealth & FIRE
@@ -88,3 +89,14 @@ projection = tracker.fire_calculator(
 | TFSA maxed | $7,000/year | Annual |
 | FIRE number (4% rule) | ~$900,000 | 20-year horizon |
 | OASIS MRR | $5,000 USD | By May 15, 2026 |
+
+## Extended Document Library
+
+| Doc | When to Use |
+|-----|-------------|
+| **Pension & Retirement** (`docs/ATLAS_PENSION_RETIREMENT_GUIDE.md`) | CPP timing, OAS/GIS, RRSP meltdown, RRIF, income layering, pension splitting |
+| **Debt & Leverage** (`docs/ATLAS_DEBT_LEVERAGE_STRATEGY.md`) | OSAP optimization, Smith Manoeuvre, interest deductibility, credit building |
+| **Wealth Psychology** (`docs/ATLAS_WEALTH_PSYCHOLOGY.md`) | Cognitive biases, decision frameworks, compounding at 22, behavioral guardrails |
+| **Alternative Investments** (`docs/ATLAS_ALTERNATIVE_INVESTMENTS.md`) | Accredited investor path, VC/angel, MICs, flow-through, crypto ETFs in TFSA |
+| **Bookkeeping Systems** (`docs/ATLAS_BOOKKEEPING_SYSTEMS.md`) | Budget tracking, KPI dashboard, monthly CFO report, software comparison |
+| **Treaty & FIRE** (`docs/ATLAS_TREATY_FIRE_STRATEGY.md`) | FIRE drawdown order, OAS/GIS optimization, geographic arbitrage, departure tax |

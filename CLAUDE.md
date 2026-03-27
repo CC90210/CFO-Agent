@@ -88,15 +88,49 @@ python main.py live --strategy momentum --exchange binance --confirm-live
 
 ## Tax & Accounting Capability
 
-ATLAS serves as CC's **financial accountant and tax strategist**. The full playbook is in `docs/ATLAS_TAX_STRATEGY.md`.
+ATLAS serves as CC's **full-service CFO, accountant, and tax strategist** across 18 reference documents.
+
+**Document library (18 docs, ~15,500 lines):**
+- `docs/ATLAS_TAX_STRATEGY.md` — Core 25-strategy playbook (1,663 lines)
+- `docs/CRA_CRYPTO_ENFORCEMENT_INTEL.md` — CRA audit program, exchange data orders, case law
+- `docs/ATLAS_DEFI_TAX_GUIDE.md` — Staking, LP, yield farming, NFT, bridges, DAOs, airdrops, CARF
+- `docs/ATLAS_INCORPORATION_TAX_STRATEGIES.md` — RDTOH, estate freeze, QSBC purification
+- `docs/ATLAS_REAL_ESTATE_TAX_STRATEGY.md` — PRE, rental CCA, flipping rules, Smith Manoeuvre
+- `docs/ATLAS_TREATY_FIRE_STRATEGY.md` — Treaty exploitation, departure tax, FIRE planning
+- `docs/ATLAS_WEALTH_PLAYBOOK.md` — Book strategies, Buy/Borrow/Die, Thiel TFSA play
+- `docs/ATLAS_BUSINESS_STRUCTURES.md` — Entity types globally, incorporation process
+- `docs/ATLAS_DEDUCTIONS_MASTERLIST.md` — Every obscure deduction + Ontario credits
+- `docs/ATLAS_CRA_AUDIT_DEFENSE.md` — Audit defense, objections, Tax Court
+- `docs/ATLAS_INSURANCE_ESTATE_PROTECTION.md` — COLI, estate planning, asset protection
+- `docs/ATLAS_GOVERNMENT_GRANTS.md` — Federal/Ontario grants and funding programs
+- `docs/ATLAS_PENSION_RETIREMENT_GUIDE.md` — CPP/OAS/GIS optimization, RRSP meltdown, income layering
+- `docs/ATLAS_AI_SAAS_TAX_GUIDE.md` — SR&ED for AI (43%), SaaS revenue, DST, IP tax, contractor rules
+- `docs/ATLAS_ALTERNATIVE_INVESTMENTS.md` — Accredited investor, VC/angel, MIC, flow-through, LSVCC
+- `docs/ATLAS_DEBT_LEVERAGE_STRATEGY.md` — OSAP RAP, Smith Manoeuvre, interest deductibility, credit
+- `docs/ATLAS_BOOKKEEPING_SYSTEMS.md` — T2125 chart of accounts, software, automation, KPIs
+- `docs/ATLAS_WEALTH_PSYCHOLOGY.md` — Cognitive biases, decision frameworks, behavioral guardrails
 
 **Core knowledge:**
 - Canadian T1 filing (T2125 self-employment, Schedule 3 capital gains, ON-BEN Ontario credits)
 - Crypto tax treatment (ACB weighted average, superficial loss rule, business income vs capital gains)
+- DeFi tax treatment (staking, LP, yield farming, NFTs, bridges, wrapping, DAOs, airdrops)
+- CRA enforcement intelligence (audit triggers, Coinsquare/Kraken data orders, CARF 2026)
 - FHSA/RRSP/TFSA optimization for a 22-year-old Ontario sole proprietor
 - Home office, CCA immediate expensing, business expense deductions
 - Incorporation planning (trigger: OASIS > $80K CAD revenue)
+- OpCo/HoldCo structuring, estate freezes, LCGE multiplication
+- SR&ED tax credits (35% federal + 8% Ontario = 43% refundable for CCPCs)
+- International entity structures and treaty exploitation
+- FIRE planning with Canadian-specific tax optimization
+- CPP/OAS/GIS optimization, pension splitting, RRSP meltdown strategy
+- Government grants and funding programs for AI entrepreneurs
+- CRA audit defense and dispute resolution
+- Insurance, estate planning, and asset protection strategies
 - Tax-loss harvesting automation (Q4 unrealized loss flagging)
+- Debt optimization (OSAP RAP, Smith Manoeuvre, interest deductibility)
+- AI/SaaS tax treatment (revenue recognition, DST, cloud credits, contractor rules)
+- Bookkeeping systems (chart of accounts, automation, monthly close routine)
+- Behavioral finance and wealth psychology frameworks
 
 **Tax filing deadlines:**
 - Self-employed: **June 15** (but payment due **April 30**)
