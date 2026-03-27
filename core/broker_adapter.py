@@ -1088,6 +1088,10 @@ class OANDAAdapter(BrokerAdapter):
         self._account_id = account_id or settings.oanda.oanda_account_id
         self._practice = practice if practice is not None else settings.oanda.oanda_practice
         self._api: Any = None  # oandapyV20.API — typed as Any to avoid import at class level
+        # Serialize OANDA requests — requests.Session is NOT thread-safe for
+        # concurrent use.  With 8+ OANDA symbols firing in parallel, the shared
+        # session can deadlock in urllib3's connection pool.
+        self._request_semaphore = asyncio.Semaphore(2)
 
     # -- Identity --
 
@@ -1404,25 +1408,29 @@ class OANDAAdapter(BrokerAdapter):
         On ``RemoteDisconnected`` or ``ConnectionError`` (OANDA drops idle
         connections), the underlying requests.Session is stale.  We recreate
         the API client once and retry before letting the exception propagate.
+
+        A semaphore limits concurrent OANDA requests to prevent thread-safety
+        issues with the shared requests.Session (urllib3 connection pool).
         """
-        for attempt in range(2):
-            try:
-                return await asyncio.wait_for(
-                    asyncio.get_event_loop().run_in_executor(
-                        None,
-                        lambda: self._api.request(request),
-                    ),
-                    timeout=timeout,
-                )
-            except (RemoteDisconnected, ConnectionError, _req_exc.ConnectionError, OSError) as exc:
-                if attempt == 0:
-                    logger.warning(
-                        "OANDAAdapter: connection dropped (%s), recreating session and retrying",
-                        exc,
+        async with self._request_semaphore:
+            for attempt in range(2):
+                try:
+                    return await asyncio.wait_for(
+                        asyncio.get_event_loop().run_in_executor(
+                            None,
+                            lambda: self._api.request(request),
+                        ),
+                        timeout=timeout,
                     )
-                    self._recreate_api()
-                    continue
-                raise
+                except (RemoteDisconnected, ConnectionError, _req_exc.ConnectionError, OSError) as exc:
+                    if attempt == 0:
+                        logger.warning(
+                            "OANDAAdapter: connection dropped (%s), recreating session and retrying",
+                            exc,
+                        )
+                        self._recreate_api()
+                        continue
+                    raise
 
     def _map_timeframe(self, ccxt_tf: str) -> str:
         granularity = self._TIMEFRAME_MAP.get(ccxt_tf)

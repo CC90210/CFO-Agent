@@ -73,7 +73,7 @@ _ONTARIO_BASIC_PERSONAL = 11_865.0
 # Below this threshold: 50% inclusion rate
 _CAPITAL_GAINS_LOWER_THRESHOLD = 250_000.0
 _INCLUSION_RATE_LOWER = 0.50   # 50%
-_INCLUSION_RATE_UPPER = 2 / 3  # ~66.67% — effective June 25, 2024
+_INCLUSION_RATE_UPPER = 2 / 3  # ~66.67% — proposed June 25, 2024, DEFERRED Jan 2025. Using 50% for 2024 filing.
 
 # Business income warning: > 30 round-trip trades in a year is a signal
 _BUSINESS_INCOME_TRADE_THRESHOLD = 30

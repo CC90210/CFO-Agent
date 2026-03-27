@@ -772,11 +772,35 @@ class TradingEngine:
                     )
                     last_status_log = now
                 if now - last_signal_scan >= scan_interval:
-                    tick_tasks = [
-                        self._tick(name, cfg)
+                    tick_tasks = {
+                        name: asyncio.create_task(
+                            self._tick(name, cfg),
+                            name=f"tick_{name}",
+                        )
                         for name, cfg in self._strategies.items()
-                    ]
-                    await asyncio.gather(*tick_tasks, return_exceptions=True)
+                    }
+                    _TICK_TIMEOUT_S = 90.0  # hard ceiling per scan cycle
+                    done, pending = await asyncio.wait(
+                        tick_tasks.values(),
+                        timeout=_TICK_TIMEOUT_S,
+                    )
+                    if pending:
+                        stuck = [t.get_name() for t in pending]
+                        logger.error(
+                            "Tick timeout (%ds): %d strategies stuck — %s. Cancelling.",
+                            _TICK_TIMEOUT_S, len(pending), stuck,
+                        )
+                        for t in pending:
+                            t.cancel()
+                        # Wait for cancellations to propagate
+                        await asyncio.wait(pending, timeout=5.0)
+                    # Log any exceptions from completed tasks
+                    for t in done:
+                        if t.exception() is not None:
+                            logger.error(
+                                "Tick error [%s]: %s",
+                                t.get_name(), t.exception(),
+                            )
                     last_signal_scan = now
 
                 # Sleep at the faster monitoring rate when positions are open,
@@ -843,6 +867,7 @@ class TradingEngine:
         symbols: list[str] = strategy_config.get("symbols", [])
         timeframe: str = strategy_config.get("timeframe", "1h")
 
+        logger.info("Tick START: %s (%d symbols)", strategy_name, len(symbols))
         # Run all symbols concurrently for this strategy
         symbol_tasks = [
             self._tick_symbol(strategy_name, strategy_config, symbol, timeframe)
@@ -855,6 +880,7 @@ class TradingEngine:
                     "Tick error [%s / %s]: %s",
                     strategy_name, symbols[i], result,
                 )
+        logger.info("Tick DONE: %s", strategy_name)
 
     async def _tick_symbol(
         self,

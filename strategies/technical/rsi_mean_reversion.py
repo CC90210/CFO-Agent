@@ -69,6 +69,9 @@ class RSIMeanReversionStrategy(BaseStrategy):
         volume_mult: float = 1.2,
         ema_trend_period: int = 200,
         rr_min: float = 2.0,
+        # Volatility floor — skip dead markets where spreads eat the edge.
+        # ATR(14) / close must exceed this threshold. 0.005 = 0.5% minimum.
+        min_atr_pct: float = 0.005,
     ) -> None:
         self.rsi_period = rsi_period
         self.rsi_oversold = rsi_oversold
@@ -82,6 +85,7 @@ class RSIMeanReversionStrategy(BaseStrategy):
         self.atr_stop_mult = atr_stop_mult
         self.volume_period = volume_period
         self.volume_mult = volume_mult
+        self.min_atr_pct = min_atr_pct
         # 200 EMA trend filter — only applied when sufficient history is available.
         # Requiring ema_trend_period + 10 bars prevents distorted EMA readings on
         # cold-start data where the exponential smoothing hasn't converged yet.
@@ -120,6 +124,12 @@ class RSIMeanReversionStrategy(BaseStrategy):
         vol_now = df["volume"].iloc[-1]
         avg_vol_now = avg_vol.iloc[-1]
         vol_ratio = vol_now / avg_vol_now if avg_vol_now > 0 else 1.0
+
+        # Volatility floor — skip dead markets (spreads eat edge)
+        if close_now > 0 and self.min_atr_pct > 0:
+            atr_pct = atr_now / close_now
+            if atr_pct < self.min_atr_pct:
+                return None
 
         # ADX filter — only operate in ranging markets
         if adx_now >= self.adx_max:

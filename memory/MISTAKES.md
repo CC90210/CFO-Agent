@@ -1,5 +1,17 @@
 # ATLAS Mistakes Log
 
+## 2026-03-26 — OANDAAdapter RemoteDisconnected on All OHLCV Calls
+
+**What happened:** All `fetch_ohlcv` calls for XAU_USD and XAG_USD raised `RemoteDisconnected('Remote end closed connection without response')` after the adapter had been idle. All other OANDA API calls were affected too.
+
+**Root cause:** `oandapyV20.API.__init__` creates a single `requests.Session` and stores it as `self.client`. OANDA's REST API server closes idle HTTP connections after a keepalive timeout (~30–90 s). When a new request is made on the stale session, `requests` tries to reuse the dead TCP connection, and Python's `http.client` raises `RemoteDisconnected`. The `OANDAAdapter.connect()` guard (`if self._api is not None: return`) prevented session recreation because `self._api` was still set — just holding a dead session.
+
+**Fix applied:** Added `_recreate_api()` to explicitly close the old session and build a fresh `oandapyV20.API` instance. Added `_execute_request()` helper that wraps every `self._api.request()` call: on first `RemoteDisconnected` or `ConnectionError` it calls `_recreate_api()` and retries once before propagating. Replaced all six inline `asyncio.wait_for(run_in_executor(...))` blocks in OANDAAdapter with `await self._execute_request(request, timeout)`.
+
+**Prevention:** Any adapter that wraps a synchronous HTTP client holding a persistent session MUST handle `RemoteDisconnected` / `ConnectionError` with session recreation + one retry. Never assume a long-lived session object stays valid across idle periods. Add this pattern at the adapter level, not the caller level, so all methods get it automatically.
+
+---
+
 ## 2026-03-20 — CCXTAdapter 10s Timeout + Unguarded Fallback Caused Zero Trades
 
 **What happened:** Paper trading ran but generated zero trades. Every symbol tick was silently dying because CCXTAdapter.fetch_ohlcv timed out in 10 seconds (too short for multi-symbol concurrent fetches), then the engine fallback called `self._exchange.fetch_ohlcv()` with NO `asyncio.wait_for` wrapper — meaning it could hang indefinitely and had no retry.

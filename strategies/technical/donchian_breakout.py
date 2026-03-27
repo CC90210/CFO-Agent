@@ -81,6 +81,10 @@ class DonchianBreakoutStrategy(BaseStrategy):
         volume_period: int = 20,
         volume_mult: float = 1.2,
         sma_trend_period: int = 200,
+        # Ensemble lookback periods (Zarattini-Barbon 2025 method).
+        # When provided, the strategy checks breakout on multiple periods
+        # and requires >=2 to agree.  Set to empty list to disable ensemble.
+        ensemble_periods: list[int] | None = None,
     ) -> None:
         self.entry_period = entry_period
         self.exit_period = exit_period
@@ -95,8 +99,11 @@ class DonchianBreakoutStrategy(BaseStrategy):
         self.volume_period = volume_period
         self.volume_mult = volume_mult
         self.sma_trend_period = sma_trend_period
-        # Need enough bars for the SMA(200) trend filter plus entry channel
-        self._min_bars = max(sma_trend_period, 2 * adx_period, entry_period) + 5
+        # Ensemble: default to [short, primary, long] lookbacks
+        self.ensemble_periods = ensemble_periods if ensemble_periods is not None else [entry_period]
+        # Need enough bars for the longest lookback
+        max_lookback = max(self.ensemble_periods) if self.ensemble_periods else entry_period
+        self._min_bars = max(sma_trend_period, 2 * adx_period, max_lookback) + 5
 
     # ------------------------------------------------------------------
     # Core interface
@@ -134,23 +141,37 @@ class DonchianBreakoutStrategy(BaseStrategy):
         sma_200_now = sma_200.iloc[-1]
         price_above_sma = (not pd.isna(sma_200_now)) and (close.iloc[-1] > sma_200_now)
 
-        # --- Donchian channels ---
-        # Entry channel: rolling max/min of HIGH/LOW over the prior N bars
-        # We use .shift(1) to exclude the current bar — the current bar is the breakout bar.
-        entry_high = df["high"].shift(1).rolling(self.entry_period).max()
-        entry_low = df["low"].shift(1).rolling(self.entry_period).min()
-        entry_high_now = entry_high.iloc[-1]
-        entry_low_now = entry_low.iloc[-1]
+        close_now = close.iloc[-1]
+
+        # --- Primary Donchian channel (entry decision) ---
+        shifted_high = df["high"].shift(1)
+        shifted_low = df["low"].shift(1)
+        entry_high_now = shifted_high.rolling(self.entry_period).max().iloc[-1]
+        entry_low_now = shifted_low.rolling(self.entry_period).min().iloc[-1]
 
         if pd.isna(entry_high_now) or pd.isna(entry_low_now):
             return None
 
-        close_now = close.iloc[-1]
+        # --- Ensemble agreement (conviction modifier, not hard gate) ---
+        # Zarattini-Barbon 2025: check breakout on multiple lookback periods.
+        # More agreement = higher conviction, but entry only requires the primary.
+        long_votes = 0
+        short_votes = 0
+        n_periods = len(self.ensemble_periods)
+        for period in self.ensemble_periods:
+            ch_high = shifted_high.rolling(period).max().iloc[-1]
+            ch_low = shifted_low.rolling(period).min().iloc[-1]
+            if pd.isna(ch_high) or pd.isna(ch_low):
+                continue
+            if close_now > ch_high:
+                long_votes += 1
+            if close_now < ch_low:
+                short_votes += 1
 
         # --- Trend filter ---
         adx_ok = adx_now >= self.adx_min
 
-        # --- Determine direction ---
+        # --- Determine direction (primary period only) ---
         long_breakout = close_now > entry_high_now
         short_breakout = close_now < entry_low_now
 
@@ -179,6 +200,7 @@ class DonchianBreakoutStrategy(BaseStrategy):
             return None
 
         # --- Conviction ---
+        ensemble_votes = long_votes if direction == Direction.LONG else short_votes
         conviction = self._score_conviction(
             direction=direction,
             adx_now=adx_now,
@@ -186,6 +208,8 @@ class DonchianBreakoutStrategy(BaseStrategy):
             vol_avg_now=vol_avg_now,
             rsi_now=rsi_now,
             price_above_sma=price_above_sma,
+            ensemble_votes=ensemble_votes,
+            n_periods=n_periods,
         )
 
         return Signal(
@@ -204,6 +228,7 @@ class DonchianBreakoutStrategy(BaseStrategy):
                 "volume_ratio": round(vol_now / vol_avg_now, 4) if vol_avg_now > 0 else None,
                 "price_above_sma200": price_above_sma,
                 "atr": round(atr_now, 8),
+                "ensemble_votes": f"{ensemble_votes}/{n_periods}",
             },
         )
 
@@ -250,8 +275,14 @@ class DonchianBreakoutStrategy(BaseStrategy):
         vol_avg_now: float,
         rsi_now: float,
         price_above_sma: bool,
+        ensemble_votes: int = 1,
+        n_periods: int = 1,
     ) -> float:
-        score = 0.40  # Base conviction for a confirmed breakout
+        score = 0.35  # Base conviction for a confirmed breakout
+
+        # +0.10 ensemble unanimity bonus (all lookback periods agree)
+        if n_periods > 1 and ensemble_votes == n_periods:
+            score += 0.10
 
         # +0.15 if ADX > 30 (strong trend, not marginal)
         if adx_now > 30.0:
@@ -261,9 +292,9 @@ class DonchianBreakoutStrategy(BaseStrategy):
         if vol_avg_now > 0 and vol_now >= 1.5 * vol_avg_now:
             score += 0.15
 
-        # +0.15 if RSI in sweet spot (fresh breakout momentum — not already extended)
+        # +0.10 if RSI in sweet spot (fresh breakout momentum — not already extended)
         if 40.0 <= rsi_now <= 60.0:
-            score += 0.15
+            score += 0.10
 
         # +0.15 if price above SMA(200) — macro trend aligned for longs; below for shorts
         if direction == Direction.LONG and price_above_sma:

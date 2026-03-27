@@ -340,7 +340,7 @@ class RegimeResult:
             }
         else:  # CHOPPY
             return {
-                "donchian_breakout": 0.6,  # Breakouts weaker in chop but still profitable
+                "donchian_breakout": 1.1,  # 2026-03-26: ATOM +55% Sharpe 2.25 IN choppy — RSI gate filters noise
                 "ema_crossover": 0.8,
                 "multi_timeframe": 0.9,
                 "ichimoku_trend": 0.8,

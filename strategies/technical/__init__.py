@@ -45,6 +45,11 @@ from strategies.technical import pairs_mean_reversion  # noqa: F401
 from strategies.technical import equity_mean_reversion  # noqa: F401
 from strategies.technical import gold_trend_follower  # noqa: F401
 from strategies.technical import stock_gap_fade  # noqa: F401
+from strategies.technical import bb_mean_reversion  # noqa: F401
+from strategies.technical import tsmom  # noqa: F401
+from strategies.technical import london_session_breakout  # noqa: F401
+from strategies.technical import gold_pullback  # noqa: F401
+from strategies.technical import rsi_divergence  # noqa: F401
 
 __all__ = [
     "rsi",
