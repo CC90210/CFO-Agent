@@ -6,14 +6,33 @@ tags: [capabilities, tools]
 
 > Master index of everything Atlas can do. Updated when new modules ship.
 
-## Capability Counts (2026-03-27)
+## Capability Counts (2026-03-27, Session 23)
 
 - **Trading Strategies:** 12+ (RSI MR, Donchian, EMA crossover, Bollinger squeeze, VWAP, multi-TF momentum, London breakout, opening range, smart money, Ichimoku, order flow, Z-score, volume profile, RSI divergence, TSMOM, gold pullback)
 - **AI Agents:** 10 (4 analysts + debate + risk + portfolio + Darwinian evolution + financial advisor + budget)
 - **Finance Modules:** 4 (tax calculator, financial advisor, wealth tracker, budget)
-- **Tax/Accounting Documents:** 18 (core playbook + CRA intel + DeFi tax guide + incorporation + real estate + treaties/FIRE + wealth playbook + business structures + deductions + audit defense + insurance/estate + grants + pension/retirement + AI/SaaS tax guide + alternative investments + debt/leverage + bookkeeping systems + wealth psychology)
+- **Tax/Accounting Documents:** 29 (25 prior + 4 new Session 24: international tax masterplan, crypto tax advanced, Canadian tax loopholes, asset protection masterplan)
+- **Brain Files:** 12 (SOUL, USER, STATE, CAPABILITIES, DASHBOARD, GROWTH, RISKS, TAX_PLAYBOOK_INDEX, BRAIN_LOOP, INTERACTION_PROTOCOL, HEARTBEAT, AGENTS)
 - **Brokers:** 3 (Kraken/CCXT, OANDA, Alpaca — not configured)
-- **Skills:** 3 (accounting-advisor, tax-optimization, financial-planning)
+- **Skills:** 11 (accounting-advisor, tax-optimization, financial-planning, quarterly-tax-review, tax-loss-harvesting, departure-tax-planning, portfolio-rebalancing, position-sizing, trade-protocol, income-tier-monitoring, crypto-acb-tracking)
+- **Memory Files:** 7 (SESSION_LOG, MISTAKES, PATTERNS, DECISIONS, LONG_TERM, SOP_LIBRARY, ACTIVE_TASKS)
+
+## Brain Architecture (Session 23 — Bravo Pattern Adoption)
+
+| File | Purpose | Mutability |
+|------|---------|-----------|
+| `brain/SOUL.md` | Immutable identity, values, prime directive | CC ONLY |
+| `brain/USER.md` | CC's financial profile, citizenship, accounts | Major changes only |
+| `brain/STATE.md` | Live operational snapshot | Every session |
+| `brain/CAPABILITIES.md` | This file — tool/strategy/doc registry | When tools change |
+| `brain/DASHBOARD.md` | Navigation hub | When structure changes |
+| `brain/GROWTH.md` | Capability evolution timeline | On milestones |
+| `brain/RISKS.md` | Kill switches, position limits, tax risk controls | CC approval |
+| `brain/TAX_PLAYBOOK_INDEX.md` | Master index of 25+ tax documents | When docs added |
+| `brain/BRAIN_LOOP.md` | 10-step structured reasoning protocol | Semi-mutable |
+| `brain/INTERACTION_PROTOCOL.md` | State sync, logging, governance | Semi-mutable |
+| `brain/HEARTBEAT.md` | Session-start proactive monitoring | Semi-mutable |
+| `brain/AGENTS.md` | Subagent registry and task routing | When agents change |
 
 ## Trading Engine
 
@@ -86,6 +105,14 @@ tags: [capabilities, tools]
 | **Accounting Advisor** | `skills/accounting-advisor/SKILL.md` | tax, accounting, CRA, T2125, deduction |
 | **Tax Optimization** | `skills/tax-optimization/SKILL.md` | TFSA, RRSP, FHSA, tax-loss harvest, crypto tax |
 | **Financial Planning** | `skills/financial-planning/SKILL.md` | budget, FIRE, net worth, savings, allocation |
+| **Quarterly Tax Review** | `skills/quarterly-tax-review/SKILL.md` | quarterly review, installments, Q1-Q4 cycle |
+| **Tax-Loss Harvesting** | `skills/tax-loss-harvesting/SKILL.md` | unrealized losses, superficial loss, Q4 harvest |
+| **Departure Tax Planning** | `skills/departure-tax-planning/SKILL.md` | s.128.1, Crown Dependencies, exit strategy |
+| **Portfolio Rebalancing** | `skills/portfolio-rebalancing/SKILL.md` | rebalance, allocation, account placement |
+| **Position Sizing** | `skills/position-sizing/SKILL.md` | position size, Kelly, risk budget, micro account |
+| **Trade Protocol** | `skills/trade-protocol/SKILL.md` | trade decision, 10-step, regime, confluence |
+| **Income Tier Monitoring** | `skills/income-tier-monitoring/SKILL.md` | income tier, threshold, CCPC trigger, HST |
+| **Crypto ACB Tracking** | `skills/crypto-acb-tracking/SKILL.md` | ACB, cost basis, superficial loss, CRA crypto |
 
 ## Cross-Project Integration (Bravo — CEO)
 

@@ -1,10 +1,11 @@
 ---
 tags: [state, ephemeral]
+last_updated: 2026-03-27 (Session 24)
 ---
 
 # STATE — Current Operational State
 
-> Updated 2026-03-27 | **Session 22 — Wave 3 complete: 7 new financial docs (5,939 lines). Total library: 18 docs, ~15,500 lines. Full CFO knowledge base operational.**
+> Updated 2026-03-27 | **Session 24 — Deep research: 4 new docs (4,207 lines), income projection $280K-$480K+ CAD, UK FIG regime discovered (4yr 0% foreign income), IoM implementation costed, 19-jurisdiction comparison, SR&ED for AI ($16K+ refundable after CCPC), asset protection masterplan, shipping debunked. Total: 29 docs, ~28,500+ lines.**
 
 ## Operational Status
 
@@ -12,8 +13,11 @@ tags: [state, ephemeral]
 |-----------|-------|-------|
 | Trading Engine | LIVE | 12 strategies, PID running, $136 equity |
 | Financial Modules | CODE COMPLETE | tax.py, advisor.py, wealth_tracker.py, budget.py |
-| Tax Strategy | ELITE (v2.0) | 25-strategy core playbook (1,663 lines) + 17 supplementary docs |
-| Financial Knowledge Base | COMPLETE | 18 docs, ~15,500 lines — tax, DeFi, pension, AI/SaaS, debt, bookkeeping, psychology |
+| Tax Strategy | ELITE (v4.0) | 25-strategy core + 28 supplementary docs. Session 24: +4 deep research docs (international masterplan, crypto advanced, Canadian loopholes, asset protection) |
+| Financial Knowledge Base | COMPREHENSIVE | 29 docs, ~28,500+ lines — full international (UK FIG, IoM, Guernsey, 19 jurisdictions), advanced crypto, SR&ED, asset protection |
+| Brain Architecture | FULL (Bravo pattern) | 12 brain files: SOUL, USER, STATE, CAPABILITIES, DASHBOARD, GROWTH, RISKS, TAX_PLAYBOOK_INDEX, BRAIN_LOOP, INTERACTION_PROTOCOL, HEARTBEAT, AGENTS |
+| Skills | 11 CFO SKILLS | 3 core + 8 new (quarterly-tax-review, tax-loss-harvesting, departure-tax, portfolio-rebalancing, position-sizing, trade-protocol, income-tier, crypto-acb) |
+| Operational Memory | 7 FILES (725 lines) | SESSION_LOG, MISTAKES, PATTERNS, DECISIONS, LONG_TERM, SOP_LIBRARY, ACTIVE_TASKS |
 | Telegram | OPERATIONAL | 12 commands verified |
 | Broker: Kraken | LIVE | Crypto — BTC, ETH, SOL, XRP, ATOM, ADA, DOGE, LTC |
 | Broker: OANDA | LIVE | Gold (XAU_USD), Forex (GBP_USD) |
@@ -28,10 +32,14 @@ tags: [state, ephemeral]
 ## North Star Goals
 
 - **Trading:** Grow $136 Kraken account through validated strategies
-- **Tax (2024):** File nil return — preserve RRSP/TFSA room + tuition carryforward
-- **Tax (2025):** File optimally — $5,046.73 T4 + $1,300 DJ = $0 tax owed, small refund
+- **Tax (2025):** FILED ✅ — SIN 567 502 901
+- **Tax (2026):** Proactive quarterly planning — monitor income for installment triggers, deduction acceleration, Q4 harvesting
+- **Tax (2026 milestone - $80K+):** CCPC incorporation imminent — budget $2K-$5K legal setup for liability shield + RDTOH
 - **Wealth:** Open FHSA, maximize TFSA, track toward FIRE
 - **Debt:** OSAP ~$9K — check RAP eligibility for $0 payments at current income
+- **International (2026):** Irish passport application to start within months (6-12 month timeline); Crown Dependencies structure planned at $120K+ revenue (Isle of Man primary)
+- **Incorporation:** Trigger at $80K+ sustained OASIS revenue (2026 expected) → CCPC at 12.2% vs 29.65%+ personal rate
+- **Relocation:** Montreal summer 2026 (stepping stone toward potential Crown Dependencies optimization)
 
 ## Known Blockers
 
@@ -42,6 +50,8 @@ tags: [state, ephemeral]
 | OSAP RAP application | MEDIUM | CC likely qualifies for $0 payments — check NSLSC portal |
 | Home office measurements | MEDIUM | CC needs to measure office sq ft vs total home sq ft |
 | Alpaca not configured | LOW | Equities expansion blocked |
+| Bennett diversification | MEDIUM | Current 94% revenue from single client — plan to diversify within 2-3 months |
+| Irish passport application | MEDIUM | To start within months; 6-12 month timeline |
 
 ## CC's Tax To-Do (Remind CC Next Session)
 
@@ -51,26 +61,44 @@ tags: [state, ephemeral]
 3. **Check OSAP RAP eligibility** — NSLSC portal, likely qualifies for $0 monthly payments
 4. **Measure home office** — sq ft of office / total home sq ft for T2125 deduction
 
+### 2026 Revenue Growth
+5. **Monitor income milestones:**
+   - $80K: Start incorporation planning (budget $2K-$5K)
+   - $120K: Start Irish passport application + Isle of Man structure research
+   - $150K: Begin Crown Dependencies cost-benefit analysis (departure tax vs annual savings)
+   - $300K: Plan Irish IP company structure (6.25% KDB rate)
+
 ### 2024 Nil Return (file anytime — no deadline pressure)
-5. File via Wealthsimple Tax with $0 income — preserves RRSP room + tuition credits
+6. File via Wealthsimple Tax with $0 income — preserves RRSP room + tuition credits
 
 ### 2025 Return (deadline June 15, 2026)
-6. T4 from Nicky's: RECEIVED ✓ ($5,046.73)
-7. DJ gigs: CONFIRMED ✓ (13 gigs × $100 = $1,300)
-8. Computer receipt: CONFIRMED ✓ ($989.25, Nov 23)
-9. Wealthsimple crypto CSV: RECEIVED ✓ (no dispositions, no tax event yet)
-10. Tally OASIS + PropFlow 2025 revenue from Stripe/Wise (when year ends)
-11. Verify Wise US balance stayed under $100K CAD
-12. File via Wealthsimple Tax → NETFILE
+7. T4 from Nicky's: RECEIVED ✓ ($5,046.73)
+8. DJ gigs: CONFIRMED ✓ (13 gigs × $100 = $1,300)
+9. Computer receipt: CONFIRMED ✓ ($989.25, Nov 23)
+10. Wealthsimple crypto CSV: RECEIVED ✓ (no dispositions, no tax event yet)
+11. Tally OASIS + PropFlow 2025 revenue from Stripe/Wise (when year ends)
+12. Verify Wise US balance stayed under $100K CAD
+13. File via Wealthsimple Tax → NETFILE
+
+### 2026 Quarterly Planning
+14. **Q1 (by March 31):** Assess projected 2026 income — may need CRA installment plan (s.156)
+15. **Q2 (by June 30):** Update financial forecast, monitor diversification progress
+16. **Q3 (by Sept 30):** Prepare for potential incorporation filing (if income on track for $80K+)
+17. **Q4 (by Dec 31):** Tax-loss harvesting, year-end deduction review, 2027 planning
 
 ### Ongoing
-13. Max TFSA contributions
-14. Track OSAP interest paid (deductible Line 31900)
-15. Set up Alpaca paper account for equities expansion
+18. Max TFSA contributions
+19. Track OSAP interest paid (deductible Line 31900)
+20. Set up Alpaca paper account for equities expansion
+21. Monitor Bennett diversification (target multiple revenue streams within 2-3 months)
 
 ## Cross-Agent Context
 
-- **Bravo (CEO):** `C:\Users\User\Business-Empire-Agent\` — Business ops, client acquisition, content, $5K MRR target
-- **Current MRR:** ~$2,982 USD/mo (94% from Bennett — diversification critical)
-- **North Star:** $5,000 USD Net MRR by May 15, 2026
-- **Atlas role:** Manage capital, minimize tax, compound trading gains, prepare for FIRE
+- **Bravo (CEO):** `C:\Users\User\Business-Empire-Agent\` — Business ops, client acquisition, content, diversification strategy
+- **Current MRR:** ~$2,982 USD/mo (~$4,100 CAD/mo) from OASIS AI
+- **2026 MRR projection:** $15K-$20K USD/mo by December ($205K-$275K CAD annualized)
+- **Bennett relationship:** Partner, not just a client — sticky relationship with expansion potential; CC coaches him on AI
+- **Diversification critical:** Single-client risk (94% from Bennett) → plan to diversify within 2-3 months
+- **Total 2026 income:** $280K-$480K+ CAD (MRR + implementation + consulting + software builds)
+- **North Star:** $5,000+ USD Net MRR by May 15, 2026 (Bravo's target)
+- **Atlas role:** Manage capital, minimize tax, compound trading gains, prepare for FIRE, guide incorporation/international structuring

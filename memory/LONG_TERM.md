@@ -1,54 +1,84 @@
-# ATLAS LONG-TERM MEMORY — High-Confidence Persistent Facts
+---
+name: ATLAS Long-Term Facts
+description: High-confidence persistent facts about CC, markets, and the system — with confidence scores and verification dates
+tags: [facts, persistent, long-term, confidence]
+---
 
-> Only facts with confidence >= 0.8 belong here. Reviewed monthly.
+# ATLAS Long-Term Facts
 
-## Architecture Facts
+> Each fact carries a confidence score (0.0–1.0) and last verification date.
+> Facts not verified in 90+ days get flagged for review.
+> Confidence decays: Business facts λ=0.02, Technical λ=0.015, Architecture λ=0.005, Identity λ=0
 
-| Fact | Confidence | Source | Last Verified |
-|------|-----------|--------|---------------|
-| 12 strategies registered: RSI, EMA, Bollinger, VWAP, multi-TF, London, opening range, smart money, Ichimoku, order flow, z-score, volume profile | 0.95 | Code + tests | 2026-03-17 |
-| Regime detector classifies BULL_TREND, BEAR_TREND, CHOPPY, HIGH_VOL using Sharpe, ADX, volatility ratio | 0.95 | Implemented + backtested | 2026-03-17 |
-| Regime filter improves backtest returns across all strategies | 0.90 | A/B backtest comparison | 2026-03-17 |
-| Trailing stops disabled by default — too aggressive for trend-followers at 3x ATR | 0.95 | Backtest evidence | 2026-03-17 |
-| Trade protocol (10-step) exists but NOT wired into engine | 0.95 | Code review | 2026-03-17 |
-| Correlation tracker exists but NOT wired into risk manager | 0.95 | Code review | 2026-03-17 |
-| 140 tests passing (all strategies + risk manager + position sizer) | 0.95 | pytest output | 2026-03-17 |
-| Backtest engine has regime_filter=True, trailing_stops=False by default | 0.95 | Code | 2026-03-17 |
+---
 
-## Trading Safety Facts (NON-NEGOTIABLE)
+## CC Identity & Profile (λ=0, no decay)
 
-| Fact | Confidence | Source | Last Verified |
-|------|-----------|--------|---------------|
-| Max drawdown: 15% — all trading halts | 1.00 | Hardcoded in risk_manager.py | 2026-03-16 |
-| Daily loss limit: 5% — stop for the day | 1.00 | Hardcoded in risk_manager.py | 2026-03-16 |
-| Per-trade risk: 1.5% max | 1.00 | Hardcoded in risk_manager.py | 2026-03-16 |
-| Min conviction: 0.3 (30%) | 1.00 | Hardcoded in backtest + engine | 2026-03-16 |
-| Risk score veto threshold: > 7 | 1.00 | agents/risk_agent.py | 2026-03-16 |
-| Kill switches in core/risk_manager.py are UNTOUCHABLE | 1.00 | CLAUDE.md | 2026-03-16 |
+| Fact | Confidence | Last Verified |
+|------|-----------|---------------|
+| CC is Conaugh McKenna, age 22, Collingwood ON | 1.0 | 2026-03-27 |
+| CC holds Canadian + British dual citizenship | 1.0 | 2026-03-27 |
+| CC is eligible for Irish citizenship (ancestry) | 0.95 | 2026-03-27 |
+| CC runs OASIS AI Solutions (sole proprietor) | 1.0 | 2026-03-27 |
+| CC is self-employed (T2125 filer) | 1.0 | 2026-03-27 |
+| CC works part-time at Nicky's (family restaurant) | 0.95 | 2026-03-27 |
+| CC DJs seasonally (~13 gigs/year × $100) | 0.9 | 2026-03-27 |
+| CC has OSAP debt (~$9K) | 0.9 | 2026-03-26 |
+| CC banks with RBC (primary) and Wise (multi-currency) | 0.95 | 2026-03-26 |
+| CC has NOT opened FHSA yet | 0.95 | 2026-03-27 |
+| CC filed 2025 taxes (SIN 567 502 901) | 1.0 | 2026-03-27 |
 
-## Strategy-Specific Facts
+## Financial Facts (λ=0.02, verify quarterly)
 
-| Fact | Confidence | Source | Last Verified |
-|------|-----------|--------|---------------|
-| Ichimoku MUST use strict 5/5 conditions — 4/5 caused -91% | 1.00 | Backtest disaster | 2026-03-17 |
-| RSI oversold=25, overbought=75, ATR stop=2.5x gives best results | 0.85 | Backtest +3.28% | 2026-03-17 |
-| EMA crossover confirmation bar delay reduces fakeouts | 0.80 | Backtest observation | 2026-03-17 |
-| Short positions get 15% size reduction (higher tail risk) | 0.85 | Portfolio manager config | 2026-03-17 |
-| Adaptive R:R: <40% WR → 3.5:1, <50% → 3:1, <60% → 2:1, 60%+ → 1.5:1 | 0.85 | Portfolio manager config | 2026-03-17 |
+| Fact | Confidence | Last Verified |
+|------|-----------|---------------|
+| Kraken equity: ~$136 USD | 0.85 | 2026-03-27 |
+| OASIS MRR target: $5K USD by May 15, 2026 | 0.9 | 2026-03-27 |
+| Current MRR: ~$2,982 USD (94% from Bennett) | 0.85 | 2026-03-27 |
+| Wise USD balance: well below $100K T1135 threshold | 0.9 | 2026-03-26 |
+| TFSA cumulative room: ~$46K (if unused) | 0.8 | 2026-03-26 |
+| Ontario USDT restriction: must use /USD pairs | 1.0 | 2026-03-27 |
+| Departure tax today: ~$0 (minimal asset base) | 0.9 | 2026-03-27 |
 
-## Backtest Results (BTC/USDT 4H, WITH regime filter)
+## Tax Law Facts (λ=0.015, verify semi-annually)
 
-| Strategy | Return | Win Rate | Trades | Regime Impact |
-|----------|--------|----------|--------|---------------|
-| Volume Profile | +4.95% | 40% | 15 | +4.95% vs +6.43% raw |
-| Multi-Timeframe | +4.66% | ~28% | 7 | +4.66% vs +7.81% raw |
-| RSI Mean Reversion | +2.71% | 33% | 3 | Improved from +1.75% raw |
-| Ichimoku Trend | +0.38% | 31% | 13 | Slight reduction |
-| EMA Crossover | -0.70% | ~17% | 12 | Improved from -1.52% raw |
-| Smart Money | -2.87% | — | 2 | Improved from -3.37% raw |
+| Fact | Confidence | Last Verified |
+|------|-----------|---------------|
+| CCPC SBD rate (Ontario): 12.2% | 0.95 | 2026-03-27 |
+| Ontario top marginal rate: 53.53% (>$220K) | 0.95 | 2026-03-27 |
+| Capital gains inclusion: 50% (first $250K), 66.67% (above) | 0.95 | 2026-03-27 |
+| FHSA: $8K/year, $40K lifetime, deduction + tax-free growth + tax-free withdrawal | 0.95 | 2026-03-27 |
+| SR&ED credit: 35% federal + 8% Ontario = 43% refundable (CCPC <$500K) | 0.95 | 2026-03-27 |
+| CRA installment threshold: >$3K tax owing in current AND prior year | 0.95 | 2026-03-27 |
+| Self-employed filing deadline: June 15 (payment April 30) | 1.0 | 2026-03-27 |
+| HST small supplier threshold: $30K (not $40K) | 0.95 | 2026-03-27 |
+| Crypto ACB method: weighted average (CRA mandatory) | 1.0 | 2026-03-27 |
+| Superficial loss rule: 30-day window | 1.0 | 2026-03-27 |
+| CARF starts: 2026 (crypto exchanges auto-report to CRA) | 0.9 | 2026-03-27 |
 
-## Confidence Decay Rules
+## International Tax Facts (λ=0.015)
 
-- Facts not re-verified in 30 days: confidence -= 0.1
-- Facts contradicted by new evidence: immediately flag and update
-- Facts confirmed by new evidence: confidence += 0.05 (cap at 1.0)
+| Fact | Confidence | Last Verified |
+|------|-----------|---------------|
+| Guernsey corporate rate: 0% (most companies) | 0.95 | 2026-03-27 |
+| Isle of Man corporate rate: 0% (standard) | 0.95 | 2026-03-27 |
+| Jersey corporate rate: 0% (standard) | 0.95 | 2026-03-27 |
+| Ireland corporate rate: 12.5% (trading income) | 0.95 | 2026-03-27 |
+| Ireland KDB rate: 6.25% (qualifying IP income) | 0.9 | 2026-03-27 |
+| Crown Dependencies: 0% capital gains tax | 0.95 | 2026-03-27 |
+| Canada-UK treaty: capital gains taxed only in state of residence (Art XIII) | 0.9 | 2026-03-27 |
+| Irish passport via Foreign Births Registry: €278, 6-12 months | 0.85 | 2026-03-27 |
+
+## System Architecture Facts (λ=0.005, slow decay)
+
+| Fact | Confidence | Last Verified |
+|------|-----------|---------------|
+| Trading strategies: 12+ active (regime-aware) | 0.95 | 2026-03-27 |
+| Kill switches: 15% DD, 5% daily, 1.5% per-trade | 1.0 | 2026-03-27 |
+| Regime detector uses min_hold_bars=6 hysteresis | 0.95 | 2026-03-26 |
+| OANDA requires Semaphore(2) — max 2 concurrent calls | 1.0 | 2026-03-26 |
+| Windows daemon: subprocess.Popen with DETACHED_PROCESS | 1.0 | 2026-03-26 |
+| Async CCXT: must use await, NOT asyncio.to_thread() | 1.0 | 2026-03-26 |
+| Brain files: 12 (Session 23 expansion) | 1.0 | 2026-03-27 |
+| Tax documents: 25 (~24,300 lines) | 1.0 | 2026-03-27 |
+| Bravo (CEO) at Business-Empire-Agent: READ ONLY | 1.0 | 2026-03-27 |

@@ -82,15 +82,16 @@ python main.py live --strategy momentum --exchange binance --confirm-live
 - `utils/` — Logging, Telegram alerts, market hours
 - `config/` — Pydantic settings, strategies.yaml (12 strategies configured)
 - `finance/` — 4 modules: tax calculator (CRA-accurate), financial advisor (Claude-powered), wealth tracker (FIRE), budget tracker
-- `brain/` — Intelligence layer: `CAPABILITIES.md` (master registry), `STATE.md` (operational state)
-- `skills/` — Domain skills: `accounting-advisor/`, `tax-optimization/`, `financial-planning/`
-- `docs/ATLAS_TAX_STRATEGY.md` — Comprehensive Canadian tax optimization playbook (Ontario, self-employed, crypto, DJ income)
+- `brain/` — Intelligence layer (12 files): `SOUL.md` (immutable identity), `USER.md` (CC's financial profile + dual citizenship), `STATE.md` (operational state), `CAPABILITIES.md` (master registry), `DASHBOARD.md` (navigation hub), `GROWTH.md` (evolution timeline), `RISKS.md` (kill switches + tax risk), `TAX_PLAYBOOK_INDEX.md` (25-doc index), `BRAIN_LOOP.md` (10-step reasoning protocol), `INTERACTION_PROTOCOL.md` (state sync + governance), `HEARTBEAT.md` (proactive monitoring), `AGENTS.md` (task routing)
+- `skills/` — 11 CFO skills: `accounting-advisor/`, `tax-optimization/`, `financial-planning/`, `quarterly-tax-review/`, `tax-loss-harvesting/`, `departure-tax-planning/`, `portfolio-rebalancing/`, `position-sizing/`, `trade-protocol/`, `income-tier-monitoring/`, `crypto-acb-tracking/`
+- `memory/` — Operational intelligence: SESSION_LOG, MISTAKES, PATTERNS, DECISIONS, LONG_TERM, SOP_LIBRARY, ACTIVE_TASKS
+- `docs/` — 25 tax/finance documents (~24,300 lines) — see `brain/TAX_PLAYBOOK_INDEX.md` for complete index
 
 ## Tax & Accounting Capability
 
-ATLAS serves as CC's **full-service CFO, accountant, and tax strategist** across 18 reference documents.
+ATLAS serves as CC's **full-service CFO, accountant, and tax strategist** across 25 reference documents.
 
-**Document library (18 docs, ~15,500 lines):**
+**Document library (25 docs, ~24,300 lines):**
 - `docs/ATLAS_TAX_STRATEGY.md` — Core 25-strategy playbook (1,663 lines)
 - `docs/CRA_CRYPTO_ENFORCEMENT_INTEL.md` — CRA audit program, exchange data orders, case law
 - `docs/ATLAS_DEFI_TAX_GUIDE.md` — Staking, LP, yield farming, NFT, bridges, DAOs, airdrops, CARF
@@ -109,6 +110,13 @@ ATLAS serves as CC's **full-service CFO, accountant, and tax strategist** across
 - `docs/ATLAS_DEBT_LEVERAGE_STRATEGY.md` — OSAP RAP, Smith Manoeuvre, interest deductibility, credit
 - `docs/ATLAS_BOOKKEEPING_SYSTEMS.md` — T2125 chart of accounts, software, automation, KPIs
 - `docs/ATLAS_WEALTH_PSYCHOLOGY.md` — Cognitive biases, decision frameworks, behavioral guardrails
+- `docs/ATLAS_INSTALLMENT_PAYMENTS.md` — CRA quarterly installment system, safe-harbor rules, penalty avoidance
+- `docs/ATLAS_HST_REGISTRATION_GUIDE.md` — HST registration decision tree, ITCs, quick method, $30K threshold
+- `docs/ATLAS_VDP_GUIDE.md` — CRA Voluntary Disclosure Program, crypto-specific process, penalty elimination
+- `docs/ATLAS_TOSI_DEFENSE.md` — Tax on Split Income (s.120.4) defense, income splitting strategies
+- `docs/ATLAS_UK_CROWN_DEPENDENCIES_STRATEGY.md` — British passport leverage, Guernsey/IOM/Jersey (0% corporate), Ireland (12.5%/6.25% KDB), Canada exit strategy
+- `docs/ATLAS_FOREIGN_REPORTING.md` — T1135, T1134, T1141/42, transfer pricing (s.247), foreign tax credits (s.126)
+- `docs/ATLAS_INCOME_SCALING_PLAYBOOK.md` — Dynamic tier-based optimization ($0 to $10M+), income-adaptive strategy with Crown Dependencies exit ramps
 
 **Core knowledge:**
 - Canadian T1 filing (T2125 self-employment, Schedule 3 capital gains, ON-BEN Ontario credits)
@@ -131,6 +139,13 @@ ATLAS serves as CC's **full-service CFO, accountant, and tax strategist** across
 - AI/SaaS tax treatment (revenue recognition, DST, cloud credits, contractor rules)
 - Bookkeeping systems (chart of accounts, automation, monthly close routine)
 - Behavioral finance and wealth psychology frameworks
+- CRA installment payments (s.156 threshold, three safe-harbor methods, penalty avoidance, corporate vs. personal)
+- HST registration and ITC optimization ($30K threshold, quick method, zero-rated exports)
+- Voluntary Disclosure Program (VDP) — penalty elimination for unreported crypto/income
+- TOSI defense (s.120.4) — income splitting without triggering top-rate tax
+- Multi-jurisdiction tax optimization (British passport → Crown Dependencies, Irish passport → EU)
+- Foreign property reporting (T1135, T1134, transfer pricing documentation)
+- Income-scaling playbook (dynamic strategies from $0 to $10M+ with Crown Dependencies exit ramps)
 
 **Tax filing deadlines:**
 - Self-employed: **June 15** (but payment due **April 30**)
