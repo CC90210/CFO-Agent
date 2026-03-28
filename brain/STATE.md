@@ -5,7 +5,7 @@ last_updated: 2026-03-27 (Session 24)
 
 # STATE — Current Operational State
 
-> Updated 2026-03-27 | **Session 24 — Deep research: 4 new docs (4,207 lines), income projection $280K-$480K+ CAD, UK FIG regime discovered (4yr 0% foreign income), IoM implementation costed, 19-jurisdiction comparison, SR&ED for AI ($16K+ refundable after CCPC), asset protection masterplan, shipping debunked. Total: 29 docs, ~28,500+ lines.**
+> Updated 2026-03-27 | **Session 24 — Deep research: 4 new docs (4,207 lines), income projection $280K-$480K+ CAD, UK FIG regime discovered (4yr 0% foreign income), IoM implementation costed, 19-jurisdiction comparison, SR&ED for AI ($16K+ refundable after CCPC), asset protection masterplan, shipping debunked. CC opened FHSA. CRA My Account blocked (retry 2 weeks). Irish passport path confirmed. Total: 33 docs, ~32,700+ lines.**
 
 ## Operational Status
 
@@ -14,7 +14,7 @@ last_updated: 2026-03-27 (Session 24)
 | Trading Engine | LIVE | 12 strategies, PID running, $136 equity |
 | Financial Modules | CODE COMPLETE | tax.py, advisor.py, wealth_tracker.py, budget.py |
 | Tax Strategy | ELITE (v4.0) | 25-strategy core + 28 supplementary docs. Session 24: +4 deep research docs (international masterplan, crypto advanced, Canadian loopholes, asset protection) |
-| Financial Knowledge Base | COMPREHENSIVE | 29 docs, ~28,500+ lines — full international (UK FIG, IoM, Guernsey, 19 jurisdictions), advanced crypto, SR&ED, asset protection |
+| Financial Knowledge Base | COMPREHENSIVE | 33 docs, ~32,700+ lines — full international (UK FIG, IoM, Guernsey, 19 jurisdictions), advanced crypto, SR&ED, asset protection |
 | Brain Architecture | FULL (Bravo pattern) | 12 brain files: SOUL, USER, STATE, CAPABILITIES, DASHBOARD, GROWTH, RISKS, TAX_PLAYBOOK_INDEX, BRAIN_LOOP, INTERACTION_PROTOCOL, HEARTBEAT, AGENTS |
 | Skills | 11 CFO SKILLS | 3 core + 8 new (quarterly-tax-review, tax-loss-harvesting, departure-tax, portfolio-rebalancing, position-sizing, trade-protocol, income-tier, crypto-acb) |
 | Operational Memory | 7 FILES (725 lines) | SESSION_LOG, MISTAKES, PATTERNS, DECISIONS, LONG_TERM, SOP_LIBRARY, ACTIVE_TASKS |
@@ -32,12 +32,12 @@ last_updated: 2026-03-27 (Session 24)
 ## North Star Goals
 
 - **Trading:** Grow $136 Kraken account through validated strategies
-- **Tax (2025):** FILED ✅ — SIN 567 502 901
+- **Tax (2025):** FILED ✅ — SIN on file (see tax_filing_2025.md, gitignored)
 - **Tax (2026):** Proactive quarterly planning — monitor income for installment triggers, deduction acceleration, Q4 harvesting
 - **Tax (2026 milestone - $80K+):** CCPC incorporation imminent — budget $2K-$5K legal setup for liability shield + RDTOH
-- **Wealth:** Open FHSA, maximize TFSA, track toward FIRE
+- **Wealth:** FHSA OPENED ✅ (2026-03-27), maximize TFSA, track toward FIRE
 - **Debt:** OSAP ~$9K — check RAP eligibility for $0 payments at current income
-- **International (2026):** Irish passport application to start within months (6-12 month timeline); Crown Dependencies structure planned at $120K+ revenue (Isle of Man primary)
+- **International (2026):** Irish passport application to start (contact dad about grandfather's birth certificate); Crown Dependencies structure planned at $120K+ revenue (Isle of Man primary)
 - **Incorporation:** Trigger at $80K+ sustained OASIS revenue (2026 expected) → CCPC at 12.2% vs 29.65%+ personal rate
 - **Relocation:** Montreal summer 2026 (stepping stone toward potential Crown Dependencies optimization)
 
@@ -45,19 +45,19 @@ last_updated: 2026-03-27 (Session 24)
 
 | Issue | Severity | Status |
 |-------|----------|--------|
-| CRA My Account access | HIGH | CC needs to register — required for tuition carryforward, TFSA room, filing |
-| FHSA not yet opened | HIGH | CC needs to open at Wealthsimple — starts $8K/year room clock |
+| CRA My Account access | HIGH | BLOCKED — Attempted 2026-03-27 via RBC Partner Sign-In, rejected at identity verification. Line 15000 required, no prior returns assessed. Will retry in 1-2 weeks after 2025 return assessed. 5 attempts remaining. |
+| FHSA | DONE ✅ | OPENED 2026-03-27 (Wealthsimple, self-directed, $0 balance). Room accumulating $8K/year. |
 | OSAP RAP application | MEDIUM | CC likely qualifies for $0 payments — check NSLSC portal |
 | Home office measurements | MEDIUM | CC needs to measure office sq ft vs total home sq ft |
 | Alpaca not configured | LOW | Equities expansion blocked |
 | Bennett diversification | MEDIUM | Current 94% revenue from single client — plan to diversify within 2-3 months |
-| Irish passport application | MEDIUM | To start within months; 6-12 month timeline |
+| Irish passport application | MEDIUM | To start (CC will contact dad about grandfather's birth certificate). 6-12 month timeline expected. |
 
 ## CC's Tax To-Do (Remind CC Next Session)
 
 ### ASAP
-1. **Set up CRA My Account** — check tuition carryforward (Bishop's), TFSA/RRSP room
-2. **Open FHSA at Wealthsimple** — even $0 contribution starts the room clock
+1. **Set up CRA My Account** — BLOCKED, retry in 1-2 weeks. Check tuition carryforward (Bishop's), TFSA/RRSP room
+2. **Contact father about Irish passport** — Get grandfather's birth certificate documentation for expedited Irish citizenship claim
 3. **Check OSAP RAP eligibility** — NSLSC portal, likely qualifies for $0 monthly payments
 4. **Measure home office** — sq ft of office / total home sq ft for T2125 deduction
 
@@ -87,7 +87,7 @@ last_updated: 2026-03-27 (Session 24)
 17. **Q4 (by Dec 31):** Tax-loss harvesting, year-end deduction review, 2027 planning
 
 ### Ongoing
-18. Max TFSA contributions
+18. Max TFSA contributions (when $3K payment arrives, put $500-$1K in TFSA)
 19. Track OSAP interest paid (deductible Line 31900)
 20. Set up Alpaca paper account for equities expansion
 21. Monitor Bennett diversification (target multiple revenue streams within 2-3 months)

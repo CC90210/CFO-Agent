@@ -25,8 +25,8 @@ tags: [facts, persistent, long-term, confidence]
 | CC DJs seasonally (~13 gigs/year × $100) | 0.9 | 2026-03-27 |
 | CC has OSAP debt (~$9K) | 0.9 | 2026-03-26 |
 | CC banks with RBC (primary) and Wise (multi-currency) | 0.95 | 2026-03-26 |
-| CC has NOT opened FHSA yet | 0.95 | 2026-03-27 |
-| CC filed 2025 taxes (SIN 567 502 901) | 1.0 | 2026-03-27 |
+| CC opened FHSA at Wealthsimple (self-directed, $0 balance) | 1.0 | 2026-03-27 |
+| CC filed 2025 taxes (SIN on file) | 1.0 | 2026-03-27 |
 
 ## Financial Facts (λ=0.02, verify quarterly)
 

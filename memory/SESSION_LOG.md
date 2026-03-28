@@ -11,13 +11,55 @@ tags: [log, sessions, activity, narrative]
 
 ---
 
+### 2026-03-27 — Session 24: FHSA Opened, CRA Blocked, International Tax Masterplan
+
+**Duration:** Extended session
+**Category:** Financial Action + Knowledge Base + Citizenship Path
+
+**What happened:**
+- CC opened FHSA at Wealthsimple (self-directed investing, 2026-03-27 ✅). Understands mechanics: room accumulates $8K/year, tax deduction on contributions, tax-free growth, for first home purchase.
+- CC attempted CRA My Account setup via RBC Partner Sign-In but blocked at identity verification (Line 15000 required, no prior returns assessed). Will retry in 1-2 weeks after 2025 return is assessed. Has 5 attempts remaining.
+- CC confirmed Irish passport eligibility through father's Irish residency. Will contact father about grandfather's birth certificate for expedited citizenship claim (6-12 month timeline).
+- CC confirmed: zero crypto sales ever on Wealthsimple (only buys and transfers to Kraken). No tax events on $206.41 CAD holdings.
+- CC provided education details: Bishop's University 3 years, tuition ~$2K-$2.5K/year. Potential $4.5K-$7.5K tuition carryforward (will verify on CRA My Account).
+- Deep research compiled: 4 new docs (4,207 lines):
+  - ATLAS_INTERNATIONAL_TAX_MASTERPLAN.md — 19-jurisdiction comparison, UK FIG regime (4yr 0% foreign income), IoM vs Guernsey vs Jersey, Ireland KDB, cost-benefit analysis by income level
+  - ATLAS_CRYPTO_TAX_ADVANCED.md — Margin trading, derivatives, DeFi risk, CARF compliance 2026, CRA audit triggers, international reporting
+  - ATLAS_CANADIAN_TAX_LOOPHOLES.md — Obscure deductions, entity structures, prescribed rate arbitrage, prescribed debt planning
+  - ATLAS_ASSET_PROTECTION_MASTERPLAN.md — Corporate structures, liability shields, insurance strategies, US residency trust, foreign trusts
+- Updated income projection to $280K-$480K+ CAD (from $240K-$400K). MRR currently $2,982 USD/mo with 64.99% growth rate on Stripe.
+- Family structure documented: mom in Canada ($80K-$90K/year), dad in Ireland ($60K-$70K/year, EUR likely), 2 sisters (LCGE potential). Dad strategic asset for Irish citizenship path.
+- CC feedback captured: "Stop asking redundant questions, speak plain English, act as real CFO."
+- Committed and pushed 39 files to GitHub.
+
+**Key discoveries:**
+- UK FIG regime: 4 years 0% tax on foreign income if UK-resident. Valuable bridge before Isle of Man.
+- Isle of Man implementation cost: ~£400-500/month all-in (residential + company setup). Breaks even at ~$120K revenue vs Canadian tax.
+- SR&ED for AI: 43% refundable CCPC (35% federal + 8% Ontario). At $280K revenue = $16K-$24K annual credits once incorporated.
+- Shipping tonnage tax (Strategy 13 in core playbook): Debunked. Not applicable to CC's business type.
+- Father's documentation can accelerate Irish passport by 3-6 months vs standard Foreign Birth Registry timeline.
+
+**Metrics:**
+- Docs: 25 → 29 (4 new, 4,207 lines)
+- Total lines: ~24,300 → ~28,500
+- Brain files: 12 (unchanged)
+- Memory entries: user_citizenship, user_financial_profile, ACTIVE_TASKS updated
+
+**CC's explicit directives:**
+- "I shouldn't limit my loopholes to one place. I'm a dual citizen."
+- "You don't work for governments. Save me money through any means necessary, ethically and abiding by the laws."
+- "Operate like I'm a billion-dollar company."
+- No more political caution — be aggressive on tax optimization within legal bounds.
+
+---
+
 ### 2026-03-27 — Session 23: CFO Intelligence Expansion
 
 **Duration:** Extended session
 **Category:** Knowledge Base + Architecture
 
 **What happened:**
-- CC filed 2025 taxes successfully (SIN 567 502 901)
+- CC filed 2025 taxes successfully (SIN on file)
 - CC mandated aggressive tax optimization — "operate like a billion-dollar company"
 - CC revealed dual citizenship: Canadian + British passport, Irish eligible
 - Built 7 new tax documents (7,772 lines):

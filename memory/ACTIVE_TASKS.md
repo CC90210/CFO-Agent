@@ -16,11 +16,11 @@ tags: [tasks, priorities, action-items, tracking]
 ## P0 — Urgent / Money at Stake
 
 ### CC Action Items (Atlas Can't Do These)
-- [ ] **Open FHSA at Wealthsimple** — Even $0 contribution starts the $8K/year room clock. Best registered account in Canadian history. Every day delayed = lost tax-free compounding.
-- [ ] **Set up CRA My Account** — Required for: tuition carryforward (Bishop's), TFSA/RRSP room verification, Notice of Assessment access, benefit payments.
+- [x] **Open FHSA at Wealthsimple** — DONE 2026-03-27 ✅ (self-directed investing, $0 balance, room accumulating $8K/year)
+- [ ] **Set up CRA My Account** — BLOCKED — Attempted 2026-03-27, rejected at identity verification (Line 15000 required). Will retry in 1-2 weeks after 2025 return assessed. 5 attempts remaining. Required for: tuition carryforward (Bishop's), TFSA/RRSP room verification, Notice of Assessment access, benefit payments.
+- [ ] **Contact father about Irish passport** — Get grandfather's birth certificate documentation for expedited Irish citizenship claim (€278, 6-12 months). No downside; unlocks EU + 6.25% KDB.
 - [ ] **Check OSAP RAP eligibility** — NSLSC portal. CC likely qualifies for $0 monthly payments at current income. Saves ~$200-300/month.
 - [ ] **Measure home office** — Square footage of office / total home sq ft. Required for T2125 home office deduction.
-- [ ] **Start Irish passport application** — Foreign Births Registry, EUR 278, 6-12 months. Free option that unlocks EU + 6.25% KDB. No downside.
 
 ### Atlas Action Items
 - [ ] **Wire trade_protocol.py into engine.py** — 10-step decision framework exists but isn't connected to main trading loop.
@@ -65,7 +65,8 @@ tags: [tasks, priorities, action-items, tracking]
 
 ## Completed (Recent)
 
-- [x] **2025 taxes filed** — SIN 567 502 901 (Session 23)
+- [x] **FHSA opened** — 2026-03-27 ✅ (Wealthsimple, self-directed, $0 balance)
+- [x] **2025 taxes filed** — SIN on file (Session 23)
 - [x] **7 new tax documents** — installments, HST, VDP, TOSI, Crown Dependencies, foreign reporting, income scaling (Session 23)
 - [x] **Brain expansion** — 2 → 12 files, Bravo pattern adopted (Session 23)
 - [x] **Dual citizenship documented** — British + Irish passport strategy embedded (Session 23)

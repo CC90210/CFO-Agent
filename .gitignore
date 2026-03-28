@@ -4,6 +4,10 @@
 .env.*.local
 *.pem
 *.key
+tax_filing_2025.md
+
+# ── Browser automation cache ─────────────────
+.playwright-mcp/
 
 # ── Python ───────────────────────────────────
 __pycache__/
