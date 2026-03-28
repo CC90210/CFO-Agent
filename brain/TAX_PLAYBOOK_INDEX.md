@@ -1,13 +1,13 @@
 ---
 name: ATLAS Tax Playbook Index
-description: Master index of all financial documents — 39 docs covering tax, investing, wealth building, SaaS operations, compliance, accounting, insurance, payroll, and global finance
+description: Master index of all financial documents — 46 docs covering tax, investing, wealth building, SaaS operations, compliance, accounting, insurance, payroll, global finance, real estate investing, estate planning, negotiation, funding, AI regulation, crypto strategies
 tags: [tax, index, playbook, documents]
 ---
 
 # ATLAS Tax Playbook Index
 
 > Master index of all tax and financial documents. Consult this to find the right doc for any tax question.
-> Total: 39 documents, ~48,599 lines of financial intelligence.
+> Total: 46 documents, ~57,787 lines of financial intelligence.
 
 ## Core Tax Strategy
 
@@ -24,6 +24,7 @@ tags: [tax, index, playbook, documents]
 | [CRA_CRYPTO_ENFORCEMENT_INTEL.md](../docs/CRA_CRYPTO_ENFORCEMENT_INTEL.md) | 460 | CRA audit program, exchange data orders, CARF | Compliance review, audit prep |
 | [ATLAS_DEFI_TAX_GUIDE.md](../docs/ATLAS_DEFI_TAX_GUIDE.md) | 904 | Staking, LP, yield farming, NFTs, bridges, DAOs | Any DeFi activity |
 | [ATLAS_CRYPTO_TAX_ADVANCED.md](../docs/ATLAS_CRYPTO_TAX_ADVANCED.md) | 788 | Business vs capital, TFSA ETFs, CARF 2026, DeFi borrow-don't-sell, cross-border | Advanced crypto optimization |
+| [ATLAS_CRYPTO_DEFI_STRATEGIES.md](../docs/ATLAS_CRYPTO_DEFI_STRATEGIES.md) | ~1,280 | Portfolio construction, DCA, staking, DeFi yield, borrow-don't-sell, crypto ETFs in TFSA, on-chain wealth, security, market cycles, cross-border, corporate crypto | Investment strategy (HOW to build wealth through crypto) |
 
 ## International & Multi-Jurisdiction
 
@@ -133,6 +134,42 @@ tags: [tax, index, playbook, documents]
 |----------|-------|-------|-------------|
 | [ATLAS_DEBT_LEVERAGE_STRATEGY.md](../docs/ATLAS_DEBT_LEVERAGE_STRATEGY.md) | 793 | OSAP RAP, Smith Manoeuvre, interest deductibility | Debt optimization |
 
+## Estate & Succession Planning
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_ESTATE_SUCCESSION_PLANNING.md](../docs/ATLAS_ESTATE_SUCCESSION_PLANNING.md) | 1,503 | Deemed disposition at death, probate avoidance, estate freeze (s.85/s.86), LCGE multiplication, family trusts, succession planning, life insurance (CDA), POA, digital asset estate, charitable giving, cross-border estate, wealth transfer strategies | Estate planning, wills, business succession, death tax, family trust setup |
+
+## Tax Calendar & Automation
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_TAX_CALENDAR_AUTOMATION.md](../docs/ATLAS_TAX_CALENDAR_AUTOMATION.md) | 1,939 | Master tax calendar (Jan-Dec), automation stack, monthly/quarterly/annual CFO routines, tool stack comparison, CRA filing checklists, penalty avoidance matrix, document organization | Deadline tracking, monthly close, tax filing prep, setting up automation |
+
+## AI Regulation & Product Compliance
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_AI_REGULATION_COMPLIANCE.md](../docs/ATLAS_AI_REGULATION_COMPLIANCE.md) | 1,593 | AIDA (Canada), EU AI Act, financial AI regulations, ATLAS product compliance, AI liability/insurance, data privacy (PIPEDA), IP ownership, ethical AI, technical compliance, SR&ED for AI, international sales, competitive moat | Selling ATLAS as product, AI compliance, regulatory risk, data privacy |
+
+## Real Estate Investing
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_REAL_ESTATE_INVESTING.md](../docs/ATLAS_REAL_ESTATE_INVESTING.md) | 1,322 | FHSA+HBP $100K strategy, Montreal market analysis, house hacking, mortgage strategies, rental analysis, BRRRR, REITs, commercial RE, scaling, Quebec-specific rules | Buying first home, rental property, Montreal real estate, house hacking |
+
+## Negotiation & Deal Strategy
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_NEGOTIATION_DEAL_STRATEGY.md](../docs/ATLAS_NEGOTIATION_DEAL_STRATEGY.md) | 1,349 | BATNA/ZOPA, client contracts, equity/revenue share, vendor negotiation, real estate deals, M&A (asset vs share sale), legal fees, CRA negotiation, psychological tactics, deal documentation | Any negotiation, contract review, pricing, M&A, rate increases |
+
+## Funding Programs (Operational)
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_FUNDING_PROGRAMS_OPERATIONAL.md](../docs/ATLAS_FUNDING_PROGRAMS_OPERATIONAL.md) | 1,535 | 25+ programs with application-ready detail: SR&ED ($52K est), IRAP ($72-96K), CSBFP ($50-75K), CDAE (24% salary credit), cloud credits ($580-670K), accelerators (CDL, Next AI), stacking strategy ($692K-718K Year 1) | Grant applications, funding, SR&ED filing, cloud credits, accelerator selection |
+
 ## Quick Lookup: By Tax Situation
 
 | Situation | Go To |
@@ -182,3 +219,31 @@ tags: [tax, index, playbook, documents]
 | "Stock options / equity compensation?" | ATLAS_PAYROLL_HIRING_GUIDE.md + ATLAS_OPTIONS_DERIVATIVES_TAX.md |
 | "US clients / W-8BEN / 1099?" | ATLAS_US_TAX_FOR_CANADIANS.md |
 | "Stripe / Wise tax compliance?" | ATLAS_US_TAX_FOR_CANADIANS.md |
+| "Estate planning / wills / POA?" | ATLAS_ESTATE_SUCCESSION_PLANNING.md |
+| "Estate freeze / family trust?" | ATLAS_ESTATE_SUCCESSION_PLANNING.md + ATLAS_CANADIAN_TAX_LOOPHOLES.md |
+| "What happens to my money when I die?" | ATLAS_ESTATE_SUCCESSION_PLANNING.md |
+| "Business succession / selling my company?" | ATLAS_ESTATE_SUCCESSION_PLANNING.md + ATLAS_NEGOTIATION_DEAL_STRATEGY.md |
+| "Crypto estate / seed phrase succession?" | ATLAS_ESTATE_SUCCESSION_PLANNING.md |
+| "Tax deadlines / filing calendar?" | ATLAS_TAX_CALENDAR_AUTOMATION.md |
+| "Monthly CFO routine / bookkeeping schedule?" | ATLAS_TAX_CALENDAR_AUTOMATION.md + ATLAS_BOOKKEEPING_SYSTEMS.md |
+| "CRA penalties / late filing?" | ATLAS_TAX_CALENDAR_AUTOMATION.md + ATLAS_CRA_BULLETPROOF_COMPLIANCE.md |
+| "Document retention / how long to keep records?" | ATLAS_TAX_CALENDAR_AUTOMATION.md |
+| "Can I sell ATLAS / AI product compliance?" | ATLAS_AI_REGULATION_COMPLIANCE.md |
+| "AI regulations / AIDA / EU AI Act?" | ATLAS_AI_REGULATION_COMPLIANCE.md |
+| "AI liability / insurance for software?" | ATLAS_AI_REGULATION_COMPLIANCE.md |
+| "Buying a house / first home?" | ATLAS_REAL_ESTATE_INVESTING.md + ATLAS_DEBT_LEVERAGE_STRATEGY.md |
+| "Montreal real estate / Quebec rental rules?" | ATLAS_REAL_ESTATE_INVESTING.md |
+| "House hacking / BRRRR / rental income?" | ATLAS_REAL_ESTATE_INVESTING.md |
+| "REITs / real estate ETFs?" | ATLAS_REAL_ESTATE_INVESTING.md + ATLAS_ALTERNATIVE_INVESTMENTS.md |
+| "How to negotiate contracts / rates?" | ATLAS_NEGOTIATION_DEAL_STRATEGY.md |
+| "M&A / selling a business / asset vs share sale?" | ATLAS_NEGOTIATION_DEAL_STRATEGY.md + ATLAS_ESTATE_SUCCESSION_PLANNING.md |
+| "Rate increase / pricing strategy?" | ATLAS_NEGOTIATION_DEAL_STRATEGY.md + ATLAS_SAAS_CFO_PLAYBOOK.md |
+| "CRA objection / dispute / settlement?" | ATLAS_NEGOTIATION_DEAL_STRATEGY.md + ATLAS_CRA_AUDIT_DEFENSE.md |
+| "How to get SR&ED / IRAP / grants?" | ATLAS_FUNDING_PROGRAMS_OPERATIONAL.md |
+| "Cloud credits / AWS / Google free tier?" | ATLAS_FUNDING_PROGRAMS_OPERATIONAL.md |
+| "Accelerators / CDL / Y Combinator?" | ATLAS_FUNDING_PROGRAMS_OPERATIONAL.md |
+| "CDAE Quebec salary credit?" | ATLAS_FUNDING_PROGRAMS_OPERATIONAL.md |
+| "Crypto portfolio / DCA / staking strategy?" | ATLAS_CRYPTO_DEFI_STRATEGIES.md |
+| "DeFi yield / liquidity pools / borrow-don't-sell?" | ATLAS_CRYPTO_DEFI_STRATEGIES.md |
+| "Crypto ETFs in TFSA / FHSA?" | ATLAS_CRYPTO_DEFI_STRATEGIES.md |
+| "Bitcoin halving / market cycle?" | ATLAS_CRYPTO_DEFI_STRATEGIES.md |

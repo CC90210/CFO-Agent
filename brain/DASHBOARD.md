@@ -37,7 +37,7 @@ tags: [dashboard, navigation, index]
 | [SOP_LIBRARY.md](../memory/SOP_LIBRARY.md) | Standard operating procedures | When SOPs change |
 | [ACTIVE_TASKS.md](../memory/ACTIVE_TASKS.md) | P0/P1/P2 task board | Every session |
 
-## Skills (11)
+## Skills (16)
 
 | Skill | Location | Domain |
 |-------|----------|--------|
@@ -52,8 +52,13 @@ tags: [dashboard, navigation, index]
 | Trade Protocol | [skills/trade-protocol/SKILL.md](../skills/trade-protocol/SKILL.md) | 10-step trade decision framework |
 | Income Tier Monitoring | [skills/income-tier-monitoring/SKILL.md](../skills/income-tier-monitoring/SKILL.md) | Dynamic tier tracking, threshold alerts |
 | Crypto ACB Tracking | [skills/crypto-acb-tracking/SKILL.md](../skills/crypto-acb-tracking/SKILL.md) | CRA-compliant weighted-average ACB |
+| Compliance Monitor | [skills/compliance-monitor/SKILL.md](../skills/compliance-monitor/SKILL.md) | Deadlines, thresholds, proactive alerts |
+| Financial Health Check | [skills/financial-health-check/SKILL.md](../skills/financial-health-check/SKILL.md) | Health score (0-100), benchmarks, action plans |
+| Cash Flow & Invoicing | [skills/cash-flow-invoicing/SKILL.md](../skills/cash-flow-invoicing/SKILL.md) | AR tracking, invoices, cash flow forecast |
+| Cross-Border Compliance | [skills/cross-border-compliance/SKILL.md](../skills/cross-border-compliance/SKILL.md) | W-8BEN, 1099, FX, T1135, multi-currency |
+| Incorporation Readiness | [skills/incorporation-readiness/SKILL.md](../skills/incorporation-readiness/SKILL.md) | CCPC decision, cost-benefit, execution |
 
-## Tax Document Library (25+ docs)
+## Tax Document Library (46 docs, ~57,787 lines)
 
 See [TAX_PLAYBOOK_INDEX.md](TAX_PLAYBOOK_INDEX.md) for the complete index.
 

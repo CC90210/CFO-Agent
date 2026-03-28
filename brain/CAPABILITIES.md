@@ -11,10 +11,10 @@ tags: [capabilities, tools]
 - **Trading Strategies:** 12+ (RSI MR, Donchian, EMA crossover, Bollinger squeeze, VWAP, multi-TF momentum, London breakout, opening range, smart money, Ichimoku, order flow, Z-score, volume profile, RSI divergence, TSMOM, gold pullback)
 - **AI Agents:** 10 (4 analysts + debate + risk + portfolio + Darwinian evolution + financial advisor + budget)
 - **Finance Modules:** 4 (tax calculator, financial advisor, wealth tracker, budget)
-- **Tax/Finance Documents:** 39 indexed (~48,599 lines) + 4 trading research docs = 43 total in docs/
+- **Tax/Finance Documents:** 46 indexed (~57,787 lines) + 4 trading research docs + 3 uncategorized = 53 total in docs/
 - **Brain Files:** 12 (SOUL, USER, STATE, CAPABILITIES, DASHBOARD, GROWTH, RISKS, TAX_PLAYBOOK_INDEX, BRAIN_LOOP, INTERACTION_PROTOCOL, HEARTBEAT, AGENTS)
 - **Brokers:** 3 (Kraken/CCXT, OANDA, Alpaca — not configured)
-- **Skills:** 11 (accounting-advisor, tax-optimization, financial-planning, quarterly-tax-review, tax-loss-harvesting, departure-tax-planning, portfolio-rebalancing, position-sizing, trade-protocol, income-tier-monitoring, crypto-acb-tracking)
+- **Skills:** 16 (accounting-advisor, tax-optimization, financial-planning, quarterly-tax-review, tax-loss-harvesting, departure-tax-planning, portfolio-rebalancing, position-sizing, trade-protocol, income-tier-monitoring, crypto-acb-tracking, compliance-monitor, financial-health-check, cash-flow-invoicing, cross-border-compliance, incorporation-readiness)
 - **Memory Files:** 7 core (SESSION_LOG, MISTAKES, PATTERNS, DECISIONS, LONG_TERM, SOP_LIBRARY, ACTIVE_TASKS)
 
 ## Brain Architecture (Session 23 — Bravo Pattern Adoption)
@@ -66,6 +66,7 @@ tags: [capabilities, tools]
 | **Commodity/Forex Research** | `docs/COMMODITY_FOREX_STRATEGY_RESEARCH.md` | Top 10 commodity/forex by Sharpe |
 | **CRA Crypto Enforcement Intel** | `docs/CRA_CRYPTO_ENFORCEMENT_INTEL.md` | CRA audit program, exchange data orders, TCC case law, DeFi tax, CARF, penalties |
 | **DeFi Tax Guide** | `docs/ATLAS_DEFI_TAX_GUIDE.md` | Definitive Canadian DeFi tax treatment — staking (solo/delegated/liquid/re-staking), LP/yield farming, lending/borrowing, NFTs, bridges/wrapping/L2, DAOs/airdrops/forks, CARF, tax planning, CRA enforcement |
+| **Crypto & DeFi Investment Strategies** | `docs/ATLAS_CRYPTO_DEFI_STRATEGIES.md` | Portfolio construction (core-satellite), DCA, staking (rETH vs stETH tax efficiency), DeFi yield farming, borrow-don't-sell, crypto ETFs in TFSA/FHSA, on-chain wealth (RWAs, DAOs, GMX), security, market cycles, cross-border crypto, corporate crypto treasury, CC's action plan |
 | **Incorporation Tax Strategies** | `docs/ATLAS_INCORPORATION_TAX_STRATEGIES.md` | Elite CCPC playbook — RDTOH/ERDTOH, integration analysis, shareholder loans, reasonable salary, AAII/SBD grind, estate freeze (s.85/s.86), QSBC purification |
 | **Real Estate Tax Strategy** | `docs/ATLAS_REAL_ESTATE_TAX_STRATEGY.md` | PRE, rental CCA, flipping rules (s.12(12)), REITs, Smith Manoeuvre, LTT, HST, corporate RE, JV vs partnership |
 | **Treaty Network & FIRE Strategy** | `docs/ATLAS_TREATY_FIRE_STRATEGY.md` | Canada-US/Barbados/Ireland/UAE treaties, departure tax (s.128.1), FIRE drawdown, OAS/GIS optimization, dividend tax credit arbitrage |
@@ -81,6 +82,12 @@ tags: [capabilities, tools]
 | **Debt Optimization & Leverage Strategy** | `docs/ATLAS_DEBT_LEVERAGE_STRATEGY.md` | OSAP/RAP optimization, s.20(1)(c) interest deductibility, Smith Manoeuvre, Singleton Shuffle, CSBFP/BDC business loans, margin tax treatment, mortgage optimization (fixed/variable/CMHC/prepayment), credit score building, FHSA+HBP $100K home strategy, debt payoff methods, s.80 forgiven debt, director liability s.227.1 |
 | **Bookkeeping & Financial Systems** | `docs/ATLAS_BOOKKEEPING_SYSTEMS.md` | T2125-aligned chart of accounts, software comparison (Wave/QBO/FreshBooks/Xero/Sage), automation stack (bank feeds, receipts, invoicing, crypto tracking, HST filing, payroll), bank account structure, monthly/quarterly routines, CRA document retention (6-year rules), KPIs and CFO report template |
 | **Wealth Psychology** | `docs/ATLAS_WEALTH_PSYCHOLOGY.md` | Behavioral finance operating system — 8 cognitive biases mapped to ATLAS mitigations, wealth psychology frameworks (Housel, Clear, Stoic, hedonic adaptation), 7 decision frameworks (EV thinking, inversion, regret minimization, optionality, margin of safety), 22-year-old compounding math, wealth protection (lifestyle inflation, insurance, fraud, relationships), ATLAS as behavioral guardrail |
+| **Estate & Succession Planning** | `docs/ATLAS_ESTATE_SUCCESSION_PLANNING.md` | Deemed disposition at death (s.70(5)), probate avoidance (dual wills), estate freeze (s.85/s.86), LCGE multiplication ($6.25M), family trusts, succession planning (EOT, MBO, Bill C-208), life insurance CDA, POA, digital asset estate, cross-border estate |
+| **Tax Calendar & Automation** | `docs/ATLAS_TAX_CALENDAR_AUTOMATION.md` | Master calendar (Jan-Dec deadlines), automation stack, monthly/quarterly/annual CFO routines, tool comparison, CRA filing checklists, 15-penalty avoidance matrix, document organization, CC-specific automation setup |
+| **AI Regulation & Compliance** | `docs/ATLAS_AI_REGULATION_COMPLIANCE.md` | AIDA (Canada), EU AI Act, financial AI regulations, ATLAS product positioning, AI liability/insurance, PIPEDA/data privacy, IP ownership, ethical AI, technical compliance, SR&ED for AI development, international sales/DST |
+| **Real Estate Investing** | `docs/ATLAS_REAL_ESTATE_INVESTING.md` | FHSA+HBP $100K first home, Montreal neighborhood analysis, house hacking (triplex), mortgages, rental analysis, BRRRR, REITs, commercial RE, scaling to portfolio, Quebec-specific rules (TAL, welcome tax) |
+| **Negotiation & Deal Strategy** | `docs/ATLAS_NEGOTIATION_DEAL_STRATEGY.md` | BATNA/ZOPA, client contracts (Bennett deal analysis), equity/revenue share, vendor negotiation, real estate deals, M&A (asset vs share sale), legal fees, CRA negotiation/objections, psychological tactics, deal documentation templates |
+| **Funding Programs (Operational)** | `docs/ATLAS_FUNDING_PROGRAMS_OPERATIONAL.md` | 25+ programs: SR&ED T661 walkthrough ($52K est), IRAP ($72-96K), CSBFP ($50-75K), CDAE Quebec (24% salary), cloud credits ($580-670K), accelerators (CDL, Next AI), stacking strategy ($692K-718K Year 1) |
 
 ## Broker Connections
 
@@ -113,6 +120,11 @@ tags: [capabilities, tools]
 | **Trade Protocol** | `skills/trade-protocol/SKILL.md` | trade decision, 10-step, regime, confluence |
 | **Income Tier Monitoring** | `skills/income-tier-monitoring/SKILL.md` | income tier, threshold, CCPC trigger, HST |
 | **Crypto ACB Tracking** | `skills/crypto-acb-tracking/SKILL.md` | ACB, cost basis, superficial loss, CRA crypto |
+| **Compliance Monitor** | `skills/compliance-monitor/SKILL.md` | deadlines, thresholds, red flags, proactive alerts |
+| **Financial Health Check** | `skills/financial-health-check/SKILL.md` | health score (0-100), benchmarks, action plans |
+| **Cash Flow & Invoicing** | `skills/cash-flow-invoicing/SKILL.md` | AR tracking, invoice management, cash flow forecast |
+| **Cross-Border Compliance** | `skills/cross-border-compliance/SKILL.md` | W-8BEN, 1099, FX accounting, T1135, multi-currency |
+| **Incorporation Readiness** | `skills/incorporation-readiness/SKILL.md` | CCPC decision framework, cost-benefit, execution checklist |
 
 ## Cross-Project Integration (Bravo — CEO)
 
