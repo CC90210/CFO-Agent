@@ -1,11 +1,11 @@
 ---
 tags: [state, ephemeral]
-last_updated: 2026-03-27 (Session 24)
+last_updated: 2026-03-28 (Session 25)
 ---
 
 # STATE — Current Operational State
 
-> Updated 2026-03-27 | **Session 24 — Deep research: 4 new docs (4,207 lines), income projection $280K-$480K+ CAD, UK FIG regime discovered (4yr 0% foreign income), IoM implementation costed, 19-jurisdiction comparison, SR&ED for AI ($16K+ refundable after CCPC), asset protection masterplan, shipping debunked. CC opened FHSA. CRA My Account blocked (retry 2 weeks). Irish passport path confirmed. Total: 33 docs, ~32,700+ lines.**
+> Updated 2026-03-28 | **Session 25 — 5 new deep research docs (7,867 lines): options/derivatives tax, CRA bulletproof compliance, wealth building mastery, advanced investment strategies, SaaS CFO playbook. GitHub competitive analysis completed — ATLAS is unique in combining trading + tax + finance. Full query routing diagnostic performed. Total: 38 docs in docs/, 34 indexed (~38,161 lines).**
 
 ## Operational Status
 
@@ -13,8 +13,8 @@ last_updated: 2026-03-27 (Session 24)
 |-----------|-------|-------|
 | Trading Engine | LIVE | 12 strategies, PID running, $136 equity |
 | Financial Modules | CODE COMPLETE | tax.py, advisor.py, wealth_tracker.py, budget.py |
-| Tax Strategy | ELITE (v4.0) | 25-strategy core + 28 supplementary docs. Session 24: +4 deep research docs (international masterplan, crypto advanced, Canadian loopholes, asset protection) |
-| Financial Knowledge Base | COMPREHENSIVE | 33 docs, ~32,700+ lines — full international (UK FIG, IoM, Guernsey, 19 jurisdictions), advanced crypto, SR&ED, asset protection |
+| Tax Strategy | ELITE (v5.0) | 25-strategy core + 34 supplementary docs. Session 25: +5 docs (options/derivatives, compliance, wealth, investing, SaaS CFO) |
+| Financial Knowledge Base | ELITE | 38 docs, ~38,161+ lines — tax, international, crypto, compliance, investing, wealth building, SaaS operations |
 | Brain Architecture | FULL (Bravo pattern) | 12 brain files: SOUL, USER, STATE, CAPABILITIES, DASHBOARD, GROWTH, RISKS, TAX_PLAYBOOK_INDEX, BRAIN_LOOP, INTERACTION_PROTOCOL, HEARTBEAT, AGENTS |
 | Skills | 11 CFO SKILLS | 3 core + 8 new (quarterly-tax-review, tax-loss-harvesting, departure-tax, portfolio-rebalancing, position-sizing, trade-protocol, income-tier, crypto-acb) |
 | Operational Memory | 7 FILES (725 lines) | SESSION_LOG, MISTAKES, PATTERNS, DECISIONS, LONG_TERM, SOP_LIBRARY, ACTIVE_TASKS |

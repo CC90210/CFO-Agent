@@ -1,13 +1,13 @@
 ---
 name: ATLAS Tax Playbook Index
-description: Master index of all tax documents — 25+ docs covering Canadian, UK, Crown Dependencies, Irish, and international tax
+description: Master index of all financial documents — 34 docs covering tax, investing, wealth building, SaaS operations, and compliance
 tags: [tax, index, playbook, documents]
 ---
 
 # ATLAS Tax Playbook Index
 
 > Master index of all tax and financial documents. Consult this to find the right doc for any tax question.
-> Total: 29 documents, ~28,500+ lines of tax intelligence.
+> Total: 34 documents, ~38,161 lines of financial intelligence.
 
 ## Core Tax Strategy
 
@@ -77,6 +77,31 @@ tags: [tax, index, playbook, documents]
 | [ATLAS_BOOKKEEPING_SYSTEMS.md](../docs/ATLAS_BOOKKEEPING_SYSTEMS.md) | 1,157 | Chart of accounts, automation, monthly close | Bookkeeping, filing prep |
 | [ATLAS_GOVERNMENT_GRANTS.md](../docs/ATLAS_GOVERNMENT_GRANTS.md) | 809 | Federal/Ontario grants, $425K-$700K stacking | Funding applications |
 
+## Options, Derivatives & Structured Products
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_OPTIONS_DERIVATIVES_TAX.md](../docs/ATLAS_OPTIONS_DERIVATIVES_TAX.md) | 1,269 | Stock options (s.7), listed options, futures, CFDs, spread betting, structured products, registered account rules, hedging, collars, cross-border derivatives, case law | Any options/derivatives tax question, CCPC stock options, TFSA covered calls, collar strategies |
+
+## Compliance & Audit Prevention
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_CRA_BULLETPROOF_COMPLIANCE.md](../docs/ATLAS_CRA_BULLETPROOF_COMPLIANCE.md) | 1,281 | CRA risk-scoring systems, 25 red flags ranked, CC-specific risk assessment, bulletproof documentation, compliance calendar, HST/installment strategy, cross-border compliance | Proactive audit prevention, documentation setup, annual compliance review |
+
+## Wealth Building & Investment
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_WEALTH_BUILDING_MASTERY.md](../docs/ATLAS_WEALTH_BUILDING_MASTERY.md) | 1,953 | Compounding math, Buy/Borrow/Die Canadian adaptation, income stacking, FIRE Canadian edition, credit mastery, real estate strategy, behavioral wealth, 10-year wealth map | Understanding how money works, wealth strategy, FIRE planning, motivation |
+| [ATLAS_ADVANCED_INVESTMENT_STRATEGIES.md](../docs/ATLAS_ADVANCED_INVESTMENT_STRATEGIES.md) | 1,550 | Portfolio theory, 50+ Canadian ETF tickers, factor investing, alternatives, crypto allocation, risk management, model portfolios by income level | How to invest, portfolio construction, asset allocation, ETF selection |
+
+## SaaS Financial Operations
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_SAAS_CFO_PLAYBOOK.md](../docs/ATLAS_SAAS_CFO_PLAYBOOK.md) | 1,814 | SaaS metrics (MRR/ARR/NRR/LTV/CAC), pricing strategy, cash flow, unit economics, client concentration, valuation, fundraising vs bootstrapping, CFO monthly routine | OASIS financial operations, pricing decisions, investor/acquirer conversations, monthly close |
+
 ## Debt & Leverage
 
 | Document | Lines | Scope | When to Use |
@@ -104,3 +129,17 @@ tags: [tax, index, playbook, documents]
 | "International tax masterplan?" | ATLAS_INTERNATIONAL_TAX_MASTERPLAN.md |
 | "SR&ED, CDA, estate freeze?" | ATLAS_CANADIAN_TAX_LOOPHOLES.md |
 | "How do I protect my assets?" | ATLAS_ASSET_PROTECTION_MASTERPLAN.md |
+| "Options/derivatives tax treatment?" | ATLAS_OPTIONS_DERIVATIVES_TAX.md |
+| "CCPC stock options?" | ATLAS_OPTIONS_DERIVATIVES_TAX.md |
+| "Covered calls in TFSA?" | ATLAS_OPTIONS_DERIVATIVES_TAX.md |
+| "Collar strategy / Buy-Borrow-Die?" | ATLAS_OPTIONS_DERIVATIVES_TAX.md + ATLAS_WEALTH_PLAYBOOK.md |
+| "How do I avoid a CRA audit?" | ATLAS_CRA_BULLETPROOF_COMPLIANCE.md |
+| "What are CRA red flags?" | ATLAS_CRA_BULLETPROOF_COMPLIANCE.md |
+| "How does compounding work?" | ATLAS_WEALTH_BUILDING_MASTERY.md |
+| "How do the wealthy build money?" | ATLAS_WEALTH_BUILDING_MASTERY.md |
+| "What should I invest in?" | ATLAS_ADVANCED_INVESTMENT_STRATEGIES.md |
+| "What ETFs should I buy?" | ATLAS_ADVANCED_INVESTMENT_STRATEGIES.md |
+| "What's my SaaS worth?" | ATLAS_SAAS_CFO_PLAYBOOK.md |
+| "SaaS metrics / MRR / churn?" | ATLAS_SAAS_CFO_PLAYBOOK.md |
+| "Client concentration risk?" | ATLAS_SAAS_CFO_PLAYBOOK.md |
+| "How to price my SaaS?" | ATLAS_SAAS_CFO_PLAYBOOK.md |

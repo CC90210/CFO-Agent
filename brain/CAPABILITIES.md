@@ -6,16 +6,16 @@ tags: [capabilities, tools]
 
 > Master index of everything Atlas can do. Updated when new modules ship.
 
-## Capability Counts (2026-03-27, Session 23)
+## Capability Counts (2026-03-28, Session 25)
 
 - **Trading Strategies:** 12+ (RSI MR, Donchian, EMA crossover, Bollinger squeeze, VWAP, multi-TF momentum, London breakout, opening range, smart money, Ichimoku, order flow, Z-score, volume profile, RSI divergence, TSMOM, gold pullback)
 - **AI Agents:** 10 (4 analysts + debate + risk + portfolio + Darwinian evolution + financial advisor + budget)
 - **Finance Modules:** 4 (tax calculator, financial advisor, wealth tracker, budget)
-- **Tax/Accounting Documents:** 29 (25 prior + 4 new Session 24: international tax masterplan, crypto tax advanced, Canadian tax loopholes, asset protection masterplan)
+- **Tax/Finance Documents:** 34 indexed (~38,161 lines) + 4 trading research docs = 38 total in docs/
 - **Brain Files:** 12 (SOUL, USER, STATE, CAPABILITIES, DASHBOARD, GROWTH, RISKS, TAX_PLAYBOOK_INDEX, BRAIN_LOOP, INTERACTION_PROTOCOL, HEARTBEAT, AGENTS)
 - **Brokers:** 3 (Kraken/CCXT, OANDA, Alpaca — not configured)
 - **Skills:** 11 (accounting-advisor, tax-optimization, financial-planning, quarterly-tax-review, tax-loss-harvesting, departure-tax-planning, portfolio-rebalancing, position-sizing, trade-protocol, income-tier-monitoring, crypto-acb-tracking)
-- **Memory Files:** 7 (SESSION_LOG, MISTAKES, PATTERNS, DECISIONS, LONG_TERM, SOP_LIBRARY, ACTIVE_TASKS)
+- **Memory Files:** 7 core (SESSION_LOG, MISTAKES, PATTERNS, DECISIONS, LONG_TERM, SOP_LIBRARY, ACTIVE_TASKS)
 
 ## Brain Architecture (Session 23 — Bravo Pattern Adoption)
 
