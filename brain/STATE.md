@@ -5,7 +5,7 @@ last_updated: 2026-03-28 (Session 25)
 
 # STATE — Current Operational State
 
-> Updated 2026-03-28 | **Session 25 — 5 new deep research docs (7,867 lines): options/derivatives tax, CRA bulletproof compliance, wealth building mastery, advanced investment strategies, SaaS CFO playbook. GitHub competitive analysis completed — ATLAS is unique in combining trading + tax + finance. Full query routing diagnostic performed. Total: 38 docs in docs/, 34 indexed (~38,161 lines).**
+> Updated 2026-03-28 | **Session 25 — 10 new deep research docs (16,614 lines) in 2 waves. Wave 1: options/derivatives tax, CRA bulletproof compliance, wealth building mastery, advanced investment strategies, SaaS CFO playbook. Wave 2: global financial system, US tax for Canadians, financial statements guide, business insurance & liability, payroll & hiring guide. GitHub competitive analysis: ATLAS is first-of-kind. Full query routing diagnostic. Total: 43 docs in docs/, 39 indexed (~48,599 lines).**
 
 ## Operational Status
 
@@ -13,8 +13,8 @@ last_updated: 2026-03-28 (Session 25)
 |-----------|-------|-------|
 | Trading Engine | LIVE | 12 strategies, PID running, $136 equity |
 | Financial Modules | CODE COMPLETE | tax.py, advisor.py, wealth_tracker.py, budget.py |
-| Tax Strategy | ELITE (v5.0) | 25-strategy core + 34 supplementary docs. Session 25: +5 docs (options/derivatives, compliance, wealth, investing, SaaS CFO) |
-| Financial Knowledge Base | ELITE | 38 docs, ~38,161+ lines — tax, international, crypto, compliance, investing, wealth building, SaaS operations |
+| Tax Strategy | ELITE (v5.0) | 25-strategy core + 39 supplementary docs. Session 25: +10 docs across 2 waves |
+| Financial Knowledge Base | ELITE | 43 docs, ~48,599+ lines — tax, international, crypto, compliance, investing, wealth, SaaS, accounting, insurance, payroll, global finance |
 | Brain Architecture | FULL (Bravo pattern) | 12 brain files: SOUL, USER, STATE, CAPABILITIES, DASHBOARD, GROWTH, RISKS, TAX_PLAYBOOK_INDEX, BRAIN_LOOP, INTERACTION_PROTOCOL, HEARTBEAT, AGENTS |
 | Skills | 11 CFO SKILLS | 3 core + 8 new (quarterly-tax-review, tax-loss-harvesting, departure-tax, portfolio-rebalancing, position-sizing, trade-protocol, income-tier, crypto-acb) |
 | Operational Memory | 7 FILES (725 lines) | SESSION_LOG, MISTAKES, PATTERNS, DECISIONS, LONG_TERM, SOP_LIBRARY, ACTIVE_TASKS |

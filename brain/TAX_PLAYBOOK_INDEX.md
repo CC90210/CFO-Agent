@@ -1,13 +1,13 @@
 ---
 name: ATLAS Tax Playbook Index
-description: Master index of all financial documents — 34 docs covering tax, investing, wealth building, SaaS operations, and compliance
+description: Master index of all financial documents — 39 docs covering tax, investing, wealth building, SaaS operations, compliance, accounting, insurance, payroll, and global finance
 tags: [tax, index, playbook, documents]
 ---
 
 # ATLAS Tax Playbook Index
 
 > Master index of all tax and financial documents. Consult this to find the right doc for any tax question.
-> Total: 34 documents, ~38,161 lines of financial intelligence.
+> Total: 39 documents, ~48,599 lines of financial intelligence.
 
 ## Core Tax Strategy
 
@@ -32,6 +32,7 @@ tags: [tax, index, playbook, documents]
 | [ATLAS_UK_CROWN_DEPENDENCIES_STRATEGY.md](../docs/ATLAS_UK_CROWN_DEPENDENCIES_STRATEGY.md) | ~1,500 | British passport, Guernsey/IOM/Jersey, Ireland, exit strategy | Income > $150K, relocation planning |
 | [ATLAS_TREATY_FIRE_STRATEGY.md](../docs/ATLAS_TREATY_FIRE_STRATEGY.md) | 964 | 94+ treaty network, departure tax, FIRE drawdown | International structuring, retirement |
 | [ATLAS_FOREIGN_REPORTING.md](../docs/ATLAS_FOREIGN_REPORTING.md) | ~1,200 | T1135, T1134, T1141/42, transfer pricing, FTC | Foreign property, foreign entities |
+| [ATLAS_US_TAX_FOR_CANADIANS.md](../docs/ATLAS_US_TAX_FOR_CANADIANS.md) | 1,691 | Canada-US treaty, W-8BEN, 1099s, withholding, Stripe/Wise, state nexus, FTC, snowbird rules | ANY US income, US clients, US platforms |
 | [ATLAS_BUSINESS_STRUCTURES.md](../docs/ATLAS_BUSINESS_STRUCTURES.md) | 1,101 | Global entity types, incorporation process | Entity selection, multi-jurisdiction |
 | [ATLAS_INTERNATIONAL_TAX_MASTERPLAN.md](../docs/ATLAS_INTERNATIONAL_TAX_MASTERPLAN.md) | 1,107 | UK FIG regime, IoM, Guernsey, Ireland KDB, 19-jurisdiction comparison, 4-phase pipeline | Master international plan |
 
@@ -102,6 +103,30 @@ tags: [tax, index, playbook, documents]
 |----------|-------|-------|-------------|
 | [ATLAS_SAAS_CFO_PLAYBOOK.md](../docs/ATLAS_SAAS_CFO_PLAYBOOK.md) | 1,814 | SaaS metrics (MRR/ARR/NRR/LTV/CAC), pricing strategy, cash flow, unit economics, client concentration, valuation, fundraising vs bootstrapping, CFO monthly routine | OASIS financial operations, pricing decisions, investor/acquirer conversations, monthly close |
 
+## Global Financial System
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_GLOBAL_FINANCIAL_SYSTEM.md](../docs/ATLAS_GLOBAL_FINANCIAL_SYSTEM.md) | 1,729 | How money works, central banks (BoC/Fed/BoE/ECB), banking system, bond/stock/FX markets, credit system, payment systems, offshore banking, economic cycles, global tax comparison | Financial literacy foundation, understanding monetary policy, FX strategy, business cash management |
+
+## Accounting & Financial Statements
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_FINANCIAL_STATEMENTS_GUIDE.md](../docs/ATLAS_FINANCIAL_STATEMENTS_GUIDE.md) | 1,740 | Income statement, balance sheet, cash flow, 30+ financial ratios, chart of accounts, bookkeeping systems, tax vs financial accounting, management accounting, audit/compliance, reporting templates | Reading/creating financial statements, monthly close, ratio analysis, CPA handoff |
+
+## Insurance, Liability & Risk
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_BUSINESS_INSURANCE_LIABILITY.md](../docs/ATLAS_BUSINESS_INSURANCE_LIABILITY.md) | 1,876 | 12 insurance types, SaaS/tech liability, piercing corporate veil, contract law (MSA), privacy (PIPEDA/GDPR), IP protection, employment law, dispute resolution, risk management framework | Insurance decisions, contract review, liability protection, IP strategy, hiring compliance |
+
+## Payroll, Hiring & Employment
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_PAYROLL_HIRING_GUIDE.md](../docs/ATLAS_PAYROLL_HIRING_GUIDE.md) | 1,711 | Employee vs contractor (Wiebe Door), PSB risk, CPP/EI/WSIB, payroll processing, hiring compliance, employment agreements, international contractors, benefits design, equity compensation, termination law, payroll software | First hire, contractor management, payroll setup, equity compensation, termination |
+
 ## Debt & Leverage
 
 | Document | Lines | Scope | When to Use |
@@ -143,3 +168,17 @@ tags: [tax, index, playbook, documents]
 | "SaaS metrics / MRR / churn?" | ATLAS_SAAS_CFO_PLAYBOOK.md |
 | "Client concentration risk?" | ATLAS_SAAS_CFO_PLAYBOOK.md |
 | "How to price my SaaS?" | ATLAS_SAAS_CFO_PLAYBOOK.md |
+| "How do central banks work?" | ATLAS_GLOBAL_FINANCIAL_SYSTEM.md |
+| "How does the banking system work?" | ATLAS_GLOBAL_FINANCIAL_SYSTEM.md |
+| "FX / exchange rate / currency risk?" | ATLAS_GLOBAL_FINANCIAL_SYSTEM.md |
+| "How to read financial statements?" | ATLAS_FINANCIAL_STATEMENTS_GUIDE.md |
+| "What is EBITDA / gross margin / ratios?" | ATLAS_FINANCIAL_STATEMENTS_GUIDE.md |
+| "Chart of accounts / bookkeeping setup?" | ATLAS_FINANCIAL_STATEMENTS_GUIDE.md + ATLAS_BOOKKEEPING_SYSTEMS.md |
+| "What insurance do I need?" | ATLAS_BUSINESS_INSURANCE_LIABILITY.md |
+| "Contracts / MSA / liability caps?" | ATLAS_BUSINESS_INSURANCE_LIABILITY.md |
+| "Privacy / PIPEDA / GDPR?" | ATLAS_BUSINESS_INSURANCE_LIABILITY.md |
+| "How to hire / employee vs contractor?" | ATLAS_PAYROLL_HIRING_GUIDE.md |
+| "Payroll / CPP / EI / WSIB?" | ATLAS_PAYROLL_HIRING_GUIDE.md |
+| "Stock options / equity compensation?" | ATLAS_PAYROLL_HIRING_GUIDE.md + ATLAS_OPTIONS_DERIVATIVES_TAX.md |
+| "US clients / W-8BEN / 1099?" | ATLAS_US_TAX_FOR_CANADIANS.md |
+| "Stripe / Wise tax compliance?" | ATLAS_US_TAX_FOR_CANADIANS.md |

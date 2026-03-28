@@ -11,7 +11,7 @@ tags: [capabilities, tools]
 - **Trading Strategies:** 12+ (RSI MR, Donchian, EMA crossover, Bollinger squeeze, VWAP, multi-TF momentum, London breakout, opening range, smart money, Ichimoku, order flow, Z-score, volume profile, RSI divergence, TSMOM, gold pullback)
 - **AI Agents:** 10 (4 analysts + debate + risk + portfolio + Darwinian evolution + financial advisor + budget)
 - **Finance Modules:** 4 (tax calculator, financial advisor, wealth tracker, budget)
-- **Tax/Finance Documents:** 34 indexed (~38,161 lines) + 4 trading research docs = 38 total in docs/
+- **Tax/Finance Documents:** 39 indexed (~48,599 lines) + 4 trading research docs = 43 total in docs/
 - **Brain Files:** 12 (SOUL, USER, STATE, CAPABILITIES, DASHBOARD, GROWTH, RISKS, TAX_PLAYBOOK_INDEX, BRAIN_LOOP, INTERACTION_PROTOCOL, HEARTBEAT, AGENTS)
 - **Brokers:** 3 (Kraken/CCXT, OANDA, Alpaca — not configured)
 - **Skills:** 11 (accounting-advisor, tax-optimization, financial-planning, quarterly-tax-review, tax-loss-harvesting, departure-tax-planning, portfolio-rebalancing, position-sizing, trade-protocol, income-tier-monitoring, crypto-acb-tracking)
