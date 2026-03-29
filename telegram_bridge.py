@@ -1,9 +1,9 @@
 """
 telegram_bridge.py
 ------------------
-Atlas Trading Agent — Telegram Bot for Remote Control.
+Atlas CFO Agent — Telegram Bot for Trading & Accounting.
 
-CC can send commands from his phone and receive proactive trade alerts.
+CC can send commands from his phone, receive trade alerts, and track receipts/expenses.
 
 Security
 --------
@@ -11,8 +11,8 @@ Only responds to CC's Telegram user ID (TELEGRAM_USER_ID in .env).
 If TELEGRAM_USER_ID is not set, auto-registers the first user who
 messages the bot and writes the ID back to .env.
 
-Commands
---------
+Commands — Trading
+------------------
   /status      — current portfolio, P&L, open positions
   /analyze     — run multi-agent analysis on a symbol (e.g. /analyze BTC/USDT)
   /positions   — list open positions with P&L
@@ -24,6 +24,14 @@ Commands
   /pause       — pause autonomous trading (keep monitoring)
   /resume      — resume autonomous trading
   /kill        — emergency: close all positions and halt
+
+Commands — Accounting
+---------------------
+  [send photo] — save a receipt (caption: "vendor amount" e.g. "Staples 45.99")
+  /receipts    — view recent receipts
+  /expenses    — monthly expense summary (e.g. /expenses 2026-03)
+  /deductions  — YTD business deductions for T2125
+  /addexpense  — manual expense (e.g. /addexpense Business 29.99 Adobe subscription)
   /help        — list all commands
 
 Proactive alerts (sent automatically)
@@ -67,7 +75,7 @@ logger = logging.getLogger("atlas.telegram_bridge")
 
 from config.settings import settings  # noqa: E402
 from db.database import get_session, init_db  # noqa: E402
-from db.models import DailyPnL, PortfolioSnapshot, Signal, Trade  # noqa: E402
+from db.models import DailyPnL, Expense, PortfolioSnapshot, Receipt, Signal, Trade  # noqa: E402
 
 # Ensure all tables exist before any handler queries the DB.
 # Safe to call multiple times — uses CREATE TABLE IF NOT EXISTS semantics.
@@ -77,9 +85,10 @@ init_db()
 #  Constants
 # ─────────────────────────────────────────────────────────────────────────────
 
-_BOT_VERSION = "1.0.0"
+_BOT_VERSION = "2.0.0"
 _TELEGRAM_API_BASE = "https://api.telegram.org/bot"
 _MAX_MESSAGE_LENGTH = 4096  # Telegram hard limit
+_RECEIPTS_DIR = _ROOT / "data" / "receipts"
 
 # Shared state flags — modified by /pause and /resume
 _trading_paused: bool = False
@@ -365,8 +374,9 @@ def _format_risk() -> str:
 def _format_help() -> str:
     """Build the /help response text."""
     return (
-        "Atlas Trading Agent Commands:\n"
+        "Atlas CFO Agent Commands:\n"
         "\n"
+        "TRADING\n"
         "/status     — portfolio, P&L, positions\n"
         "/analyze <SYMBOL>  — e.g. /analyze BTC/USDT\n"
         "/positions  — open positions with P&L\n"
@@ -378,6 +388,14 @@ def _format_help() -> str:
         "/pause      — pause trading (keep monitoring)\n"
         "/resume     — resume trading\n"
         "/kill       — EMERGENCY: close all & halt\n"
+        "\n"
+        "ACCOUNTING\n"
+        "[Send photo] — save a receipt (add caption: 'vendor amount')\n"
+        "/receipts   — view recent receipts\n"
+        "/expenses [month] — expense summary (e.g. /expenses 2026-03)\n"
+        "/deductions [year] — YTD business deductions for T2125\n"
+        "/addexpense category amount description — manual expense\n"
+        "\n"
         "/help       — this message"
     )
 
@@ -527,13 +545,24 @@ class TelegramBridge:
         user_id = str(from_user.get("id", ""))
         text: str = message.get("text", "").strip()
 
-        if not text:
-            return
-
         # Security check
         if not self._is_authorized(user_id):
             logger.warning("Blocked unauthorized user: %s", user_id)
             await self._send_message("Unauthorized.", chat_id=chat_id)
+            return
+
+        # Handle photo messages (receipts)
+        if message.get("photo"):
+            caption = message.get("caption", "").strip()
+            logger.info("Receipt photo from %s (caption: %s)", user_id, caption[:60])
+            try:
+                await self._handle_receipt_photo(chat_id, message)
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Receipt handler raised: %s", exc)
+                await self._send_message(f"Error saving receipt: {exc}", chat_id=chat_id)
+            return
+
+        if not text:
             return
 
         logger.info("Command from %s: %s", user_id, text[:80])
@@ -557,6 +586,10 @@ class TelegramBridge:
             "/pause": self._cmd_pause,
             "/resume": self._cmd_resume,
             "/kill": self._cmd_kill,
+            "/receipts": self._cmd_receipts,
+            "/expenses": self._cmd_expenses,
+            "/deductions": self._cmd_deductions,
+            "/addexpense": self._cmd_add_expense,
         }
 
         handler = handlers.get(cmd)
@@ -716,6 +749,287 @@ class TelegramBridge:
         )
         # Signal the main shutdown event to stop the daemon
         self._shutdown_event.set()
+
+    # ── Receipt & Expense handlers ─────────────────────────────────────────
+
+    async def _handle_receipt_photo(self, chat_id: str, message: dict[str, Any]) -> None:
+        """Download a photo sent to the bot and save it as a receipt."""
+        photos: list[dict[str, Any]] = message["photo"]
+        # Telegram sends multiple sizes — take the largest (last)
+        best_photo = photos[-1]
+        file_id: str = best_photo["file_id"]
+        caption: str = message.get("caption", "").strip()
+
+        # Get file path from Telegram
+        url = f"{_TELEGRAM_API_BASE}{self._token}/getFile"
+        async with self._http.get(url, params={"file_id": file_id}) as resp:
+            if resp.status != 200:
+                await self._send_message("Failed to retrieve photo from Telegram.", chat_id=chat_id)
+                return
+            data = await resp.json()
+            if not data.get("ok"):
+                await self._send_message("Failed to retrieve photo from Telegram.", chat_id=chat_id)
+                return
+            file_path_tg: str = data["result"]["file_path"]
+
+        # Download the file
+        download_url = f"https://api.telegram.org/file/bot{self._token}/{file_path_tg}"
+        async with self._http.get(download_url) as resp:
+            if resp.status != 200:
+                await self._send_message("Failed to download photo.", chat_id=chat_id)
+                return
+            file_bytes = await resp.read()
+
+        # Save to data/receipts/
+        _RECEIPTS_DIR.mkdir(parents=True, exist_ok=True)
+        today = datetime.date.today()
+        ext = Path(file_path_tg).suffix or ".jpg"
+        filename = f"{today.isoformat()}_{file_id[:12]}{ext}"
+        save_path = _RECEIPTS_DIR / filename
+        save_path.write_bytes(file_bytes)
+        logger.info("Receipt saved: %s (%d bytes)", save_path, len(file_bytes))
+
+        # Parse caption for amount and vendor (format: "vendor amount" or just send photo)
+        vendor = None
+        amount = None
+        if caption:
+            parts = caption.rsplit(maxsplit=1)
+            # Try to parse last word as amount
+            if len(parts) >= 2:
+                try:
+                    amount = float(parts[-1].replace("$", "").replace(",", ""))
+                    vendor = parts[0]
+                except ValueError:
+                    vendor = caption
+            else:
+                # Single word — try as amount, else treat as vendor
+                try:
+                    amount = float(caption.replace("$", "").replace(",", ""))
+                except ValueError:
+                    vendor = caption
+
+        # Save to database
+        with get_session() as session:
+            receipt = Receipt(
+                date=today,
+                file_path=str(save_path),
+                file_id=file_id,
+                vendor=vendor,
+                amount=amount,
+                is_business_deductible=True,
+            )
+            session.add(receipt)
+            session.commit()
+            receipt_id = receipt.id
+
+        # Confirm to user
+        lines = [f"Receipt #{receipt_id} saved"]
+        if vendor:
+            lines.append(f"Vendor: {vendor}")
+        if amount is not None:
+            lines.append(f"Amount: ${amount:,.2f}")
+        lines.append(f"Date: {today.isoformat()}")
+        lines.append("")
+        lines.append("Tip: send photo with caption like:")
+        lines.append('"Staples 45.99" to auto-fill vendor + amount')
+        await self._send_message("\n".join(lines), chat_id=chat_id)
+
+    async def _cmd_receipts(self, chat_id: str, arg: str) -> None:
+        """Show recent receipts. Usage: /receipts [count]"""
+        count = 10
+        if arg.strip().isdigit():
+            count = min(int(arg.strip()), 50)
+
+        with get_session() as session:
+            receipts = (
+                session.query(Receipt)
+                .order_by(Receipt.date.desc())
+                .limit(count)
+                .all()
+            )
+            if not receipts:
+                await self._send_message("No receipts yet. Send a photo to log one.", chat_id=chat_id)
+                return
+
+            lines = [f"Last {len(receipts)} Receipts:\n"]
+            total = 0.0
+            for r in receipts:
+                amt_str = f"${r.amount:,.2f}" if r.amount else "?"
+                vendor_str = r.vendor or "Unknown"
+                cat_str = f" [{r.category}]" if r.category else ""
+                lines.append(f"#{r.id} | {r.date} | {vendor_str} | {amt_str}{cat_str}")
+                if r.amount:
+                    total += r.amount
+            lines.append(f"\nTotal: ${total:,.2f}")
+        await self._send_message("\n".join(lines), chat_id=chat_id)
+
+    async def _cmd_expenses(self, chat_id: str, arg: str) -> None:
+        """Show expense summary. Usage: /expenses [month] (e.g. /expenses 2026-03)"""
+        today = datetime.date.today()
+        if arg.strip():
+            try:
+                parts = arg.strip().split("-")
+                year, month = int(parts[0]), int(parts[1])
+            except (ValueError, IndexError):
+                await self._send_message("Usage: /expenses 2026-03", chat_id=chat_id)
+                return
+        else:
+            year, month = today.year, today.month
+
+        start_date = datetime.date(year, month, 1)
+        if month == 12:
+            end_date = datetime.date(year + 1, 1, 1)
+        else:
+            end_date = datetime.date(year, month + 1, 1)
+
+        with get_session() as session:
+            # From receipts
+            receipts = (
+                session.query(Receipt)
+                .filter(Receipt.date >= start_date, Receipt.date < end_date)
+                .order_by(Receipt.date.asc())
+                .all()
+            )
+            # From expenses table
+            expenses = (
+                session.query(Expense)
+                .filter(Expense.date >= start_date, Expense.date < end_date)
+                .order_by(Expense.date.asc())
+                .all()
+            )
+
+        receipt_total = sum(r.amount for r in receipts if r.amount)
+        expense_total = sum(e.amount for e in expenses)
+        biz_total = sum(r.amount for r in receipts if r.amount and r.is_business_deductible)
+        biz_total += sum(e.amount for e in expenses if e.is_business_deductible)
+
+        month_name = start_date.strftime("%B %Y")
+        lines = [
+            f"Expense Summary — {month_name}\n",
+            f"Receipts logged: {len(receipts)}",
+            f"Receipt total: ${receipt_total:,.2f}",
+            f"Manual expenses: {len(expenses)}",
+            f"Expense total: ${expense_total:,.2f}",
+            f"Combined: ${receipt_total + expense_total:,.2f}",
+            f"\nBusiness deductible: ${biz_total:,.2f}",
+        ]
+
+        # Category breakdown from receipts
+        cats: dict[str, float] = {}
+        for r in receipts:
+            if r.amount:
+                cat = r.category or "Uncategorized"
+                cats[cat] = cats.get(cat, 0) + r.amount
+        for e in expenses:
+            cats[e.category] = cats.get(e.category, 0) + e.amount
+
+        if cats:
+            lines.append("\nBy Category:")
+            for cat, amt in sorted(cats.items(), key=lambda x: -x[1]):
+                lines.append(f"  {cat}: ${amt:,.2f}")
+
+        await self._send_message("\n".join(lines), chat_id=chat_id)
+
+    async def _cmd_deductions(self, chat_id: str, arg: str) -> None:
+        """Show YTD business deductions for T2125. Usage: /deductions [year]"""
+        today = datetime.date.today()
+        year = int(arg.strip()) if arg.strip().isdigit() else today.year
+        start = datetime.date(year, 1, 1)
+        end = datetime.date(year + 1, 1, 1)
+
+        with get_session() as session:
+            receipts = (
+                session.query(Receipt)
+                .filter(
+                    Receipt.date >= start,
+                    Receipt.date < end,
+                    Receipt.is_business_deductible.is_(True),
+                )
+                .all()
+            )
+            expenses = (
+                session.query(Expense)
+                .filter(
+                    Expense.date >= start,
+                    Expense.date < end,
+                    Expense.is_business_deductible.is_(True),
+                )
+                .all()
+            )
+
+        # Aggregate by T2125 category
+        t2125: dict[str, float] = {}
+        for r in receipts:
+            if r.amount:
+                line = r.t2125_line or r.category or "Other"
+                t2125[line] = t2125.get(line, 0) + r.amount
+        for e in expenses:
+            line = e.category or "Other"
+            t2125[line] = t2125.get(line, 0) + e.amount
+
+        total = sum(t2125.values())
+        lines = [
+            f"T2125 Business Deductions — {year}\n",
+        ]
+        for cat, amt in sorted(t2125.items(), key=lambda x: -x[1]):
+            lines.append(f"  {cat}: ${amt:,.2f}")
+        lines.append(f"\nTotal deductions: ${total:,.2f}")
+
+        # Estimate tax savings at marginal rate
+        if total > 0:
+            marginal_rate = 0.2965 if total < 55000 else 0.3348  # ON first/second bracket
+            lines.append(f"Estimated tax savings: ${total * marginal_rate:,.2f}")
+            lines.append(f"(at {marginal_rate*100:.1f}% marginal rate)")
+
+        await self._send_message("\n".join(lines), chat_id=chat_id)
+
+    async def _cmd_add_expense(self, chat_id: str, arg: str) -> None:
+        """Manually add an expense. Usage: /addexpense category amount description"""
+        if not arg.strip():
+            await self._send_message(
+                "Usage: /addexpense category amount description\n"
+                "Example: /addexpense Business 29.99 Adobe Creative Cloud subscription\n\n"
+                "Categories: Housing, Food, Transport, Business, Entertainment, "
+                "Subscriptions, Savings, Investing, Other",
+                chat_id=chat_id,
+            )
+            return
+
+        parts = arg.strip().split(maxsplit=2)
+        if len(parts) < 2:
+            await self._send_message("Need at least category and amount.", chat_id=chat_id)
+            return
+
+        category = parts[0].capitalize()
+        try:
+            amount = float(parts[1].replace("$", "").replace(",", ""))
+        except ValueError:
+            await self._send_message(f"Invalid amount: {parts[1]}", chat_id=chat_id)
+            return
+        description = parts[2] if len(parts) > 2 else ""
+
+        is_biz = category.lower() in ("business", "transport", "subscriptions")
+        today = datetime.date.today()
+
+        with get_session() as session:
+            expense = Expense(
+                date=today,
+                amount=amount,
+                category=category,
+                description=description,
+                is_business_deductible=is_biz,
+            )
+            session.add(expense)
+            session.commit()
+            expense_id = expense.id
+
+        biz_tag = " [DEDUCTIBLE]" if is_biz else ""
+        await self._send_message(
+            f"Expense #{expense_id} added\n"
+            f"{category}: ${amount:,.2f}{biz_tag}\n"
+            f"{description}" if description else f"Expense #{expense_id} added\n{category}: ${amount:,.2f}{biz_tag}",
+            chat_id=chat_id,
+        )
 
     # ── Public alert API (called by autonomous.py) ─────────────────────────
 

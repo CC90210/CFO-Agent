@@ -414,6 +414,57 @@ class Expense(Base):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+#  Receipt
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class Receipt(Base):
+    """
+    A receipt captured via Telegram photo.
+
+    Stores the image file path and extracted data (vendor, amount, tax, etc.).
+    Links to an Expense record when categorized.
+    """
+
+    __tablename__ = "receipts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    file_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    file_id: Mapped[str] = mapped_column(String(256), nullable=False)
+
+    # Extracted data (populated after OCR / manual entry)
+    vendor: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tax_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="CAD")
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # T2125 categorization
+    category: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    t2125_line: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    is_business_deductible: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True
+    )
+
+    # Link to Expense record (optional — set after categorization)
+    expense_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("expenses.id"), nullable=True
+    )
+
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=False),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    def __repr__(self) -> str:
+        amt = f"${self.amount:.2f}" if self.amount else "?"
+        return f"<Receipt {self.date} {self.vendor or '?'} {amt}>"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 #  FinancialGoal
 # ─────────────────────────────────────────────────────────────────────────────
 
