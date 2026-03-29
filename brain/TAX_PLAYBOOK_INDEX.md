@@ -1,13 +1,13 @@
 ---
 name: ATLAS Tax Playbook Index
-description: Master index of all financial documents — 47 docs covering tax, investing, wealth building, SaaS operations, compliance, accounting, insurance, payroll, global finance, real estate investing, estate planning, negotiation, funding, AI regulation, crypto strategies, trust taxation
+description: Master index of all financial documents — 55 docs covering tax, investing, wealth building, SaaS operations, compliance, accounting, insurance, payroll, global finance, real estate investing, estate planning, negotiation, funding, AI regulation, crypto strategies, trust taxation, business valuation, M&A, forensic accounting, CCA depreciation, platform economy, transfer pricing, professional corporations, partnerships, financial literacy, hedge fund strategies
 tags: [tax, index, playbook, documents]
 ---
 
 # ATLAS Tax Playbook Index
 
 > Master index of all tax and financial documents. Consult this to find the right doc for any tax question.
-> Total: 47 documents, ~59,987 lines of financial intelligence.
+> Total: 57 documents, ~77,906 lines of financial intelligence.
 
 ## Core Tax Strategy
 
@@ -171,6 +171,55 @@ tags: [tax, index, playbook, documents]
 |----------|-------|-------|-------------|
 | [ATLAS_FUNDING_PROGRAMS_OPERATIONAL.md](../docs/ATLAS_FUNDING_PROGRAMS_OPERATIONAL.md) | 1,535 | 25+ programs with application-ready detail: SR&ED ($52K est), IRAP ($72-96K), CSBFP ($50-75K), CDAE (24% salary credit), cloud credits ($580-670K), accelerators (CDL, Next AI), stacking strategy ($692K-718K Year 1) | Grant applications, funding, SR&ED filing, cloud credits, accelerator selection |
 
+## Business Valuation & M&A
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_BUSINESS_VALUATION_MA.md](../docs/ATLAS_BUSINESS_VALUATION_MA.md) | 2,629 | DCF (FCFF/FCFE, WACC, terminal value), comparable companies, precedent transactions, NAV, SaaS-specific valuation (Rule of 40, NRR), discounts/premiums (DLOM, minority, control), CRA FMV rules (IT-416R3, IC 89-3), s.85 rollover, s.86 estate freeze, s.87 amalgamation, s.88 wind-up, asset vs share purchase, PPA, earn-outs, LCGE on QSBC, cross-border M&A, butterfly transactions, pipeline planning, distressed restructuring (s.80), director liability (s.227.1) | Business sale/acquisition, OASIS valuation, VC conversations, incorporation, estate freeze, LCGE planning, M&A tax structuring |
+
+## Forensic Accounting & Fraud Detection
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_FORENSIC_ACCOUNTING_FRAUD.md](../docs/ATLAS_FORENSIC_ACCOUNTING_FRAUD.md) | 2,520 | Beneish M-Score (8 variables), Benford's Law, Altman Z-Score, fraud triangle/diamond/pentagon, ACFE fraud taxonomy, red flag analysis, GAAR (s.245) with SCC case law (Canada Trustco, Copthorne, Alta Energy), CRA penalties (s.162/163/238/239), FINTRC/PCMLTFA, COSO framework, 10 case studies (Enron, WorldCom, Nortel, Bre-X, FTX, QuadrigaCX, Wirecard), blockchain forensics, internal controls, due diligence checklists | Fraud detection, investment due diligence, vendor screening, CRA audit response, GAAR risk assessment, internal controls setup |
+
+## CCA & Depreciation
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_CCA_DEPRECIATION_GUIDE.md](../docs/ATLAS_CCA_DEPRECIATION_GUIDE.md) | 1,835 | Complete CCA system — every class (1-56), declining balance vs straight-line, half-year rule, Accelerated Investment Incentive (AII), immediate expensing ($1.5M CCPC), recapture/terminal loss, UCC schedules, Class 10 vs 10.1 vehicles, Class 12 (100% software), Class 14.1 (goodwill), Class 50 (computers), Class 54/55 (EVs), rental CCA restriction (s.1100(11)), home office PRE trap, lease vs buy, s.85 rollover UCC transfer, SR&ED/ITC interaction | Any capital asset purchase, vehicle decisions, equipment CCA, software vs hardware, rental property depreciation, incorporation CCA transfer |
+| [ATLAS_AUTOMOBILE_EXPENSE_GUIDE.md](../docs/ATLAS_AUTOMOBILE_EXPENSE_GUIDE.md) | 1,969 | Complete vehicle tax guide — business use %, detailed vs simplified method, every deductible expense (gas, insurance, repairs, interest cap s.67.2, lease cap s.67.3), Class 10 vs 10.1 (the $37K threshold), AII, CCPC immediate expensing, EV Classes 54/55 ($61K limit vs no limit), iZEV rebate interaction, logbook requirements (full year + 3-month sample), lease vs buy vs finance NPV comparison, standby charge (s.6(2)) and operating cost benefit (s.6(1)(k)) for corporation-owned vehicles, trade-in/disposition mechanics, rideshare HST, ITCs on vehicle purchases (50% restriction), multi-vehicle strategy, CRA audit defense | Any vehicle deduction question, logbook setup, lease vs buy decision, EV tax strategy, corporation vehicle benefit calculation, rideshare vehicle expenses |
+
+## Platform Economy & Gig Workers
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_PLATFORM_ECONOMY_TAX.md](../docs/ATLAS_PLATFORM_ECONOMY_TAX.md) | 1,653 | Every platform: Uber/Lyft (mandatory HST from $1), DoorDash/Skip (food delivery), Airbnb/VRBO (short-term rental), Etsy/Amazon FBA/Shopify (e-commerce), Upwork/Fiverr/Toptal (freelance), YouTube/TikTok/Twitch/Patreon/OnlyFans (content creation), crypto platforms, TaskRabbit, Turo, trucking/logistics. Platform-specific deductions, HST rules, CRA audit triggers, multi-platform optimization, CPP self-employment | Any gig/platform income, Uber HST, Airbnb tax, content creator deductions, multi-platform filing |
+
+## Transfer Pricing & Advanced International Tax
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_TRANSFER_PRICING_INTERNATIONAL.md](../docs/ATLAS_TRANSFER_PRICING_INTERNATIONAL.md) | 1,909 | All 5 OECD TP methods (CUP, RPM, cost plus, TNMM, profit split), s.247 mechanics and penalties (10% of adjustment), DEMPE for IP, thin capitalization (s.18(4) 1.5:1 ratio), FAPI (s.91), surplus accounts (exempt/taxable/pre-acquisition/hybrid), APAs, holding structures (Ireland KDB 6.25%, Netherlands, Singapore, Luxembourg), BEPS Pillar One/Two (15% global minimum), DST (3% on digital revenue), withholding tax optimization, T106/T1134 compliance | International structuring, IP licensing, intercompany pricing, foreign subsidiary, cross-border compliance, Pillar Two impact assessment |
+
+## Professional Corporations & Partnerships
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_PROFESSIONAL_CORPS_PARTNERSHIPS.md](../docs/ATLAS_PROFESSIONAL_CORPS_PARTNERSHIPS.md) | 2,201 | Professional corps (doctors, lawyers, dentists, CPAs, engineers, vets), salary vs dividend optimization, IPP (defined benefit for one), RCA, passive income SBD grind, PSB avoidance (Wiebe Door), GP/LP/LLP/JV (all 4 partnership types), T5013, partnership ACB, s.97(2)/s.98 rollovers, tiered partnerships, family partnerships, EOT ($10M exemption), co-ops, REIT/SIFT, HoldCo architecture, nominee corporations | Professional incorporation, partnership setup, LP structuring, JV vs partnership, IPP/RCA planning, EOT succession |
+
+## Hedge Fund Strategies & Wealth Management
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_HEDGE_FUND_WEALTH_MANAGEMENT.md](../docs/ATLAS_HEDGE_FUND_WEALTH_MANAGEMENT.md) | 2,055 | 17 hedge fund strategies (L/S equity, global macro, stat arb, trend following, vol trading, distressed, multi-strategy pod), 13 legendary investors (Buffett, Soros, Dalio, Simons, Marks, Lynch, Druckenmiller, Klarman, Burry, Icahn, Swensen, Munger, PTJ), portfolio construction (MPT, Black-Litterman, risk parity, barbell), Buy/Borrow/Die Canadian adaptation, IBC, PPLI, DAFs, TFSA/RRSP/FHSA optimization, Smith Manoeuvre, fee structures, performance metrics (Sharpe/Sortino/Calmar), model portfolios with Canadian ETF tickers, tax treatment by strategy type | Hedge fund strategy research, wealth management, portfolio construction, investor frameworks, Canadian tax on investment strategies |
+
+## Financial Literacy & Wealth Psychology
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_FINANCIAL_LITERACY_MASTERCLASS.md](../docs/ATLAS_FINANCIAL_LITERACY_MASTERCLASS.md) | 2,714 | 115 wealth principles from 50+ books — Psychology of Money (Housel), Thinking Fast & Slow (Kahneman), Antifragile (Taleb), Intelligent Investor (Graham), Buffett letters, Rules of Wealth (Templar), Almanack of Naval, Die With Zero (Perkins), Richest Man in Babylon, Millionaire Next Door, Rich Dad Poor Dad, FIRE frameworks (4% rule, Coast/Barista/Fat/Lean), academic foundations (Fama-French, CAPM, Black-Scholes, MPT, Prospect Theory), behavioral guardrails, Canadian context throughout | Client financial education, wealth building strategy, behavioral finance, FIRE planning, investment philosophy, understanding compounding |
+
 ## Quick Lookup: By Tax Situation
 
 | Situation | Go To |
@@ -262,3 +311,59 @@ tags: [tax, index, playbook, documents]
 | "DeFi yield / liquidity pools / borrow-don't-sell?" | ATLAS_CRYPTO_DEFI_STRATEGIES.md |
 | "Crypto ETFs in TFSA / FHSA?" | ATLAS_CRYPTO_DEFI_STRATEGIES.md |
 | "Bitcoin halving / market cycle?" | ATLAS_CRYPTO_DEFI_STRATEGIES.md |
+| "What is my business worth?" | ATLAS_BUSINESS_VALUATION_MA.md |
+| "DCF valuation / SaaS multiples?" | ATLAS_BUSINESS_VALUATION_MA.md |
+| "Selling my company / M&A?" | ATLAS_BUSINESS_VALUATION_MA.md + ATLAS_NEGOTIATION_DEAL_STRATEGY.md |
+| "Section 85 rollover?" | ATLAS_BUSINESS_VALUATION_MA.md |
+| "Butterfly transaction / corporate split?" | ATLAS_BUSINESS_VALUATION_MA.md |
+| "Pipeline planning post-death?" | ATLAS_BUSINESS_VALUATION_MA.md |
+| "Detect fraud / Beneish M-Score?" | ATLAS_FORENSIC_ACCOUNTING_FRAUD.md |
+| "Benford's Law / fabricated numbers?" | ATLAS_FORENSIC_ACCOUNTING_FRAUD.md |
+| "GAAR risk / anti-avoidance?" | ATLAS_FORENSIC_ACCOUNTING_FRAUD.md |
+| "Internal controls / COSO?" | ATLAS_FORENSIC_ACCOUNTING_FRAUD.md |
+| "Money laundering / FINTRAC?" | ATLAS_FORENSIC_ACCOUNTING_FRAUD.md |
+| "CCA class for my purchase?" | ATLAS_CCA_DEPRECIATION_GUIDE.md |
+| "Vehicle CCA / Class 10 vs 10.1?" | ATLAS_CCA_DEPRECIATION_GUIDE.md + ATLAS_AUTOMOBILE_EXPENSE_GUIDE.md |
+| "Immediate expensing / $1.5M CCPC?" | ATLAS_CCA_DEPRECIATION_GUIDE.md |
+| "Terminal loss / recapture?" | ATLAS_CCA_DEPRECIATION_GUIDE.md |
+| "Computer / software CCA class?" | ATLAS_CCA_DEPRECIATION_GUIDE.md |
+| "Goodwill / Class 14.1?" | ATLAS_CCA_DEPRECIATION_GUIDE.md |
+| "Car deductions / vehicle expenses?" | ATLAS_AUTOMOBILE_EXPENSE_GUIDE.md |
+| "Do I need a logbook?" | ATLAS_AUTOMOBILE_EXPENSE_GUIDE.md |
+| "Lease vs buy a car for business?" | ATLAS_AUTOMOBILE_EXPENSE_GUIDE.md |
+| "Interest cap on car loan?" | ATLAS_AUTOMOBILE_EXPENSE_GUIDE.md (s.67.2 — $300/month) |
+| "Lease payment cap?" | ATLAS_AUTOMOBILE_EXPENSE_GUIDE.md (s.67.3 — $950/month) |
+| "EV tax advantage / Class 54 or 55?" | ATLAS_AUTOMOBILE_EXPENSE_GUIDE.md |
+| "Standby charge / corp car benefit?" | ATLAS_AUTOMOBILE_EXPENSE_GUIDE.md |
+| "How much is my car deductible?" | ATLAS_AUTOMOBILE_EXPENSE_GUIDE.md |
+| "Rideshare vehicle deductions?" | ATLAS_AUTOMOBILE_EXPENSE_GUIDE.md + ATLAS_PLATFORM_ECONOMY_TAX.md |
+| "Uber / Lyft tax?" | ATLAS_PLATFORM_ECONOMY_TAX.md |
+| "Airbnb / short-term rental tax?" | ATLAS_PLATFORM_ECONOMY_TAX.md |
+| "DoorDash / food delivery deductions?" | ATLAS_PLATFORM_ECONOMY_TAX.md |
+| "YouTube / Twitch / content creator tax?" | ATLAS_PLATFORM_ECONOMY_TAX.md |
+| "Etsy / Amazon FBA / e-commerce tax?" | ATLAS_PLATFORM_ECONOMY_TAX.md |
+| "Freelancer / Upwork / Fiverr tax?" | ATLAS_PLATFORM_ECONOMY_TAX.md |
+| "Transfer pricing / s.247?" | ATLAS_TRANSFER_PRICING_INTERNATIONAL.md |
+| "Thin capitalization / debt-to-equity?" | ATLAS_TRANSFER_PRICING_INTERNATIONAL.md |
+| "FAPI / foreign affiliate income?" | ATLAS_TRANSFER_PRICING_INTERNATIONAL.md |
+| "BEPS / Pillar Two / global minimum tax?" | ATLAS_TRANSFER_PRICING_INTERNATIONAL.md |
+| "Ireland KDB / IP holding company?" | ATLAS_TRANSFER_PRICING_INTERNATIONAL.md + ATLAS_UK_CROWN_DEPENDENCIES_STRATEGY.md |
+| "Doctor / lawyer incorporation?" | ATLAS_PROFESSIONAL_CORPS_PARTNERSHIPS.md |
+| "IPP / RCA retirement planning?" | ATLAS_PROFESSIONAL_CORPS_PARTNERSHIPS.md |
+| "Partnership taxation / T5013?" | ATLAS_PROFESSIONAL_CORPS_PARTNERSHIPS.md |
+| "LP / LLP / joint venture?" | ATLAS_PROFESSIONAL_CORPS_PARTNERSHIPS.md |
+| "Employee Ownership Trust (EOT)?" | ATLAS_PROFESSIONAL_CORPS_PARTNERSHIPS.md |
+| "Passive income SBD grind?" | ATLAS_PROFESSIONAL_CORPS_PARTNERSHIPS.md |
+| "Psychology of money / behavioral finance?" | ATLAS_FINANCIAL_LITERACY_MASTERCLASS.md |
+| "Best finance books / wealth principles?" | ATLAS_FINANCIAL_LITERACY_MASTERCLASS.md |
+| "FIRE number / 4% rule / Coast FIRE?" | ATLAS_FINANCIAL_LITERACY_MASTERCLASS.md |
+| "Compounding / time value of money?" | ATLAS_FINANCIAL_LITERACY_MASTERCLASS.md + ATLAS_WEALTH_BUILDING_MASTERY.md |
+| "Warren Buffett / value investing?" | ATLAS_FINANCIAL_LITERACY_MASTERCLASS.md + ATLAS_HEDGE_FUND_WEALTH_MANAGEMENT.md |
+| "Hedge fund strategies?" | ATLAS_HEDGE_FUND_WEALTH_MANAGEMENT.md |
+| "Long/short equity / stat arb?" | ATLAS_HEDGE_FUND_WEALTH_MANAGEMENT.md |
+| "Global macro / Soros / Dalio?" | ATLAS_HEDGE_FUND_WEALTH_MANAGEMENT.md |
+| "Trend following / CTA / managed futures?" | ATLAS_HEDGE_FUND_WEALTH_MANAGEMENT.md |
+| "Risk parity / All Weather portfolio?" | ATLAS_HEDGE_FUND_WEALTH_MANAGEMENT.md |
+| "Buy Borrow Die / PPLI / infinite banking?" | ATLAS_HEDGE_FUND_WEALTH_MANAGEMENT.md |
+| "Model portfolio / asset allocation?" | ATLAS_HEDGE_FUND_WEALTH_MANAGEMENT.md + ATLAS_ADVANCED_INVESTMENT_STRATEGIES.md |
+| "Sharpe ratio / Sortino / performance metrics?" | ATLAS_HEDGE_FUND_WEALTH_MANAGEMENT.md |
