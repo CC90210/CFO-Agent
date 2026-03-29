@@ -1,13 +1,13 @@
 ---
 name: ATLAS Tax Playbook Index
-description: Master index of all financial documents — 46 docs covering tax, investing, wealth building, SaaS operations, compliance, accounting, insurance, payroll, global finance, real estate investing, estate planning, negotiation, funding, AI regulation, crypto strategies
+description: Master index of all financial documents — 47 docs covering tax, investing, wealth building, SaaS operations, compliance, accounting, insurance, payroll, global finance, real estate investing, estate planning, negotiation, funding, AI regulation, crypto strategies, trust taxation
 tags: [tax, index, playbook, documents]
 ---
 
 # ATLAS Tax Playbook Index
 
 > Master index of all tax and financial documents. Consult this to find the right doc for any tax question.
-> Total: 46 documents, ~57,787 lines of financial intelligence.
+> Total: 47 documents, ~59,987 lines of financial intelligence.
 
 ## Core Tax Strategy
 
@@ -139,6 +139,7 @@ tags: [tax, index, playbook, documents]
 | Document | Lines | Scope | When to Use |
 |----------|-------|-------|-------------|
 | [ATLAS_ESTATE_SUCCESSION_PLANNING.md](../docs/ATLAS_ESTATE_SUCCESSION_PLANNING.md) | 1,503 | Deemed disposition at death, probate avoidance, estate freeze (s.85/s.86), LCGE multiplication, family trusts, succession planning, life insurance (CDA), POA, digital asset estate, charitable giving, cross-border estate, wealth transfer strategies | Estate planning, wills, business succession, death tax, family trust setup |
+| [ATLAS_TRUST_TAXATION_PLANNING.md](../docs/ATLAS_TRUST_TAXATION_PLANNING.md) | 2,224 | Complete Canadian trust taxation — 10 trust types (inter vivos, testamentary, GRE, QDT, family, alter ego, spousal, bare trust, EPSP, charitable remainder), 21-year rule, T3 filing, s.104 mechanics, prescribed rate loans, estate freeze, LCGE multiplication, Henson trust, family financial planning (RESP, RDSP, CCB, income splitting), separation/divorce, elder care (DTC, POA, probate avoidance), 8 worked examples | Trust setup, family trust planning, 21-year rule, income splitting strategies, LCGE multiplication, disability planning, RESP/RDSP optimization, separation/divorce tax, elder care |
 
 ## Tax Calendar & Automation
 
@@ -219,8 +220,22 @@ tags: [tax, index, playbook, documents]
 | "Stock options / equity compensation?" | ATLAS_PAYROLL_HIRING_GUIDE.md + ATLAS_OPTIONS_DERIVATIVES_TAX.md |
 | "US clients / W-8BEN / 1099?" | ATLAS_US_TAX_FOR_CANADIANS.md |
 | "Stripe / Wise tax compliance?" | ATLAS_US_TAX_FOR_CANADIANS.md |
-| "Estate planning / wills / POA?" | ATLAS_ESTATE_SUCCESSION_PLANNING.md |
-| "Estate freeze / family trust?" | ATLAS_ESTATE_SUCCESSION_PLANNING.md + ATLAS_CANADIAN_TAX_LOOPHOLES.md |
+| "Estate planning / wills / POA?" | ATLAS_ESTATE_SUCCESSION_PLANNING.md + ATLAS_TRUST_TAXATION_PLANNING.md |
+| "Estate freeze / family trust?" | ATLAS_TRUST_TAXATION_PLANNING.md + ATLAS_ESTATE_SUCCESSION_PLANNING.md + ATLAS_CANADIAN_TAX_LOOPHOLES.md |
+| "How do trusts work in Canada?" | ATLAS_TRUST_TAXATION_PLANNING.md |
+| "21-year rule / trust deemed disposition?" | ATLAS_TRUST_TAXATION_PLANNING.md |
+| "LCGE multiplication via family trust?" | ATLAS_TRUST_TAXATION_PLANNING.md |
+| "Henson trust / ODSP protection?" | ATLAS_TRUST_TAXATION_PLANNING.md |
+| "Prescribed rate loan strategy?" | ATLAS_TRUST_TAXATION_PLANNING.md |
+| "T3 trust return / trust filing?" | ATLAS_TRUST_TAXATION_PLANNING.md |
+| "RESP / CESG / education savings?" | ATLAS_TRUST_TAXATION_PLANNING.md |
+| "RDSP / disability savings grants?" | ATLAS_TRUST_TAXATION_PLANNING.md |
+| "Income splitting with spouse / family?" | ATLAS_TRUST_TAXATION_PLANNING.md + ATLAS_TOSI_DEFENSE.md |
+| "Separation / divorce / RRSP split?" | ATLAS_TRUST_TAXATION_PLANNING.md |
+| "Child tax benefits / CCB / OCB?" | ATLAS_TRUST_TAXATION_PLANNING.md |
+| "Disability tax credit / DTC?" | ATLAS_TRUST_TAXATION_PLANNING.md |
+| "Spousal RRSP / pension splitting?" | ATLAS_TRUST_TAXATION_PLANNING.md + ATLAS_PENSION_RETIREMENT_GUIDE.md |
+| "Probate avoidance / Ontario dual will?" | ATLAS_TRUST_TAXATION_PLANNING.md + ATLAS_ESTATE_SUCCESSION_PLANNING.md |
 | "What happens to my money when I die?" | ATLAS_ESTATE_SUCCESSION_PLANNING.md |
 | "Business succession / selling my company?" | ATLAS_ESTATE_SUCCESSION_PLANNING.md + ATLAS_NEGOTIATION_DEAL_STRATEGY.md |
 | "Crypto estate / seed phrase succession?" | ATLAS_ESTATE_SUCCESSION_PLANNING.md |
