@@ -11,7 +11,7 @@ tags: [capabilities, tools]
 - **Trading Strategies:** 12+ (RSI MR, Donchian, EMA crossover, Bollinger squeeze, VWAP, multi-TF momentum, London breakout, opening range, smart money, Ichimoku, order flow, Z-score, volume profile, RSI divergence, TSMOM, gold pullback)
 - **AI Agents:** 10 (4 analysts + debate + risk + portfolio + Darwinian evolution + financial advisor + budget)
 - **Finance Modules:** 4 (tax calculator, financial advisor, wealth tracker, budget)
-- **Tax/Finance Documents:** 46 indexed (~57,787 lines) + 4 trading research docs + 3 uncategorized = 53 total in docs/
+- **Tax/Finance Documents:** 58 indexed (~80,738 lines) + 4 trading research docs = 59 total in docs/
 - **Brain Files:** 12 (SOUL, USER, STATE, CAPABILITIES, DASHBOARD, GROWTH, RISKS, TAX_PLAYBOOK_INDEX, BRAIN_LOOP, INTERACTION_PROTOCOL, HEARTBEAT, AGENTS)
 - **Brokers:** 3 (Kraken/CCXT, OANDA, Alpaca — not configured)
 - **Skills:** 16 (accounting-advisor, tax-optimization, financial-planning, quarterly-tax-review, tax-loss-harvesting, departure-tax-planning, portfolio-rebalancing, position-sizing, trade-protocol, income-tier-monitoring, crypto-acb-tracking, compliance-monitor, financial-health-check, cash-flow-invoicing, cross-border-compliance, incorporation-readiness)
@@ -88,6 +88,18 @@ tags: [capabilities, tools]
 | **Real Estate Investing** | `docs/ATLAS_REAL_ESTATE_INVESTING.md` | FHSA+HBP $100K first home, Montreal neighborhood analysis, house hacking (triplex), mortgages, rental analysis, BRRRR, REITs, commercial RE, scaling to portfolio, Quebec-specific rules (TAL, welcome tax) |
 | **Negotiation & Deal Strategy** | `docs/ATLAS_NEGOTIATION_DEAL_STRATEGY.md` | BATNA/ZOPA, client contracts (Bennett deal analysis), equity/revenue share, vendor negotiation, real estate deals, M&A (asset vs share sale), legal fees, CRA negotiation/objections, psychological tactics, deal documentation templates |
 | **Funding Programs (Operational)** | `docs/ATLAS_FUNDING_PROGRAMS_OPERATIONAL.md` | 25+ programs: SR&ED T661 walkthrough ($52K est), IRAP ($72-96K), CSBFP ($50-75K), CDAE Quebec (24% salary), cloud credits ($580-670K), accelerators (CDL, Next AI), stacking strategy ($692K-718K Year 1) |
+| **Business Valuation & M&A** | `docs/ATLAS_BUSINESS_VALUATION_MA.md` | DCF, comps, precedent transactions, SaaS valuation, s.85/86/87/88 rollovers, LCGE, earn-outs, butterfly, pipeline, cross-border M&A (2,629 lines) |
+| **Forensic Accounting & Fraud** | `docs/ATLAS_FORENSIC_ACCOUNTING_FRAUD.md` | Beneish M-Score, Benford's Law, Altman Z-Score, GAAR case law, COSO, 10 fraud case studies, blockchain forensics (2,520 lines) |
+| **Trust Taxation & Family Planning** | `docs/ATLAS_TRUST_TAXATION_PLANNING.md` | 10 trust types, 21-year rule, T3 filing, prescribed rate loans, LCGE multiplication, Henson trust, RESP/RDSP, divorce, elder care (2,224 lines) |
+| **CCA & Depreciation** | `docs/ATLAS_CCA_DEPRECIATION_GUIDE.md` | Every CCA class (1-56), AII, immediate expensing, vehicle CCA, rental restrictions, home office PRE trap (1,835 lines) |
+| **Platform Economy & Gig Tax** | `docs/ATLAS_PLATFORM_ECONOMY_TAX.md` | Uber, Airbnb, DoorDash, Etsy, YouTube, Twitch, OnlyFans, Upwork, crypto platforms, multi-platform optimization (1,653 lines) |
+| **Transfer Pricing & International** | `docs/ATLAS_TRANSFER_PRICING_INTERNATIONAL.md` | OECD TP methods, s.247, thin cap, FAPI, surplus accounts, APAs, Ireland/Netherlands/Singapore structures, BEPS Pillar Two, DST (1,909 lines) |
+| **Professional Corps & Partnerships** | `docs/ATLAS_PROFESSIONAL_CORPS_PARTNERSHIPS.md` | Doctor/lawyer/CPA corps, IPP, RCA, GP/LP/LLP/JV, T5013, EOT, HoldCo architecture (2,201 lines) |
+| **Financial Literacy Masterclass** | `docs/ATLAS_FINANCIAL_LITERACY_MASTERCLASS.md` | 115 wealth principles from 50+ books, FIRE frameworks, academic foundations, behavioral guardrails (2,714 lines) |
+| **Hedge Fund & Wealth Management** | `docs/ATLAS_HEDGE_FUND_WEALTH_MANAGEMENT.md` | 17 hedge fund strategies, 13 legendary investors, portfolio construction, Buy/Borrow/Die, model portfolios, Canadian tax by strategy (2,055 lines) |
+| **Automobile Expense Guide** | `docs/ATLAS_AUTOMOBILE_EXPENSE_GUIDE.md` | Complete vehicle deduction rules, Class 10 vs 10.1, EV strategy, logbook, lease vs buy, CRA audit defense (1,969 lines) |
+| **Charitable Giving Strategies** | `docs/ATLAS_CHARITABLE_GIVING_STRATEGIES.md` | Securities donation (zero CG), DAFs, private foundations, cultural property, flow-through shares, billionaire plays (983 lines) |
+| **Digital Nomad & Departure Tax** | `docs/ATLAS_DIGITAL_NOMAD_DEPARTURE_TAX.md` | Residency rules, tie-severing, s.128.1 departure tax, LCGE, RRSP/TFSA as non-resident, IoM/Guernsey/Ireland, 12-month exit playbook (1,849 lines) |
 
 ## Broker Connections
 

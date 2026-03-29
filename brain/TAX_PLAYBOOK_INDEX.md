@@ -7,7 +7,7 @@ tags: [tax, index, playbook, documents]
 # ATLAS Tax Playbook Index
 
 > Master index of all tax and financial documents. Consult this to find the right doc for any tax question.
-> Total: 57 documents, ~77,906 lines of financial intelligence.
+> Total: 59 documents, ~80,738 lines of financial intelligence.
 
 ## Core Tax Strategy
 
@@ -214,6 +214,18 @@ tags: [tax, index, playbook, documents]
 |----------|-------|-------|-------------|
 | [ATLAS_HEDGE_FUND_WEALTH_MANAGEMENT.md](../docs/ATLAS_HEDGE_FUND_WEALTH_MANAGEMENT.md) | 2,055 | 17 hedge fund strategies (L/S equity, global macro, stat arb, trend following, vol trading, distressed, multi-strategy pod), 13 legendary investors (Buffett, Soros, Dalio, Simons, Marks, Lynch, Druckenmiller, Klarman, Burry, Icahn, Swensen, Munger, PTJ), portfolio construction (MPT, Black-Litterman, risk parity, barbell), Buy/Borrow/Die Canadian adaptation, IBC, PPLI, DAFs, TFSA/RRSP/FHSA optimization, Smith Manoeuvre, fee structures, performance metrics (Sharpe/Sortino/Calmar), model portfolios with Canadian ETF tickers, tax treatment by strategy type | Hedge fund strategy research, wealth management, portfolio construction, investor frameworks, Canadian tax on investment strategies |
 
+## Charitable Giving Strategies
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_CHARITABLE_GIVING_STRATEGIES.md](../docs/ATLAS_CHARITABLE_GIVING_STRATEGIES.md) | 983 | Donation tax credits (non-linear: 20% on first $200, 40%+ above), donating securities (zero capital gains, s.38(a.1)), Donor-Advised Funds (DAFs), private foundations (disbursement quota, family employment), cultural property donations (zero CG + no 75% income limit), ecological gifts, life insurance donations, corporate vs personal giving, flow-through shares + donation (triple tax benefit), strategic giving calendar, billionaire plays (Buffett, Zuckerberg), CC-specific roadmap by income tier | Charitable donations, tax-efficient giving, DAF setup, foundation vs DAF, securities donation, estate charitable planning |
+
+## Digital Nomad & Departure Tax
+
+| Document | Lines | Scope | When to Use |
+|----------|-------|-------|-------------|
+| [ATLAS_DIGITAL_NOMAD_DEPARTURE_TAX.md](../docs/ATLAS_DIGITAL_NOMAD_DEPARTURE_TAX.md) | 1,849 | Canadian tax residency rules (significant residential ties test), clean break checklist (month-by-month), departure tax (s.128.1 deemed disposition), LCGE on departure, security/deferral election (T1244), RRSP/TFSA/FHSA as non-resident, Part XIII withholding rates, s.216 rental election, s.116 clearance certificates, IoM vs Guernsey vs Ireland comparison, 12-month exit playbook, GAAR risks, re-entry rules, CC-specific departure tax calculation ($0 current, timing window for LCGE) | Leaving Canada, Crown Dependencies relocation, departure tax planning, non-resident taxation, digital nomad tax, tie-severing |
+
 ## Financial Literacy & Wealth Psychology
 
 | Document | Lines | Scope | When to Use |
@@ -337,6 +349,20 @@ tags: [tax, index, playbook, documents]
 | "Standby charge / corp car benefit?" | ATLAS_AUTOMOBILE_EXPENSE_GUIDE.md |
 | "How much is my car deductible?" | ATLAS_AUTOMOBILE_EXPENSE_GUIDE.md |
 | "Rideshare vehicle deductions?" | ATLAS_AUTOMOBILE_EXPENSE_GUIDE.md + ATLAS_PLATFORM_ECONOMY_TAX.md |
+| "Charitable donation tax credit?" | ATLAS_CHARITABLE_GIVING_STRATEGIES.md |
+| "Donate stocks to charity / zero capital gains?" | ATLAS_CHARITABLE_GIVING_STRATEGIES.md |
+| "Donor-Advised Fund (DAF)?" | ATLAS_CHARITABLE_GIVING_STRATEGIES.md |
+| "Private foundation setup?" | ATLAS_CHARITABLE_GIVING_STRATEGIES.md |
+| "Flow-through shares + donation?" | ATLAS_CHARITABLE_GIVING_STRATEGIES.md + ATLAS_ALTERNATIVE_INVESTMENTS.md |
+| "Cultural property / art donation?" | ATLAS_CHARITABLE_GIVING_STRATEGIES.md |
+| "How do billionaires donate?" | ATLAS_CHARITABLE_GIVING_STRATEGIES.md |
+| "Leaving Canada / departure tax?" | ATLAS_DIGITAL_NOMAD_DEPARTURE_TAX.md |
+| "How to become non-resident?" | ATLAS_DIGITAL_NOMAD_DEPARTURE_TAX.md |
+| "Tie-severing checklist?" | ATLAS_DIGITAL_NOMAD_DEPARTURE_TAX.md |
+| "What happens to RRSP/TFSA if I leave?" | ATLAS_DIGITAL_NOMAD_DEPARTURE_TAX.md |
+| "Isle of Man / Guernsey move?" | ATLAS_DIGITAL_NOMAD_DEPARTURE_TAX.md + ATLAS_UK_CROWN_DEPENDENCIES_STRATEGY.md |
+| "Digital nomad tax rules?" | ATLAS_DIGITAL_NOMAD_DEPARTURE_TAX.md |
+| "Part XIII withholding / non-resident tax?" | ATLAS_DIGITAL_NOMAD_DEPARTURE_TAX.md + ATLAS_FOREIGN_REPORTING.md |
 | "Uber / Lyft tax?" | ATLAS_PLATFORM_ECONOMY_TAX.md |
 | "Airbnb / short-term rental tax?" | ATLAS_PLATFORM_ECONOMY_TAX.md |
 | "DoorDash / food delivery deductions?" | ATLAS_PLATFORM_ECONOMY_TAX.md |

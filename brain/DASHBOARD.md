@@ -58,9 +58,25 @@ tags: [dashboard, navigation, index]
 | Cross-Border Compliance | [skills/cross-border-compliance/SKILL.md](../skills/cross-border-compliance/SKILL.md) | W-8BEN, 1099, FX, T1135, multi-currency |
 | Incorporation Readiness | [skills/incorporation-readiness/SKILL.md](../skills/incorporation-readiness/SKILL.md) | CCPC decision, cost-benefit, execution |
 
-## Tax Document Library (46 docs, ~57,787 lines)
+## Tax Document Library (59 docs, ~80,738 lines)
 
 See [TAX_PLAYBOOK_INDEX.md](TAX_PLAYBOOK_INDEX.md) for the complete index.
+
+### Session 28 Additions (8 new docs, ~17,685 lines)
+| Document | Lines | Category |
+|----------|-------|----------|
+| ATLAS_BUSINESS_VALUATION_MA.md | 2,629 | Valuation, M&A, s.85/86/87/88 |
+| ATLAS_FORENSIC_ACCOUNTING_FRAUD.md | 2,520 | Fraud detection, GAAR, COSO |
+| ATLAS_TRUST_TAXATION_PLANNING.md | 2,224 | Trusts, family planning, divorce |
+| ATLAS_FINANCIAL_LITERACY_MASTERCLASS.md | 2,714 | 115 principles, 50+ books |
+| ATLAS_PROFESSIONAL_CORPS_PARTNERSHIPS.md | 2,201 | Prof corps, partnerships, EOT |
+| ATLAS_TRANSFER_PRICING_INTERNATIONAL.md | 1,909 | TP, FAPI, BEPS, Pillar Two |
+| ATLAS_CCA_DEPRECIATION_GUIDE.md | 1,835 | CCA classes 1-56, AII |
+| ATLAS_PLATFORM_ECONOMY_TAX.md | 1,653 | Gig economy, all platforms |
+| ATLAS_HEDGE_FUND_WEALTH_MANAGEMENT.md | 2,055 | Hedge funds, legendary investors, portfolios |
+| ATLAS_AUTOMOBILE_EXPENSE_GUIDE.md | 1,969 | Vehicle deductions, CCA, logbook, EV |
+| ATLAS_CHARITABLE_GIVING_STRATEGIES.md | 983 | Donations, DAFs, foundations, securities |
+| ATLAS_DIGITAL_NOMAD_DEPARTURE_TAX.md | 1,849 | Departure tax, non-resident, exit playbook |
 
 ## Trading System
 

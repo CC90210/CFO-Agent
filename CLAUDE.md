@@ -85,67 +85,41 @@ python main.py live --strategy momentum --exchange binance --confirm-live
 - `brain/` — Intelligence layer (12 files): `SOUL.md` (immutable identity), `USER.md` (CC's financial profile + dual citizenship), `STATE.md` (operational state), `CAPABILITIES.md` (master registry), `DASHBOARD.md` (navigation hub), `GROWTH.md` (evolution timeline), `RISKS.md` (kill switches + tax risk), `TAX_PLAYBOOK_INDEX.md` (25-doc index), `BRAIN_LOOP.md` (10-step reasoning protocol), `INTERACTION_PROTOCOL.md` (state sync + governance), `HEARTBEAT.md` (proactive monitoring), `AGENTS.md` (task routing)
 - `skills/` — 11 CFO skills: `accounting-advisor/`, `tax-optimization/`, `financial-planning/`, `quarterly-tax-review/`, `tax-loss-harvesting/`, `departure-tax-planning/`, `portfolio-rebalancing/`, `position-sizing/`, `trade-protocol/`, `income-tier-monitoring/`, `crypto-acb-tracking/`
 - `memory/` — Operational intelligence: SESSION_LOG, MISTAKES, PATTERNS, DECISIONS, LONG_TERM, SOP_LIBRARY, ACTIVE_TASKS
-- `docs/` — 25 tax/finance documents (~24,300 lines) — see `brain/TAX_PLAYBOOK_INDEX.md` for complete index
+- `docs/` — 59 tax/finance documents (~80,738 lines) — see `brain/TAX_PLAYBOOK_INDEX.md` for complete index
 
 ## Tax & Accounting Capability
 
-ATLAS serves as CC's **full-service CFO, accountant, and tax strategist** across 25 reference documents.
+ATLAS serves as CC's **full-service CFO, accountant, tax strategist, and wealth manager** across 55 reference documents (~75,000+ lines).
 
-**Document library (25 docs, ~24,300 lines):**
-- `docs/ATLAS_TAX_STRATEGY.md` — Core 25-strategy playbook (1,663 lines)
-- `docs/CRA_CRYPTO_ENFORCEMENT_INTEL.md` — CRA audit program, exchange data orders, case law
-- `docs/ATLAS_DEFI_TAX_GUIDE.md` — Staking, LP, yield farming, NFT, bridges, DAOs, airdrops, CARF
-- `docs/ATLAS_INCORPORATION_TAX_STRATEGIES.md` — RDTOH, estate freeze, QSBC purification
-- `docs/ATLAS_REAL_ESTATE_TAX_STRATEGY.md` — PRE, rental CCA, flipping rules, Smith Manoeuvre
-- `docs/ATLAS_TREATY_FIRE_STRATEGY.md` — Treaty exploitation, departure tax, FIRE planning
-- `docs/ATLAS_WEALTH_PLAYBOOK.md` — Book strategies, Buy/Borrow/Die, Thiel TFSA play
-- `docs/ATLAS_BUSINESS_STRUCTURES.md` — Entity types globally, incorporation process
-- `docs/ATLAS_DEDUCTIONS_MASTERLIST.md` — Every obscure deduction + Ontario credits
-- `docs/ATLAS_CRA_AUDIT_DEFENSE.md` — Audit defense, objections, Tax Court
-- `docs/ATLAS_INSURANCE_ESTATE_PROTECTION.md` — COLI, estate planning, asset protection
-- `docs/ATLAS_GOVERNMENT_GRANTS.md` — Federal/Ontario grants and funding programs
-- `docs/ATLAS_PENSION_RETIREMENT_GUIDE.md` — CPP/OAS/GIS optimization, RRSP meltdown, income layering
-- `docs/ATLAS_AI_SAAS_TAX_GUIDE.md` — SR&ED for AI (43%), SaaS revenue, DST, IP tax, contractor rules
-- `docs/ATLAS_ALTERNATIVE_INVESTMENTS.md` — Accredited investor, VC/angel, MIC, flow-through, LSVCC
-- `docs/ATLAS_DEBT_LEVERAGE_STRATEGY.md` — OSAP RAP, Smith Manoeuvre, interest deductibility, credit
-- `docs/ATLAS_BOOKKEEPING_SYSTEMS.md` — T2125 chart of accounts, software, automation, KPIs
-- `docs/ATLAS_WEALTH_PSYCHOLOGY.md` — Cognitive biases, decision frameworks, behavioral guardrails
-- `docs/ATLAS_INSTALLMENT_PAYMENTS.md` — CRA quarterly installment system, safe-harbor rules, penalty avoidance
-- `docs/ATLAS_HST_REGISTRATION_GUIDE.md` — HST registration decision tree, ITCs, quick method, $30K threshold
-- `docs/ATLAS_VDP_GUIDE.md` — CRA Voluntary Disclosure Program, crypto-specific process, penalty elimination
-- `docs/ATLAS_TOSI_DEFENSE.md` — Tax on Split Income (s.120.4) defense, income splitting strategies
-- `docs/ATLAS_UK_CROWN_DEPENDENCIES_STRATEGY.md` — British passport leverage, Guernsey/IOM/Jersey (0% corporate), Ireland (12.5%/6.25% KDB), Canada exit strategy
-- `docs/ATLAS_FOREIGN_REPORTING.md` — T1135, T1134, T1141/42, transfer pricing (s.247), foreign tax credits (s.126)
-- `docs/ATLAS_INCOME_SCALING_PLAYBOOK.md` — Dynamic tier-based optimization ($0 to $10M+), income-adaptive strategy with Crown Dependencies exit ramps
+**Document library — see `brain/TAX_PLAYBOOK_INDEX.md` for complete index with 100+ quick-lookup entries.**
 
-**Core knowledge:**
-- Canadian T1 filing (T2125 self-employment, Schedule 3 capital gains, ON-BEN Ontario credits)
-- Crypto tax treatment (ACB weighted average, superficial loss rule, business income vs capital gains)
-- DeFi tax treatment (staking, LP, yield farming, NFTs, bridges, wrapping, DAOs, airdrops)
-- CRA enforcement intelligence (audit triggers, Coinsquare/Kraken data orders, CARF 2026)
-- FHSA/RRSP/TFSA optimization for a 22-year-old Ontario sole proprietor
-- Home office, CCA immediate expensing, business expense deductions
-- Incorporation planning (trigger: OASIS > $80K CAD revenue)
-- OpCo/HoldCo structuring, estate freezes, LCGE multiplication
-- SR&ED tax credits (35% federal + 8% Ontario = 43% refundable for CCPCs)
-- International entity structures and treaty exploitation
-- FIRE planning with Canadian-specific tax optimization
-- CPP/OAS/GIS optimization, pension splitting, RRSP meltdown strategy
-- Government grants and funding programs for AI entrepreneurs
-- CRA audit defense and dispute resolution
-- Insurance, estate planning, and asset protection strategies
-- Tax-loss harvesting automation (Q4 unrealized loss flagging)
-- Debt optimization (OSAP RAP, Smith Manoeuvre, interest deductibility)
-- AI/SaaS tax treatment (revenue recognition, DST, cloud credits, contractor rules)
-- Bookkeeping systems (chart of accounts, automation, monthly close routine)
-- Behavioral finance and wealth psychology frameworks
-- CRA installment payments (s.156 threshold, three safe-harbor methods, penalty avoidance, corporate vs. personal)
-- HST registration and ITC optimization ($30K threshold, quick method, zero-rated exports)
-- Voluntary Disclosure Program (VDP) — penalty elimination for unreported crypto/income
-- TOSI defense (s.120.4) — income splitting without triggering top-rate tax
-- Multi-jurisdiction tax optimization (British passport → Crown Dependencies, Irish passport → EU)
-- Foreign property reporting (T1135, T1134, transfer pricing documentation)
-- Income-scaling playbook (dynamic strategies from $0 to $10M+ with Crown Dependencies exit ramps)
+**Core domains (55 docs organized by category):**
+- **Core Tax Strategy** (3 docs) — 25-strategy playbook, income scaling ($0-$10M+), deductions masterlist
+- **Crypto & DeFi** (4 docs) — ACB, staking, LP, yield farming, NFTs, CARF enforcement, CRA intel
+- **International & Multi-Jurisdiction** (6 docs) — 94+ treaties, Crown Dependencies, departure tax, transfer pricing, FAPI, BEPS Pillar Two
+- **Incorporation & Corporate** (3 docs) — CCPC, RDTOH, estate freeze, TOSI defense, Canadian tax loopholes
+- **Compliance & Audit Defense** (5 docs) — CRA risk scoring, VDP, installments, HST, bulletproof compliance
+- **Business Valuation & M&A** (1 doc, 2,629 lines) — DCF, comps, s.85/86/87/88, LCGE, butterfly, pipeline
+- **Forensic Accounting & Fraud** (1 doc, 2,520 lines) — Beneish M-Score, Benford's Law, GAAR, COSO, 10 case studies
+- **Trust Taxation & Family Planning** (1 doc, 2,224 lines) — 10 trust types, 21-year rule, prescribed rate loans, Henson trust, RESP/RDSP, divorce
+- **CCA & Depreciation** (1 doc, 1,835 lines) — Every CCA class (1-56), AII, immediate expensing, vehicle/rental/home office rules
+- **Platform Economy & Gig Tax** (1 doc, 1,653 lines) — Every platform (Uber, Airbnb, DoorDash, Etsy, YouTube, Twitch, OnlyFans, Upwork)
+- **Professional Corps & Partnerships** (1 doc, 2,201 lines) — Doctor/lawyer/CPA corps, IPP, RCA, GP/LP/LLP/JV, EOT
+- **Transfer Pricing & International** (1 doc, 1,909 lines) — OECD TP methods, thin cap, FAPI, surplus accounts, APAs, holding structures
+- **Financial Literacy** (1 doc, 2,714 lines) — 115 wealth principles from 50+ books, FIRE frameworks, academic foundations
+- **Real Estate** (2 docs) — PRE, rental CCA, FHSA+HBP $100K strategy, house hacking, BRRRR
+- **Wealth Building & Investment** (2 docs) — Compounding, ETF portfolios, behavioral finance, FIRE
+- **Retirement & Pension** (2 docs) — CPP/OAS/GIS optimization, RRSP meltdown, estate/asset protection
+- **Estate & Succession** (2 docs) — Wills, probate avoidance, estate freeze, LCGE, digital assets
+- **SaaS/AI Business** (3 docs) — SR&ED 43%, SaaS metrics, AI regulation, product compliance
+- **Options & Derivatives** (1 doc) — Stock options, futures, CFDs, TFSA covered calls
+- **Payroll & Hiring** (1 doc) — Wiebe Door test, CPP/EI, equity compensation, contractor rules
+- **Insurance & Liability** (1 doc) — 12 insurance types, PIPEDA/GDPR, contracts, IP protection
+- **Funding & Grants** (2 docs) — SR&ED $52K, IRAP $96K, cloud credits $670K, stacking $718K Year 1
+- **Global Financial System** (2 docs) — Central banks, FX markets, financial statements, 30+ ratios
+- **Debt & Leverage** (1 doc) — OSAP RAP, Smith Manoeuvre, interest deductibility
+- **Calendar & Automation** (1 doc) — Master tax calendar, CFO routines, filing checklists
+- **Negotiation & Deals** (1 doc) — BATNA/ZOPA, M&A, contracts, CRA negotiation
 
 **Tax filing deadlines:**
 - Self-employed: **June 15** (but payment due **April 30**)
