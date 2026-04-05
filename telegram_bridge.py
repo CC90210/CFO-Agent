@@ -1024,12 +1024,12 @@ class TelegramBridge:
             expense_id = expense.id
 
         biz_tag = " [DEDUCTIBLE]" if is_biz else ""
-        await self._send_message(
-            f"Expense #{expense_id} added\n"
-            f"{category}: ${amount:,.2f}{biz_tag}\n"
-            f"{description}" if description else f"Expense #{expense_id} added\n{category}: ${amount:,.2f}{biz_tag}",
-            chat_id=chat_id,
+        msg = (
+            f"Expense #{expense_id} added\n{category}: ${amount:,.2f}{biz_tag}\n{description}"
+            if description
+            else f"Expense #{expense_id} added\n{category}: ${amount:,.2f}{biz_tag}"
         )
+        await self._send_message(msg, chat_id=chat_id)
 
     # ── Public alert API (called by autonomous.py) ─────────────────────────
 

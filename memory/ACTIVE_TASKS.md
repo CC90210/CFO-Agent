@@ -23,15 +23,16 @@ tags: [tasks, priorities, action-items, tracking]
 - [ ] **Measure home office** — Square footage of office / total home sq ft. Required for T2125 home office deduction.
 
 ### Atlas Action Items
+- [x] **Wire RiskManager into engine.py** — DONE Session 30 ✅ (kill switches were inert; validate_trade() now gates every trade)
+- [x] **Wire correlation_tracker.py into risk_manager.py** — DONE Session 30 ✅ (update_correlations() every 10 ticks, threshold 0.70)
 - [ ] **Wire trade_protocol.py into engine.py** — 10-step decision framework exists but isn't connected to main trading loop.
-- [ ] **Wire correlation_tracker.py into risk_manager.py** — Prevents correlated positions that look diversified but amplify risk.
 
 ---
 
 ## P1 — Important / This Week
 
 ### Trading
-- [ ] Tune trailing stops per-strategy type — Chandelier at 3x ATR kills trend-followers. Need wider multipliers for EMA/Ichimoku/TSMOM, tighter for mean reversion.
+- [x] **Per-strategy trailing stop configuration** — DONE Session 30 ✅ (trend-followers 4-5x ATR, mean-reversion 1.5-2x chandelier, configured in strategies.yaml)
 - [ ] Run multi-day paper trading validation — `python paper_trade.py` with all strategies.
 - [ ] Backtest order_flow_imbalance, zscore_mean_reversion, volume_profile on multiple symbols/timeframes.
 
@@ -73,3 +74,11 @@ tags: [tasks, priorities, action-items, tracking]
 - [x] **Daemon freeze fixed** — OANDA Semaphore(2) (Session 19)
 - [x] **Position sizing overhaul** — micro account 8% risk (Session 19)
 - [x] **18-doc tax knowledge base** — complete CFO library (Session 22)
+- [x] **Wire RiskManager into engine.py** — kill switches now gate every trade (Session 30)
+- [x] **Per-strategy trailing stop configuration** — trend 4-5x ATR, mean-reversion 1.5-2x chandelier (Session 30)
+- [x] **Correlation tracker → RiskManager integration** — update_correlations() every 10 ticks, threshold 0.70 (Session 30)
+- [x] **Regime detection caching** — cached per (symbol, timestamp), eliminates 10x redundant calls (Session 30)
+- [x] **Doc index + count corrections** — 7 orphaned docs indexed, counts updated to 66 docs ~82,900+ lines (Session 30)
+- [x] **db/__init__.py model exports** — all 10 models exported correctly (Session 30)
+- [x] **Telegram bridge bug fix** — string formatting bug resolved (Session 30)
+- [x] **MEMORY.md trimmed** — 220 lines → ~75, under 200-line limit (Session 30)

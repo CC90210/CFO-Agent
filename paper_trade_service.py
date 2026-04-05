@@ -43,6 +43,7 @@ def _is_pid_alive(pid: int) -> bool:
         result = subprocess.run(
             ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
             capture_output=True, text=True, timeout=5,
+            creationflags=0x08000000,
         )
         return str(pid) in result.stdout
     except Exception:
@@ -86,6 +87,7 @@ def _kill_process_tree(pid: int) -> None:
     subprocess.run(
         ["taskkill", "/PID", str(pid), "/T", "/F"],
         capture_output=True, timeout=10,
+        creationflags=0x08000000,
     )
 
 
@@ -118,6 +120,7 @@ def cmd_start() -> None:
     # the process survives parent terminal closure.
     CREATE_NEW_PROCESS_GROUP = 0x00000200
     DETACHED_PROCESS = 0x00000008
+    CREATE_NO_WINDOW = 0x08000000
 
     _LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
 
@@ -178,6 +181,7 @@ while running:
             cwd=str(ROOT),
             stdout=logf,
             stderr=logf,
+            creationflags=0x08000000,
         )
 
     log(f"paper_trade.py started (PID {{proc.pid}})")
@@ -209,7 +213,7 @@ log("Watchdog exited cleanly.")
     runner_path.write_text(runner_code, encoding="utf-8")
 
     # Launch fully detached
-    creation_flags = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+    creation_flags = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
     proc = subprocess.Popen(
         [_PYTHON, str(runner_path)],
         cwd=str(_ROOT),

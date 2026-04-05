@@ -34,6 +34,8 @@ strategies:
       ema_trend_period: 200
       rr_min: 2.0
       min_atr_pct: 0.005          # 2026-03-26: Volatility floor — skip dead markets (ATR/price < 0.5%)
+      trailing_stop_method: "chandelier"
+      trailing_stop_atr_mult: 1.5  # Mean-reversion: tight trailing stop
 
   # ── 1b. RSI Divergence + Bollinger %B ──────────────────────────────────────
   rsi_divergence:
@@ -64,6 +66,8 @@ strategies:
       volume_period: 20
       volume_mult: 1.2
       min_atr_pct: 0.005
+      trailing_stop_method: "chandelier"
+      trailing_stop_atr_mult: 1.5  # Divergence/MR: tight trailing stop
 
   # ── 2. EMA Crossover ──────────────────────────────────────────────────────
   ema_crossover:
@@ -84,6 +88,8 @@ strategies:
       adx_threshold: 20.0
       atr_stop_mult: 3.0         # Wider stop: 2.5x was -4.93%, 3.0x is +2.37% (no scale-out)
       rr_ratio: 4.0              # 4.0 RR: sweet spot for trend-following (3.5 was -4.93%)
+      trailing_stop_method: "atr"
+      trailing_stop_atr_mult: 4.5  # Trend-follower: WIDE trailing stop (3x kills trends)
 
   # ── 3. Bollinger Band Squeeze Breakout ───────────────────────────────────
   bollinger_squeeze:
@@ -108,6 +114,8 @@ strategies:
       atr_tp_mult: 3.0           # 2026-03-25: tightened from 6.0 to match 1:2 R:R that tested well
       squeeze_percentile: 15.0    # Relaxed from 10 — more squeeze opportunities
       exhaustion_vol_mult: 1.5    # Relaxed from 2.0 — lower volume in consolidation
+      trailing_stop_method: "chandelier"
+      trailing_stop_atr_mult: 2.0  # Breakout: moderate trailing stop
 
   # ── 4. VWAP Bounce ────────────────────────────────────────────────────────
   vwap_bounce:
@@ -162,6 +170,8 @@ strategies:
       min_confluence: 2
       htf_resample_rule: "4h"
       mtf_resample_rule: "1h"
+      trailing_stop_method: "atr"
+      trailing_stop_atr_mult: 4.0  # Trend-follower: wide trailing stop
 
   # ── 6. London Session Breakout ────────────────────────────────────────────
   london_breakout:
@@ -265,6 +275,8 @@ strategies:
       displacement: 26
       atr_period: 14
       rr_ratio: 3.0
+      trailing_stop_method: "atr"
+      trailing_stop_atr_mult: 4.5  # Ichimoku trend-follower: WIDE trailing stop
 
   # ── 10. Order Flow Imbalance ────────────────────────────────────────────
   order_flow_imbalance:
@@ -315,6 +327,8 @@ strategies:
       atr_trail_mult: 1.5
       volume_period: 20
       volume_mult: 1.0             # 2026-03-26: Eliminated volume gate — per feedback, kills MR signal frequency
+      trailing_stop_method: "chandelier"
+      trailing_stop_atr_mult: 2.0  # Z-score MR: moderate trailing stop
 
   # ── 12. Volume Profile / Value Area ─────────────────────────────────────
   # 2026-03-20: RESURRECTED with daredevil params on 4h timeframe.
@@ -353,6 +367,8 @@ strategies:
       adx_min_trend: 10.0             # Relaxed (was 20) — the key change that unlocks trades
       min_distance_atr: 0.3           # Relaxed (was 1.0) — allows entries closer to levels
       min_rr: 1.5                     # Relaxed (was 2.0) — more setups qualify
+      trailing_stop_method: "chandelier"
+      trailing_stop_atr_mult: 1.5  # Volume profile MR: tight trailing stop
 
   # ── 24. BB Mean Reversion (RANGE-BOUND) ────────────────────────────────
   # 2026-03-24: NEW — designed to trade when all other strategies go silent.

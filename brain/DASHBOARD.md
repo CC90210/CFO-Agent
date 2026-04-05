@@ -58,7 +58,7 @@ tags: [dashboard, navigation, index]
 | Cross-Border Compliance | [skills/cross-border-compliance/SKILL.md](../skills/cross-border-compliance/SKILL.md) | W-8BEN, 1099, FX, T1135, multi-currency |
 | Incorporation Readiness | [skills/incorporation-readiness/SKILL.md](../skills/incorporation-readiness/SKILL.md) | CCPC decision, cost-benefit, execution |
 
-## Tax Document Library (59 docs, ~80,738 lines)
+## Tax Document Library (59 tax/finance docs + 7 trading/research docs = 66 total, ~82,900+ lines)
 
 See [TAX_PLAYBOOK_INDEX.md](TAX_PLAYBOOK_INDEX.md) for the complete index.
 

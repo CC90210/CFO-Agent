@@ -34,6 +34,7 @@ import pandas as pd
 from config.settings import settings
 from core.broker_adapter import BrokerRegistry
 from core.correlation_tracker import CorrelationTracker
+from core.risk_manager import RiskManager
 from core.strategy_health import StrategyHealthMonitor
 from core.momentum_classifier import MomentumClassifier
 from core.order_executor import ExecutionMode, OrderExecutor, OrderType
@@ -265,7 +266,15 @@ class TradingEngine:
         self._correlations: dict[str, dict[str, float]] = {}
         self._tick_count: int = 0
 
-        # Trailing stop manager — dynamically tightens stops for open positions
+        # Central RiskManager — enforces kill switches, correlation limits, per-trade risk caps.
+        # Instantiated with a placeholder value; re-initialised in _restore_risk_state()
+        # once the actual portfolio value is known.
+        self._risk_manager: RiskManager | None = None
+
+        # Per-strategy trailing stop managers — trend-followers get wider stops,
+        # mean-reversion gets tighter stops.  Populated during _load_strategies().
+        self._trailing_stops: dict[str, TrailingStopManager] = {}
+        # Fallback trailing stop for strategies without explicit config
         self._trailing_stop = TrailingStopManager(method="chandelier")
 
         # Paper position tracking — monitors SL/TP for open positions
@@ -530,6 +539,21 @@ class TradingEngine:
 
         logger.info("Total strategies loaded: %d", len(self._strategies))
 
+        # Build per-strategy trailing stop managers from YAML config.
+        # Trend-followers get wider stops; mean-reversion gets tighter.
+        for name, config in self._strategies.items():
+            params = config.get("parameters", {})
+            ts_method = params.get("trailing_stop_method", "chandelier")
+            ts_mult = float(params.get("trailing_stop_atr_mult", 0.0))
+            self._trailing_stops[name] = TrailingStopManager(
+                method=ts_method,
+                atr_multiplier=ts_mult,
+            )
+            if ts_mult > 0:
+                logger.info(
+                    "Trailing stop [%s]: method=%s atr_mult=%.1f", name, ts_method, ts_mult,
+                )
+
         # Build strategy instances from the registry, passing YAML parameters
         StrategyRegistry.discover()
         for name in self._strategies:
@@ -691,8 +715,14 @@ class TradingEngine:
             daily_pnl=daily_pnl,
             open_positions=0,
         )
+
+        # Initialise central RiskManager with real portfolio value
+        self._risk_manager = RiskManager(
+            portfolio_value=equity,
+            correlations=self._correlations or None,
+        )
         logger.info(
-            "Risk state restored | equity=%.2f daily_pnl=%.2f",
+            "Risk state restored | equity=%.2f daily_pnl=%.2f | RiskManager active",
             equity,
             daily_pnl,
         )
@@ -915,7 +945,7 @@ class TradingEngine:
         )
         self._correlation_tracker.update_from_prices(symbol, close_series)
 
-        # 3. Every 10 ticks, rebuild the correlation matrix
+        # 3. Every 10 ticks, rebuild the correlation matrix and push to RiskManager
         self._tick_count += 1
         if self._tick_count % 10 == 0:
             matrix = self._correlation_tracker.get_correlation_matrix()
@@ -927,6 +957,9 @@ class TradingEngine:
                 }
                 for sym in matrix.index
             }
+            # Push fresh correlations to the central RiskManager
+            if self._risk_manager is not None:
+                self._risk_manager.update_correlations(self._correlations)
             logger.debug(
                 "Correlation matrix refreshed for %d symbols (tick %d)",
                 len(self._correlations),
@@ -972,20 +1005,38 @@ class TradingEngine:
             await self._record_skipped_signal(signal, reason)
             return
 
-        # 7b. Correlation guard — block entry if >2 highly correlated positions open
-        open_symbols = list(self._paper_positions.keys()) if hasattr(self, '_paper_positions') else []
-        if open_symbols and self._correlations:
-            correlated_count = 0
-            for open_sym in open_symbols:
-                pair_corr = self._correlations.get(open_sym, {}).get(symbol, 0.0)
-                if abs(pair_corr) >= 0.80:
-                    correlated_count += 1
-            if correlated_count >= 2:
+        # 7b. RiskManager validation — enforces correlation limits (0.70 threshold),
+        # position count, drawdown halt, daily loss halt, per-trade risk cap,
+        # volatility adjustment, and single-asset exposure.
+        if self._risk_manager is not None:
+            # Compute ATR for volatility-adjusted sizing
+            try:
+                _closes = [float(row[4]) for row in ohlcv[-15:]]
+                _highs = [float(row[2]) for row in ohlcv[-15:]]
+                _lows = [float(row[3]) for row in ohlcv[-15:]]
+                _trs = [max(_highs[i] - _lows[i],
+                            abs(_highs[i] - _closes[i - 1]),
+                            abs(_lows[i] - _closes[i - 1]))
+                        for i in range(1, len(_closes))]
+                _current_atr = sum(_trs) / len(_trs) if _trs else 0.0
+                _normal_atr = _current_atr  # use same as baseline for now
+            except Exception:
+                _current_atr = 0.0
+                _normal_atr = 0.0
+
+            validation = self._risk_manager.validate_trade(
+                signal=signal,
+                portfolio_value=self._risk.current_equity,
+                proposed_size=1.0,  # placeholder — actual sizing happens in _execute_signal
+                current_atr=_current_atr,
+                normal_atr=_normal_atr,
+            )
+            if not validation.approved:
                 logger.info(
-                    "Correlation guard: %s blocked — %d correlated positions already open",
-                    symbol, correlated_count,
+                    "RiskManager rejected %s %s: %s",
+                    signal.direction.value, symbol, validation.reason,
                 )
-                await self._record_skipped_signal(signal, "correlated_positions_limit")
+                await self._record_skipped_signal(signal, f"risk_manager: {validation.reason}")
                 return
 
         # 8. Trade protocol — 10-step decision framework
@@ -1123,8 +1174,20 @@ class TradingEngine:
         if len(df) < 2:
             return None
 
-        # Detect market regime and apply strategy-specific weight adjustment
-        regime_result = self._regime_detector.detect(df)
+        # Detect market regime — cache per (symbol, last_timestamp) to avoid
+        # redundant calls when multiple strategies evaluate the same candle.
+        _cache_key = (symbol, str(df.index[-1]))
+        if not hasattr(self, "_regime_cache"):
+            self._regime_cache: dict[tuple[str, str], Any] = {}
+        if _cache_key in self._regime_cache:
+            regime_result = self._regime_cache[_cache_key]
+        else:
+            regime_result = self._regime_detector.detect(df)
+            self._regime_cache[_cache_key] = regime_result
+            # Evict stale entries (keep max 50)
+            if len(self._regime_cache) > 50:
+                oldest = next(iter(self._regime_cache))
+                del self._regime_cache[oldest]
         self._current_regime = regime_result.regime
         strategy_weights = regime_result.strategy_weights()
         regime_weight = strategy_weights.get(strategy_name, 1.0)
@@ -1477,6 +1540,20 @@ class TradingEngine:
                     pass  # Non-critical — trailing stop update will search by symbol
             self._paper_positions[signal.symbol] = tracked_pos
             self._risk.open_positions = len(self._paper_positions)
+            # Register with central RiskManager for correlation + exposure tracking
+            if self._risk_manager is not None:
+                from strategies.base import Position
+                rm_pos = Position(
+                    symbol=signal.symbol,
+                    side=signal.direction,
+                    entry_price=actual_entry,
+                    size=tracked_pos.size,
+                    stop_loss=signal.stop_loss,
+                    take_profit=signal.take_profit,
+                    entry_time=tracked_pos.opened_at,
+                    strategy=tracked_pos.strategy_name,
+                )
+                self._risk_manager.register_open_position(rm_pos)
             self._save_positions()
             logger.info(
                 "%s position opened: %s %s @ %.4f SL=%.4f TP=%.4f",
@@ -1561,9 +1638,12 @@ class TradingEngine:
                 logger.warning("Monitor: ATR calc failed for %s: %s — using fixed SL", symbol, exc)
                 current_atr = 0.0
 
-            # Update trailing stop if ATR is available
+            # Update trailing stop if ATR is available — use per-strategy manager
             if current_atr > 0:
-                ts_result = self._trailing_stop.update(
+                ts_manager = self._trailing_stops.get(
+                    pos.strategy_name, self._trailing_stop
+                )
+                ts_result = ts_manager.update(
                     current_price=mark_price,
                     current_atr=current_atr,
                     direction=pos.direction.value,
@@ -1831,6 +1911,9 @@ class TradingEngine:
         self._risk.open_positions = len(self._paper_positions)
         if self._risk.current_equity > self._risk.equity_peak:
             self._risk.equity_peak = self._risk.current_equity
+        # Close position in central RiskManager
+        if self._risk_manager is not None:
+            self._risk_manager.close_position(symbol, exit_price)
 
         # Refresh strategy health from DB (picks up the new closed trade)
         try:

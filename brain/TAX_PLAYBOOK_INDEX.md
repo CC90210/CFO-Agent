@@ -393,3 +393,19 @@ tags: [tax, index, playbook, documents]
 | "Buy Borrow Die / PPLI / infinite banking?" | ATLAS_HEDGE_FUND_WEALTH_MANAGEMENT.md |
 | "Model portfolio / asset allocation?" | ATLAS_HEDGE_FUND_WEALTH_MANAGEMENT.md + ATLAS_ADVANCED_INVESTMENT_STRATEGIES.md |
 | "Sharpe ratio / Sortino / performance metrics?" | ATLAS_HEDGE_FUND_WEALTH_MANAGEMENT.md |
+
+---
+
+## Trading & Strategy Research
+
+> These 7 documents cover ATLAS's trading algorithm, execution framework, and strategy research. Not tax/finance docs — indexed separately from the 59-doc tax library.
+
+| Document | Location | Scope | When to Use |
+|----------|----------|-------|-------------|
+| [ATLAS_ALGORITHM.md](../docs/ATLAS_ALGORITHM.md) | `docs/ATLAS_ALGORITHM.md` | THE definitive trading algorithm — every parameter, strategy, regime filter, kill switch, and entry/exit rule validated | Starting point for ANY trading system question |
+| [EXECUTION_PROTOCOL.md](../docs/EXECUTION_PROTOCOL.md) | `docs/EXECUTION_PROTOCOL.md` | Trade execution v1.0 framework — order types, timing, slippage management, broker routing | Order execution, position entry/exit mechanics |
+| [ATLAS_AUTOMATED_TAX_FILING.md](../docs/ATLAS_AUTOMATED_TAX_FILING.md) | `docs/ATLAS_AUTOMATED_TAX_FILING.md` | CRA/IRS automated filing research — NETFILE, EFILE, T2 e-file, API integration, Wealthsimple Tax automation, paper filing fallback | Tax filing automation, CRA system integration |
+| [COMMODITY_FOREX_STRATEGY_RESEARCH.md](../docs/COMMODITY_FOREX_STRATEGY_RESEARCH.md) | `docs/COMMODITY_FOREX_STRATEGY_RESEARCH.md` | Top 10 commodity/forex strategies ranked by Sharpe — TSMOM (#1), Gold Pullback (#2), London Breakout (#3), full backtest results | Commodity/gold/forex strategy selection |
+| [ELITE_STRATEGY_RESEARCH.md](../docs/ELITE_STRATEGY_RESEARCH.md) | `docs/ELITE_STRATEGY_RESEARCH.md` | Cross-strategy analysis — elite strategy comparison, regime-aware filtering, performance attribution across asset classes | Strategy selection, cross-strategy optimization |
+| [IBKR_STRATEGY_RESEARCH.md](../docs/IBKR_STRATEGY_RESEARCH.md) | `docs/IBKR_STRATEGY_RESEARCH.md` | Interactive Brokers strategy research — options (covered calls, spreads, condors), bonds, leveraged ETFs, futures, margin optimization | IBKR platform strategies, options/futures planning |
+| [STRATEGY_RESEARCH.md](../docs/STRATEGY_RESEARCH.md) | `docs/STRATEGY_RESEARCH.md` | Deep research compilation — top GitHub repos, profitable open-source strategies, ML/RL techniques, deployment recommendations | Strategy discovery, research baseline, new strategy candidates |

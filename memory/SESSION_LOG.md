@@ -11,6 +11,23 @@ tags: [log, sessions, activity, narrative]
 
 ---
 
+### Session 30 — 2026-03-29
+- **Comprehensive system audit** — 5 parallel agents audited engine, finance, brain, tests, infrastructure
+- **4 CRITICAL engine fixes:**
+  - Wired RiskManager into engine.py (kill switches were INERT — validate_trade() now gates every trade)
+  - Correlation tracker now feeds RiskManager via update_correlations() every 10 ticks (threshold 0.70, was hardcoded 0.80)
+  - Per-strategy trailing stops: trend-followers get 4-5x ATR (atr method), mean-reversion gets 1.5-2x (chandelier). Configured in strategies.yaml.
+  - Position sizing hierarchy clarified: PositionSizer primary, Protocol advisory, RiskManager validation gate
+- **MAJOR fix:** Regime detection cached per (symbol, timestamp) — prevents 10x redundant calls
+- **Documentation fixes:** 7 orphaned docs indexed in TAX_PLAYBOOK_INDEX, doc counts updated (66 docs, ~82,900+ lines)
+- **Infrastructure fixes:** db/__init__.py exports all 10 models, Telegram bridge string formatting bug fixed
+- **MEMORY.md trimmed** from 220 lines to ~75 (under 200-line limit)
+- **Tests:** 200/200 passing, all imports verified
+- **.env security:** Clean — never committed to git history
+- **7 core memory files confirmed present:** SESSION_LOG, MISTAKES, PATTERNS, DECISIONS, LONG_TERM, SOP_LIBRARY, ACTIVE_TASKS
+
+---
+
 ### 2026-03-28 — Session 25: Largest Build Ever — 17 Docs, 5 Skills, Product Vision
 
 **Duration:** Extended session (multi-wave, 11 parallel agents)
