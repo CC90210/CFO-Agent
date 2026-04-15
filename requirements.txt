@@ -46,3 +46,4 @@ pytest-cov>=5.0.0
 feedparser>=6.0.0         # RSS/Atom feed parsing (news_ingest)
 requests>=2.32.0          # HTTP client for news/macro APIs
 pandas_ta>=0.3.14b        # Optional: more accurate TA indicators (fundamentals.py)
+beautifulsoup4>=4.12.0    # HTML scraping for AAII, NAAIM, CBOE (psychology.py)

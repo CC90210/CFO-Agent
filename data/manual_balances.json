@@ -43,19 +43,11 @@
     },
     {
       "platform": "Wise",
-      "account": "CAD",
+      "account": "Primary",
       "amount": 6419,
       "currency": "CAD",
       "category": "cash",
-      "notes": "updated 2026-04-14 — primary cash account"
-    },
-    {
-      "platform": "Wise",
-      "account": "USD",
-      "amount": 4658,
-      "currency": "USD",
-      "category": "cash",
-      "notes": "updated 2026-04-14, pending Wise API integration"
+      "notes": "updated 2026-04-14 — primary cash stash. This is the SAME money whether viewed in CAD ($6,419) or USD (~$4,658). Do not double-count."
     }
   ]
 }

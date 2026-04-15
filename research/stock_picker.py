@@ -36,6 +36,8 @@ from config.settings import settings
 from research.news_ingest import fetch_google_news, fetch_newsapi, NewsItem
 from research.macro_watch import macro_context_summary, rotation_signal, sector_map
 from research.fundamentals import get_fundamentals, get_price_history, technicals
+from research.psychology import behavioral_snapshot
+from research.historical_patterns import cycle_context
 
 logger = logging.getLogger(__name__)
 
@@ -283,6 +285,20 @@ class StockPickerAgent:
         macro_ctx = macro_context_summary(news)
         ticker_data = self._gather_ticker_data(tickers)
 
+        # Wisdom layer — behavioral psychology + historical cycle context
+        # Failures are non-fatal: degrade gracefully so a network hiccup never
+        # blocks a pick run.
+        try:
+            psych_snap = behavioral_snapshot()
+        except Exception as exc:
+            logger.warning("behavioral_snapshot failed: %s", exc)
+            psych_snap = {}
+        try:
+            cycle_ctx = cycle_context(tickers[0] if tickers else "SPY")
+        except Exception as exc:
+            logger.warning("cycle_context failed: %s", exc)
+            cycle_ctx = {}
+
         prompt = self._build_pick_prompt(
             query=query,
             n=n,
@@ -291,6 +307,8 @@ class StockPickerAgent:
             ticker_data=ticker_data,
             macro_ctx=macro_ctx,
             news=news,
+            psych_snap=psych_snap,
+            cycle_ctx=cycle_ctx,
         )
 
         raw = self._call_claude(prompt)
@@ -421,6 +439,8 @@ class StockPickerAgent:
         ticker_data: dict[str, dict],
         macro_ctx: str,
         news: list[NewsItem],
+        psych_snap: dict,
+        cycle_ctx: dict,
     ) -> str:
         """Assemble the full prompt for a pick request."""
         news_digest = "\n".join(
@@ -455,6 +475,71 @@ class StockPickerAgent:
             )
         ticker_digest = "\n\n".join(ticker_digest_parts)
 
+        # ── Wisdom layer: behavioral psychology block ─────────────────────────
+        psych_block = ""
+        if psych_snap:
+            regime      = psych_snap.get("regime", "unknown")
+            greed_score = psych_snap.get("greed_score", "N/A")
+            narrative   = psych_snap.get("narrative", "")
+            flags       = psych_snap.get("flags", [])
+            vix_data    = psych_snap.get("components", {}).get("vix", {})
+            fng_data    = psych_snap.get("components", {}).get("fear_greed_index", {})
+
+            flags_text = "\n".join(f"  - {f}" for f in flags) if flags else "  - None"
+            psych_block = (
+                f"## Market Psychology (Behavioral Finance Layer)\n"
+                f"**Regime:** {regime.replace('_', ' ').title()}  |  "
+                f"**Composite Greed Score:** {greed_score}/100\n"
+                f"**VIX:** {vix_data.get('vix_spot', 'N/A')} ({vix_data.get('classification', 'N/A')})  |  "
+                f"**Term Structure:** {vix_data.get('term_structure', 'N/A')}\n"
+                f"**CNN Fear & Greed:** {fng_data.get('value', 'N/A')} — {fng_data.get('classification', 'N/A')}\n"
+                f"**Active Flags:**\n{flags_text}\n\n"
+                f"**Narrative:** {narrative}"
+            )
+
+        # ── Wisdom layer: historical cycle block ─────────────────────────────
+        cycle_block = ""
+        if cycle_ctx:
+            cycle_narrative  = cycle_ctx.get("narrative", "")
+            pres_cycle       = cycle_ctx.get("presidential_cycle", {})
+            seasonal         = cycle_ctx.get("seasonality", {})
+            top_analogs      = cycle_ctx.get("top_analogs", [])
+            regime_data      = cycle_ctx.get("regime", {})
+
+            analog_lines: list[str] = []
+            for a in top_analogs[:2]:
+                won  = ", ".join(a.get("sectors_that_won", [])[:3])
+                lost = ", ".join(a.get("sectors_that_lost", [])[:3])
+                analog_lines.append(
+                    f"  - **{a.get('name')}** ({a.get('year')}, "
+                    f"similarity {a.get('similarity_score', 0):.0%}, "
+                    f"drawdown {a.get('avg_drawdown')}%): "
+                    f"WON: {won} | LOST: {lost}"
+                )
+
+            analog_text = "\n".join(analog_lines) if analog_lines else "  - Insufficient data"
+
+            cur_month     = seasonal.get("current_month", "")
+            month_rank    = seasonal.get("current_month_rank", "?")
+            month_avg     = seasonal.get("current_month_avg")
+            month_avg_str = f"{month_avg:.1f}%" if month_avg is not None else "N/A"
+            best_months   = ", ".join(seasonal.get("best_months", []))
+            worst_months  = ", ".join(seasonal.get("worst_months", []))
+
+            cycle_block = (
+                f"## Historical & Cycle Context (Wisdom Layer)\n"
+                f"**Market Regime:** {regime_data.get('regime', 'N/A').replace('_', ' ').title()}\n"
+                f"{regime_data.get('regime_description', '')}\n\n"
+                f"**Presidential Cycle:** Year {pres_cycle.get('year_of_cycle', '?')} of 4 — "
+                f"historical SPY avg {pres_cycle.get('historical_sp500_avg_return', 'N/A')}%\n"
+                f"{pres_cycle.get('verdict', '')}\n\n"
+                f"**Seasonality ({seasonal.get('ticker', 'SPY')}):** "
+                f"{cur_month} ranks #{month_rank}/12 (avg {month_avg_str})\n"
+                f"Best months: {best_months}  |  Worst months: {worst_months}\n\n"
+                f"**Closest Historical Analogs:**\n{analog_text}\n\n"
+                f"**Synthesis:** {cycle_narrative}"
+            )
+
         return f"""{self._prompt_template}
 
 ---
@@ -472,6 +557,14 @@ class StockPickerAgent:
 
 ---
 
+{psych_block}
+
+---
+
+{cycle_block}
+
+---
+
 ## Recent News Headlines (last 14 days)
 {news_digest}
 
@@ -486,6 +579,9 @@ class StockPickerAgent:
 ## Instructions
 Based on all data above, select the {n} BEST picks that match the query '{query}'.
 Apply the Anti-Bullshit Rules and conviction threshold (≥6) strictly.
+Use the Market Psychology and Historical Cycle Context sections to stress-test
+each thesis — a pick must make sense given the current behavioral regime AND
+the closest historical analog. Flag any picks that swim against the cycle.
 Return ONLY the JSON array. No prose before or after. No markdown fences.
 """
 

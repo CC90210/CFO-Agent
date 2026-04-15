@@ -1,134 +1,190 @@
 """
 telegram_bridge.py
 ------------------
-Atlas CFO Agent — Telegram Bot for Trading & Accounting.
+Atlas CFO Agent — Primary natural-language Telegram interface for CC.
 
-CC can send commands from his phone, receive trade alerts, and track receipts/expenses.
+CC talks to Atlas naturally on his phone. Slash commands for speed, plain
+English for everything else. Atlas routes via Claude intent classifier then
+executes the right CFO module.
 
 Security
 --------
-Only responds to CC's Telegram user ID (TELEGRAM_USER_ID in .env).
-If TELEGRAM_USER_ID is not set, auto-registers the first user who
-messages the bot and writes the ID back to .env.
+Only responds to TELEGRAM_USER_ID from .env (CC's ID). Auto-registers the
+first user who messages if TELEGRAM_USER_ID is not yet set.
 
-Commands — Trading
-------------------
-  /status      — current portfolio, P&L, open positions
-  /analyze     — run multi-agent analysis on a symbol (e.g. /analyze BTC/USDT)
-  /positions   — list open positions with P&L
-  /trades      — today's trades
-  /pnl         — daily/weekly/monthly P&L summary
-  /risk        — current risk metrics
-  /watchlist   — current watchlist with quick metrics
-  /scan        — trigger an immediate market scan
-  /pause       — pause autonomous trading (keep monitoring)
-  /resume      — resume autonomous trading
-  /kill        — emergency: close all positions and halt
+Commands
+--------
+/start /help /networth /runway /status /taxes /receipts [YYYY-MM-DD]
+/picks <query> /deepdive <TICKER> /news <topic> /macro /brain <file>
 
-Commands — Accounting
----------------------
-  [send photo] — save a receipt (caption: "vendor amount" e.g. "Staples 45.99")
-  /receipts    — view recent receipts
-  /expenses    — monthly expense summary (e.g. /expenses 2026-03)
-  /deductions  — YTD business deductions for T2125
-  /addexpense  — manual expense (e.g. /addexpense Business 29.99 Adobe subscription)
-  /help        — list all commands
-
-Proactive alerts (sent automatically)
---------------------------------------
-  - Trade opened/closed
-  - Daily summary at 00:00 UTC
-  - Kill switch triggered
-  - Stop loss / take profit hit
+Natural language
+----------------
+Any non-slash message is routed through Claude intent classifier, then
+dispatched to the right CFO module. "chat" intent falls back to Atlas as
+a Claude-powered CFO advisor.
 
 Usage
 -----
-  Standalone: python telegram_bridge.py
-  Preferred:  use run_atlas.py which starts this alongside autonomous.py
+  python telegram_bridge.py
 """
 
 from __future__ import annotations
 
 import asyncio
-import datetime
+import io
 import logging
 import os
 import sys
+import traceback
+from collections import defaultdict, deque
+from datetime import date
 from pathlib import Path
 from typing import Any
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  Path setup
+#  Path setup — must happen before project imports
 # ─────────────────────────────────────────────────────────────────────────────
 
 _ROOT = Path(__file__).resolve().parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-_ENV_FILE = _ROOT / ".env"
+# Force UTF-8 on Windows consoles (cp1252 chokes on em-dashes, box chars).
+if hasattr(sys.stdout, "buffer"):
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
+# ─────────────────────────────────────────────────────────────────────────────
+#  .env load (must be before settings import)
+# ─────────────────────────────────────────────────────────────────────────────
+
+from dotenv import load_dotenv  # noqa: E402
+
+load_dotenv(_ROOT / ".env")
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Logging — basic config first, fine-tune after settings load
+# ─────────────────────────────────────────────────────────────────────────────
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(name)-30s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 logger = logging.getLogger("atlas.telegram_bridge")
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  Project imports
+#  Optional python-telegram-bot import — graceful degradation if not installed
 # ─────────────────────────────────────────────────────────────────────────────
 
-from config.settings import settings  # noqa: E402
-from db.database import get_session, init_db  # noqa: E402
-from db.models import DailyPnL, Expense, PortfolioSnapshot, Receipt, Signal, Trade  # noqa: E402
+try:
+    from telegram import Update
+    from telegram.constants import ChatAction
+    from telegram.ext import (
+        ApplicationBuilder,
+        CommandHandler,
+        ContextTypes,
+        MessageHandler,
+        filters,
+    )
 
-# Ensure all tables exist before any handler queries the DB.
-# Safe to call multiple times — uses CREATE TABLE IF NOT EXISTS semantics.
-init_db()
+    _PTB_AVAILABLE = True
+except ImportError:
+    _PTB_AVAILABLE = False
+    logger.warning(
+        "python-telegram-bot not installed. Run: pip install 'python-telegram-bot>=21.0'"
+    )
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Optional Anthropic import
+# ─────────────────────────────────────────────────────────────────────────────
+
+try:
+    import anthropic as _anthropic_lib
+
+    _ANTHROPIC_AVAILABLE = True
+except ImportError:
+    _ANTHROPIC_AVAILABLE = False
+    logger.warning("anthropic not installed. Run: pip install anthropic")
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Constants
 # ─────────────────────────────────────────────────────────────────────────────
 
-_BOT_VERSION = "2.0.0"
-_TELEGRAM_API_BASE = "https://api.telegram.org/bot"
-_MAX_MESSAGE_LENGTH = 4096  # Telegram hard limit
-_RECEIPTS_DIR = _ROOT / "data" / "receipts"
+_BOT_VERSION = "3.0.0"
+_MAX_MSG_LEN = 4000          # Telegram's hard limit is 4096; leave headroom
+_HISTORY_DEPTH = 10          # Turns of conversation memory per chat
+_MODEL = "claude-opus-4-6"
+_ENV_FILE = _ROOT / ".env"
 
-# Shared state flags — modified by /pause and /resume
-_trading_paused: bool = False
+# System prompt fragment injected into every Claude call
+_ATLAS_SYSTEM = """\
+You are Atlas, CC's CFO agent. CC is 22, Canadian, solo-entrepreneur building \
+OASIS AI Solutions (oasisai.work). Dual citizen (CA+UK, Irish eligible). Aggressive \
+long-horizon investor. Moving to Montreal summer 2026. MRR ~$2,982 USD/mo. \
+Files Canadian taxes via NETFILE annually. Tax residency: Ontario.
 
+You speak plain-English first principles — never jargon-dump. You are calculated, \
+direct, data-driven. Lead with the signal, then the reasoning. You never \
+auto-execute trades; you research and advise. CC clicks the button.
+
+When responding via Telegram, be punchy. Phones are for short reads. \
+Use plain text — no markdown headers, minimal bullets. Be a senior CFO \
+briefing a client on a 6-inch screen.\
+"""
+
+_HELP_TEXT = """\
+ATLAS — CC's CFO on your phone.
+
+Say anything naturally, or use commands:
+
+MONEY
+/networth      live net-worth snapshot
+/runway        Montreal cashflow scenarios
+/status        quick financial pulse
+/taxes         quarterly tax-reserve check
+/receipts      sync Gmail receipts
+
+RESEARCH
+/picks <query> 3 stock picks with entry/exit/why
+/deepdive TICK full bull/bear/base analysis
+/news <topic>  top headlines (last 7d)
+/macro         current geopolitical flashpoints
+
+BRAIN
+/brain <file>  read brain/ docs
+/help          this message
+
+You can also just TYPE what you want:
+  "am I going to make it in Montreal?"
+  "give me 3 AI plays"
+  "should I hold crypto through summer?"
+  "what's the Fed doing this week?"
+"""
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  Security — user ID management
+#  Security helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
 
 def _load_allowed_user_id() -> str | None:
-    """
-    Read TELEGRAM_USER_ID from the environment (already loaded from .env
-    by python-dotenv or pydantic-settings at startup).
-    """
     return os.environ.get("TELEGRAM_USER_ID", "").strip() or None
 
 
 def _auto_register_user(user_id: str) -> None:
-    """
-    Write the first user's ID into .env as TELEGRAM_USER_ID.
-    Subsequent users will be blocked by the firewall.
-    """
+    """Write user_id to .env on first contact so subsequent users are blocked."""
     try:
-        content = ""
-        if _ENV_FILE.exists():
-            content = _ENV_FILE.read_text(encoding="utf-8")
-
+        content = _ENV_FILE.read_text(encoding="utf-8") if _ENV_FILE.exists() else ""
         if "TELEGRAM_USER_ID=" in content:
-            lines = content.splitlines()
-            new_lines = [
-                f"TELEGRAM_USER_ID={user_id}" if line.startswith("TELEGRAM_USER_ID=") else line
-                for line in lines
+            lines = [
+                f"TELEGRAM_USER_ID={user_id}"
+                if line.startswith("TELEGRAM_USER_ID=")
+                else line
+                for line in content.splitlines()
             ]
-            _ENV_FILE.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+            _ENV_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
         else:
             with _ENV_FILE.open("a", encoding="utf-8") as fh:
                 fh.write(f"\nTELEGRAM_USER_ID={user_id}\n")
-
-        # Update the live environment so we don't need a restart
         os.environ["TELEGRAM_USER_ID"] = user_id
         logger.info("Auto-registered owner user ID: %s", user_id)
     except Exception as exc:  # noqa: BLE001
@@ -136,979 +192,722 @@ def _auto_register_user(user_id: str) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  Database query helpers
+#  CFO module helpers — thin wrappers around cfo/ and research/ modules
+#  All run in a thread executor to avoid blocking the asyncio event loop.
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def _query_portfolio_state() -> dict[str, Any]:
-    """Return a dict with current portfolio metrics from the database."""
-    today = datetime.date.today()
+def _run_runway() -> str:
+    """Capture cashflow.main() stdout and return as a string."""
+    import io as _io
 
-    with get_session() as session:
-        snapshot = (
-            session.query(PortfolioSnapshot)
-            .order_by(PortfolioSnapshot.timestamp.desc())
-            .first()
-        )
-        daily = session.query(DailyPnL).filter(DailyPnL.date == today).first()
-        today_start = datetime.datetime.combine(today, datetime.time.min)
-        closed_trades = (
-            session.query(Trade)
-            .filter(Trade.closed_at >= today_start, Trade.pnl.isnot(None))
-            .all()
-        )
-        open_positions: list[dict[str, Any]] = []
-        if snapshot and snapshot.positions_json:
-            open_positions = list(snapshot.positions_json)
+    from cfo import cashflow
 
-        portfolio_value = snapshot.total_value if snapshot else 0.0
-        drawdown = snapshot.drawdown_pct if snapshot else 0.0
-        daily_pnl = daily.realized_pnl if daily else 0.0
-        wins = sum(1 for t in closed_trades if (t.pnl or 0.0) > 0)
-        losses = sum(1 for t in closed_trades if (t.pnl or 0.0) <= 0)
-
-    return {
-        "portfolio_value": portfolio_value,
-        "drawdown_pct": drawdown,
-        "daily_pnl": daily_pnl,
-        "positions": open_positions,
-        "trades_today": len(closed_trades),
-        "wins_today": wins,
-        "losses_today": losses,
-    }
+    buf = _io.StringIO()
+    old_stdout = sys.stdout
+    try:
+        sys.stdout = buf
+        cashflow.main()
+    finally:
+        sys.stdout = old_stdout
+    return buf.getvalue().strip() or "Runway model returned no output."
 
 
-def _query_pnl_summary() -> dict[str, float]:
-    """Return daily, weekly, and monthly P&L totals."""
-    today = datetime.date.today()
-    week_start = today - datetime.timedelta(days=today.weekday())
-    month_start = today.replace(day=1)
+def _run_networth() -> str:
+    """Return a compact net-worth text block."""
+    from cfo.dashboard import networth_snapshot
 
-    with get_session() as session:
-        rows = session.query(DailyPnL).filter(DailyPnL.date >= month_start).all()
-        # Extract values inside session to avoid DetachedInstanceError
-        pnl_entries = [(r.date, r.realized_pnl) for r in rows]
-
-    daily_pnl = next((pnl for d, pnl in pnl_entries if d == today), 0.0)
-    weekly_pnl = sum(pnl for d, pnl in pnl_entries if d >= week_start)
-    monthly_pnl = sum(pnl for _, pnl in pnl_entries)
-
-    return {
-        "daily": daily_pnl,
-        "weekly": weekly_pnl,
-        "monthly": monthly_pnl,
-    }
-
-
-def _query_risk_metrics() -> dict[str, Any]:
-    """Return current risk metrics."""
-    today = datetime.date.today()
-
-    with get_session() as session:
-        snapshot = (
-            session.query(PortfolioSnapshot)
-            .order_by(PortfolioSnapshot.timestamp.desc())
-            .first()
-        )
-        daily = session.query(DailyPnL).filter(DailyPnL.date == today).first()
-
-        portfolio_value = snapshot.total_value if snapshot else 0.0
-        drawdown = snapshot.drawdown_pct if snapshot else 0.0
-        daily_pnl = daily.realized_pnl if daily else 0.0
-        daily_loss_pct = (daily_pnl / portfolio_value * 100.0) if portfolio_value else 0.0
-        positions = list(snapshot.positions_json) if snapshot and snapshot.positions_json else []
-
-    return {
-        "portfolio_value": portfolio_value,
-        "drawdown_pct": drawdown,
-        "daily_loss_pct": daily_loss_pct,
-        "open_positions": len(positions),
-        "max_drawdown_limit": settings.risk.max_drawdown_pct,
-        "daily_loss_limit": settings.risk.daily_loss_limit_pct,
-        "max_open_positions": settings.risk.max_open_positions,
-    }
-
-
-def _query_today_trades() -> list[dict[str, Any]]:
-    """Return today's closed trades as a list of dicts."""
-    today = datetime.date.today()
-    today_start = datetime.datetime.combine(today, datetime.time.min)
-
-    with get_session() as session:
-        trades = (
-            session.query(Trade)
-            .filter(Trade.closed_at >= today_start)
-            .order_by(Trade.closed_at.desc())
-            .limit(20)
-            .all()
-        )
-        return [
-            {
-                "symbol": t.symbol,
-                "side": t.side,
-                "pnl": t.pnl or 0.0,
-                "pnl_pct": t.pnl_pct or 0.0,
-                "entry_price": t.entry_price,
-                "exit_price": t.exit_price or 0.0,
-                "strategy": t.strategy,
-                "closed_at": t.closed_at.strftime("%H:%M") if t.closed_at else "?",
-            }
-            for t in trades
-        ]
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  Message formatters
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-def _format_status() -> str:
-    """Build the /status response text."""
-    state = _query_portfolio_state()
-    pv = state["portfolio_value"]
-    dd = state["drawdown_pct"]
-    dpnl = state["daily_pnl"]
-    positions = state["positions"]
-    trades = state["trades_today"]
-    wins = state["wins_today"]
-    losses = state["losses_today"]
-    mode = "LIVE" if settings.is_live else "PAPER"
-    paused_str = " [PAUSED]" if _trading_paused else ""
-
-    sign = "+" if dpnl >= 0 else ""
-    lines = [
-        f"Atlas {mode}{paused_str}",
-        f"Portfolio: ${pv:,.2f}",
-        f"Daily P&L: {sign}${dpnl:,.2f}",
-        f"Drawdown: {abs(dd):.2f}% / {settings.risk.max_drawdown_pct:.1f}%",
-        f"Open Positions: {len(positions)} / {settings.risk.max_open_positions}",
-        f"Trades Today: {trades} ({wins}W / {losses}L)",
-    ]
-    if positions:
+    snap = networth_snapshot()
+    lines = [f"Net Worth: ${snap['total_cad']:,.0f} CAD  (as of {snap['as_of'][:10]})"]
+    lines.append("")
+    for cat, amt in sorted(snap["by_category"].items(), key=lambda x: -x[1]):
+        lines.append(f"  {cat.upper():<16} ${amt:>10,.0f}")
+    if snap["flagged_issues"]:
         lines.append("")
-        lines.append("Open:")
-        for pos in positions[:5]:  # cap at 5 to stay readable
-            sym = pos.get("symbol", "?")
-            side = pos.get("side", "?").upper()
-            upnl = pos.get("unrealized_pnl", 0.0)
-            upnl_sign = "+" if upnl >= 0 else ""
-            lines.append(f"  {sym} {side} uPnL: {upnl_sign}${upnl:,.2f}")
+        lines.append("Flags:")
+        for issue in snap["flagged_issues"]:
+            lines.append(f"  ! {issue}")
     return "\n".join(lines)
 
 
-def _format_positions() -> str:
-    """Build the /positions response text."""
-    state = _query_portfolio_state()
-    positions = state["positions"]
-    if not positions:
-        return "No open positions."
+def _run_status() -> str:
+    """Quick financial pulse: liquid cash, MRR, runway headline."""
+    from cfo.accounts import all_balances
 
-    lines = [f"Open Positions ({len(positions)}):"]
-    for pos in positions:
-        sym = pos.get("symbol", "?")
-        side = pos.get("side", "?").upper()
-        size = pos.get("size", 0.0)
-        entry = pos.get("entry_price", 0.0)
-        upnl = pos.get("unrealized_pnl", 0.0)
-        upnl_pct = pos.get("unrealized_pnl_pct", 0.0)
-        sign = "+" if upnl >= 0 else ""
-        lines.append(
-            f"{sym} {side} {size:.4f} @ ${entry:,.2f}\n"
-            f"  uPnL: {sign}${upnl:,.2f} ({sign}{upnl_pct:.1f}%)"
-        )
-    return "\n".join(lines)
+    balances = all_balances()
+    cash_cats = {"cash"}
+    liquid = sum(b.amount for b in balances if b.category in cash_cats and b.amount > 0)
+    total = sum(b.amount for b in balances if b.amount > 0)
 
-
-def _format_trades() -> str:
-    """Build the /trades response text."""
-    trades = _query_today_trades()
-    if not trades:
-        return "No trades today."
-
-    lines = [f"Today's Trades ({len(trades)}):"]
-    for t in trades:
-        sign = "+" if t["pnl"] >= 0 else ""
-        lines.append(
-            f"{t['symbol']} {t['side'].upper()} @ {t['closed_at']}\n"
-            f"  PnL: {sign}${t['pnl']:,.2f} ({sign}{t['pnl_pct']:.1f}%) | {t['strategy']}"
-        )
-    return "\n".join(lines)
-
-
-def _format_pnl() -> str:
-    """Build the /pnl response text."""
-    pnl = _query_pnl_summary()
-    state = _query_portfolio_state()
-    pv = state["portfolio_value"]
-
-    def _fmt(v: float) -> str:
-        sign = "+" if v >= 0 else ""
-        return f"{sign}${v:,.2f}"
+    # MRR from USER.md constant — update when income changes
+    mrr_usd = 2982.0
+    usd_cad = 1.37
+    mrr_cad = mrr_usd * usd_cad
 
     lines = [
-        "P&L Summary:",
-        f"Daily:   {_fmt(pnl['daily'])}",
-        f"Weekly:  {_fmt(pnl['weekly'])}",
-        f"Monthly: {_fmt(pnl['monthly'])}",
-        f"Equity:  ${pv:,.2f}",
+        f"Liquid cash:  ${liquid:,.0f} CAD",
+        f"Total assets: ${total:,.0f} CAD",
+        f"MRR:          ~${mrr_usd:,.0f} USD (~${mrr_cad:,.0f} CAD)",
+        f"Date:         {date.today()}",
     ]
     return "\n".join(lines)
 
 
-def _format_risk() -> str:
-    """Build the /risk response text."""
-    r = _query_risk_metrics()
-    dd_remaining = r["max_drawdown_limit"] - abs(r["drawdown_pct"])
-    dl_remaining = r["daily_loss_limit"] - abs(r["daily_loss_pct"])
+def _run_taxes() -> str:
+    """Estimate current quarter's tax reserve requirement."""
+    mrr_usd = 2982.0
+    usd_cad = 1.37
+    monthly_cad = mrr_usd * usd_cad
+    reserve_rate = 0.25  # 25% self-employment reserve (CPP + federal + ON)
+
+    monthly_reserve = monthly_cad * reserve_rate
+    quarterly_reserve = monthly_reserve * 3
 
     lines = [
-        "Risk Metrics:",
-        f"Drawdown: {abs(r['drawdown_pct']):.2f}% (limit: {r['max_drawdown_limit']:.1f}%, headroom: {dd_remaining:.1f}%)",
-        f"Daily Loss: {abs(r['daily_loss_pct']):.2f}% (limit: {r['daily_loss_limit']:.1f}%, headroom: {dl_remaining:.1f}%)",
-        f"Open Positions: {r['open_positions']} / {r['max_open_positions']}",
-        f"Portfolio: ${r['portfolio_value']:,.2f}",
+        "Tax Reserve Estimate (Q2 2026)",
+        "",
+        f"Monthly gross:     ${monthly_cad:,.0f} CAD",
+        f"Reserve rate:      {reserve_rate:.0%} (CPP both sides + federal + ON)",
+        f"Monthly set aside: ${monthly_reserve:,.0f} CAD",
+        f"Q2 reserve target: ${quarterly_reserve:,.0f} CAD",
+        "",
+        "2025 taxes: BEING PREPARED — self-employed deadline June 15, 2026.",
+        "Payment due: April 30 even if filing date is later.",
+        "QST registration required when Montreal presence is established.",
     ]
     return "\n".join(lines)
 
 
-def _format_help() -> str:
-    """Build the /help response text."""
-    return (
-        "Atlas CFO Agent Commands:\n"
-        "\n"
-        "TRADING\n"
-        "/status     — portfolio, P&L, positions\n"
-        "/analyze <SYMBOL>  — e.g. /analyze BTC/USDT\n"
-        "/positions  — open positions with P&L\n"
-        "/trades     — today's trades\n"
-        "/pnl        — daily/weekly/monthly P&L\n"
-        "/risk       — drawdown, daily loss, exposure\n"
-        "/watchlist  — watchlist with metrics\n"
-        "/scan       — trigger immediate market scan\n"
-        "/pause      — pause trading (keep monitoring)\n"
-        "/resume     — resume trading\n"
-        "/kill       — EMERGENCY: close all & halt\n"
-        "\n"
-        "ACCOUNTING\n"
-        "[Send photo] — save a receipt (add caption: 'vendor amount')\n"
-        "/receipts   — view recent receipts\n"
-        "/expenses [month] — expense summary (e.g. /expenses 2026-03)\n"
-        "/deductions [year] — YTD business deductions for T2125\n"
-        "/addexpense category amount description — manual expense\n"
-        "\n"
-        "/help       — this message"
-    )
+def _run_receipts(since_date: date | None = None) -> str:
+    """Pull Gmail receipts and return a summary string."""
+    from cfo.gmail_receipts import GmailReceipts
+
+    if since_date is None:
+        since_date = date(date.today().year, 1, 1)
+
+    try:
+        with GmailReceipts() as gr:
+            labels = ["Business Expenses", "Income & Invoices", "Software & Subscriptions"]
+            all_receipts = []
+            for label in labels:
+                try:
+                    fetched = gr.fetch_label(label, since=since_date)
+                    all_receipts.extend(fetched)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Could not fetch label %r: %s", label, exc)
+    except EnvironmentError as exc:
+        return f"Gmail credentials not configured: {exc}"
+
+    if not all_receipts:
+        return f"No receipts found since {since_date}."
+
+    # Group by category
+    by_cat: dict[str, list] = defaultdict(list)
+    for r in all_receipts:
+        by_cat[r.category].append(r)
+
+    total_cad = sum(r.amount_cad for r in all_receipts if r.amount_cad is not None)
+    lines = [
+        f"Receipts since {since_date} ({len(all_receipts)} total)",
+        f"Total: ${total_cad:,.2f} CAD",
+        "",
+    ]
+    for cat, items in sorted(by_cat.items()):
+        cat_total = sum(r.amount_cad for r in items if r.amount_cad is not None)
+        lines.append(f"  {cat:<28} {len(items):>3} items  ${cat_total:>8,.2f}")
+    return "\n".join(lines)
+
+
+def _run_picks(query: str, n: int = 3) -> str:
+    """Run stock picker and format results for Telegram."""
+    from research.stock_picker import StockPickerAgent
+
+    agent = StockPickerAgent()
+    picks = agent.pick(query, n=n)
+
+    if not picks:
+        return f"No picks with conviction >= 6 found for: {query}"
+
+    lines = [f"Picks for: {query}\n"]
+    for i, p in enumerate(picks, 1):
+        sign_u = "+" if p.upside_pct >= 0 else ""
+        sign_d = "-" if p.downside_pct >= 0 else ""
+        lines.append(
+            f"{i}. {p.ticker} — {p.company_name}\n"
+            f"   Conviction: {p.conviction}/10  |  Horizon: {p.time_horizon}\n"
+            f"   Entry: ${p.entry_price:.2f}  Target: ${p.exit_target:.2f} ({sign_u}{p.upside_pct:.1f}%)\n"
+            f"   Stop:  ${p.stop_loss:.2f} ({sign_d}{p.downside_pct:.1f}%)  R/R: {p.risk_reward_ratio:.1f}x\n"
+            f"   Account: {p.account_recommendation}\n"
+            f"   Thesis: {p.thesis[:200]}\n"
+        )
+    return "\n".join(lines)
+
+
+def _run_deepdive(ticker: str) -> str:
+    """Run deep dive and return formatted analysis."""
+    from research.stock_picker import StockPickerAgent
+
+    agent = StockPickerAgent()
+    dd = agent.deep_dive(ticker.upper())
+
+    lines = [
+        f"Deep Dive: {dd.ticker} — {dd.company_name}",
+        f"Conviction: {dd.conviction}/10  |  Current price: ${dd.current_price:.2f}",
+        "",
+        "SUMMARY",
+        dd.executive_summary,
+        "",
+        f"BULL (${dd.bull_price_target:.2f}): {dd.bull_case[:300]}",
+        "",
+        f"BASE (${dd.base_price_target:.2f}): {dd.base_case[:300]}",
+        "",
+        f"BEAR (${dd.bear_price_target:.2f}): {dd.bear_case[:300]}",
+        "",
+        "VERDICT",
+        dd.final_verdict,
+    ]
+    return "\n".join(lines)
+
+
+def _run_news(query: str) -> str:
+    """Fetch top headlines and return summary."""
+    from research.news_ingest import fetch_google_news
+
+    items = fetch_google_news(query, max_results=5)
+    if not items:
+        return f"No news found for: {query}"
+
+    lines = [f"Top headlines: {query}\n"]
+    for item in items:
+        pub = item.published_at[:10] if item.published_at else "?"
+        lines.append(f"  [{pub}] {item.title}\n  {item.source}\n")
+    return "\n".join(lines)
+
+
+def _run_macro() -> str:
+    """Return geopolitical flashpoints summary."""
+    from research.macro_watch import geopolitical_flashpoints
+
+    fps = geopolitical_flashpoints()
+    if not fps:
+        return "No active macro flashpoints on record."
+
+    lines = ["Macro Flashpoints:\n"]
+    for fp in fps:
+        if fp.status in ("active", "monitoring"):
+            bullish = [s for s, d in fp.sector_impacts.items() if d == "bullish"]
+            bearish = [s for s, d in fp.sector_impacts.items() if d == "bearish"]
+            lines.append(
+                f"{fp.name} ({fp.status.upper()})\n"
+                f"  {fp.description[:150]}\n"
+                f"  Bullish: {', '.join(bullish[:3]) or 'none'}\n"
+                f"  Bearish: {', '.join(bearish[:3]) or 'none'}\n"
+            )
+    return "\n".join(lines) if len(lines) > 1 else "No active flashpoints."
+
+
+def _run_brain(filename: str) -> str:
+    """Read a brain/*.md file and return first 3000 chars."""
+    brain_dir = _ROOT / "brain"
+    # Normalize: strip path separators and .md extension handling
+    name = filename.strip().replace("/", "").replace("\\", "")
+    if not name.endswith(".md"):
+        name = name + ".md"
+    target = brain_dir / name
+    if not target.exists():
+        available = sorted(p.name for p in brain_dir.glob("*.md"))
+        return f"File not found: {name}\n\nAvailable: {', '.join(available)}"
+    text = target.read_text(encoding="utf-8")
+    if len(text) > 3000:
+        text = text[:3000] + f"\n\n... ({len(text) - 3000} more chars — be more specific)"
+    return text
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  TelegramBridge
+#  Intent classifier
+# ─────────────────────────────────────────────────────────────────────────────
+
+_INTENT_SYSTEM = """\
+You are an intent classifier for Atlas, a CFO Telegram bot.
+
+Classify the user's message into exactly one of these intents (output JSON only):
+  runway    — cashflow, runway, Montreal move, can I afford, burn rate
+  networth  — net worth, total assets, what do I have
+  status    — quick pulse, how am I doing, financial snapshot
+  picks     — stock picks, equities, buy recommendation, plays (extract "query" and "n")
+  deepdive  — deep dive, full analysis, bull/bear on a specific ticker (extract "ticker")
+  receipts  — receipts, expenses, Gmail sync, tax prep receipts (extract "since" as YYYY-MM-DD or null)
+  news      — headlines, news, latest on (extract "query")
+  macro     — macro, geopolitics, flashpoints, Fed, global economy
+  taxes     — tax reserve, how much tax, CRA, filing, deductions
+  chat      — anything else (general CFO question or conversation)
+
+Output format (strict JSON, no other text):
+{"intent": "<one of the above>", "query": "<extracted query or null>", "n": <int or null>, "ticker": "<TICKER or null>", "since": "<YYYY-MM-DD or null>"}
+"""
+
+
+class AtlasIntentClassifier:
+    """Wraps Claude to route natural language messages to CFO functions."""
+
+    def __init__(self, client: Any) -> None:
+        self._client = client
+
+    def classify(self, message: str) -> dict[str, Any]:
+        """Return intent dict. Falls back to chat on any error."""
+        import json
+
+        default: dict[str, Any] = {
+            "intent": "chat",
+            "query": message,
+            "n": None,
+            "ticker": None,
+            "since": None,
+        }
+        if not _ANTHROPIC_AVAILABLE:
+            return default
+        try:
+            resp = self._client.messages.create(
+                model=_MODEL,
+                max_tokens=128,
+                system=_INTENT_SYSTEM,
+                messages=[{"role": "user", "content": message}],
+            )
+            raw = resp.content[0].text.strip()
+            # Strip markdown code fences if Claude wrapped output
+            if raw.startswith("```"):
+                raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0]
+            parsed: dict[str, Any] = json.loads(raw)
+            return {**default, **parsed}
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Intent classification failed: %s", exc)
+            return default
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Main bot class
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class TelegramBridge:
+class AtlasTelegram:
     """
-    Telegram bot for remote control of the Atlas trading daemon.
-
-    Designed to run as an asyncio task alongside autonomous.py inside
-    a single event loop (via run_atlas.py). Can also run standalone.
+    Atlas CFO Telegram bot.
 
     Parameters
     ----------
-    shutdown_event:
-        Shared asyncio.Event. When set, the bridge stops polling.
+    token: Telegram bot token from .env
+    user_id: CC's Telegram user ID (TELEGRAM_USER_ID) — all others are rejected
+    anthropic_key: Anthropic API key for NL routing + chat fallback
     """
 
-    def __init__(self, shutdown_event: asyncio.Event) -> None:
-        self._token = settings.telegram.telegram_bot_token
-        self._shutdown_event = shutdown_event
-        self._allowed_user_id: str | None = _load_allowed_user_id()
-        self._offset: int = 0  # Telegram long-poll update offset
+    def __init__(self, token: str, user_id: str | None, anthropic_key: str) -> None:
+        self._token = token
+        self._allowed_user_id = user_id
+        self._anthropic_key = anthropic_key
+        self._greeted: set[int] = set()
 
-        if not self._token:
-            raise RuntimeError(
-                "TELEGRAM_BOT_TOKEN is not set in .env. "
-                "Cannot start Telegram bridge without a bot token."
-            )
+        # In-memory conversation history: {chat_id: deque of message dicts}
+        self._history: dict[int, deque] = defaultdict(
+            lambda: deque(maxlen=_HISTORY_DEPTH * 2)  # *2 for user+assistant pairs
+        )
 
-    # ── Main polling loop ──────────────────────────────────────────────────
+        if _ANTHROPIC_AVAILABLE:
+            self._anthropic = _anthropic_lib.Anthropic(api_key=anthropic_key)
+            self._classifier = AtlasIntentClassifier(self._anthropic)
+        else:
+            self._anthropic = None  # type: ignore[assignment]
+            self._classifier = None  # type: ignore[assignment]
 
-    async def run(self) -> None:
-        """Start long-polling and dispatch commands until shutdown."""
-        import aiohttp  # imported here to keep startup clean if not used standalone
+    # ── Security firewall ──────────────────────────────────────────────────────
 
-        logger.info("Telegram bridge starting (long-poll)...")
-        async with aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=35)
-        ) as session:
-            self._http = session
-            await self._send_message(
-                f"Atlas Telegram Bridge v{_BOT_VERSION} online.\nSend /help for commands."
-            )
-
-            while not self._shutdown_event.is_set():
-                try:
-                    updates = await self._get_updates()
-                    for update in updates:
-                        await self._dispatch(update)
-                except asyncio.CancelledError:
-                    break
-                except Exception as exc:  # noqa: BLE001
-                    logger.error("Polling error: %s", exc)
-                    # Back off before retrying to avoid hammering Telegram on errors
-                    await asyncio.sleep(5)
-
-        logger.info("Telegram bridge stopped.")
-
-    # ── Telegram API wrappers ──────────────────────────────────────────────
-
-    async def _get_updates(self) -> list[dict[str, Any]]:
-        """
-        Long-poll Telegram for new updates. Blocks for up to 30 seconds.
-        Returns a list of update objects.
-        """
-        url = f"{_TELEGRAM_API_BASE}{self._token}/getUpdates"
-        params = {"offset": self._offset, "timeout": 30, "allowed_updates": ["message"]}
-        try:
-            async with self._http.get(url, params=params) as resp:
-                if resp.status != 200:
-                    logger.warning("getUpdates returned HTTP %d", resp.status)
-                    await asyncio.sleep(5)  # back off on errors to avoid hammering
-                    return []
-                data: dict[str, Any] = await resp.json()
-                if not data.get("ok"):
-                    return []
-                updates: list[dict[str, Any]] = data.get("result", [])
-                if updates:
-                    self._offset = updates[-1]["update_id"] + 1
-                return updates
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("getUpdates error (normal during shutdown): %s", exc)
-            return []
-
-    async def _send_message(
-        self, text: str, chat_id: str | None = None
-    ) -> None:
-        """
-        Send a message to the configured chat ID. Splits messages that
-        exceed Telegram's 4096-character limit.
-        """
-        if not self._allowed_user_id and chat_id is None:
-            return  # No recipient yet (first-run, no message received)
-
-        target_chat = chat_id or self._allowed_user_id
-        if not target_chat:
-            return
-
-        url = f"{_TELEGRAM_API_BASE}{self._token}/sendMessage"
-        # Split long messages at word boundaries
-        chunks = [text[i : i + _MAX_MESSAGE_LENGTH] for i in range(0, len(text), _MAX_MESSAGE_LENGTH)]
-        for chunk in chunks:
-            payload: dict[str, Any] = {
-                "chat_id": target_chat,
-                "text": chunk,
-                "disable_web_page_preview": True,
-            }
-            try:
-                async with self._http.post(url, json=payload) as resp:
-                    if resp.status != 200:
-                        body = await resp.text()
-                        logger.warning("sendMessage HTTP %d: %s", resp.status, body[:200])
-            except Exception as exc:  # noqa: BLE001
-                logger.error("Failed to send Telegram message: %s", exc)
-
-    # ── Security firewall ─────────────────────────────────────────────────
-
-    def _is_authorized(self, user_id: str) -> bool:
-        """
-        Return True if the sender is the registered owner.
-        On first contact (no owner registered), registers the sender.
-        """
-        if self._allowed_user_id is None:
-            # Auto-register first user
-            _auto_register_user(user_id)
-            self._allowed_user_id = user_id
-            logger.info("Auto-registered first user as owner: %s", user_id)
+    def _is_allowed(self, update: Any) -> bool:
+        """Return True only for CC's user ID. Auto-registers on first contact."""
+        uid = str(update.effective_user.id)
+        if not self._allowed_user_id:
+            _auto_register_user(uid)
+            self._allowed_user_id = uid
             return True
+        return uid == self._allowed_user_id
 
-        return user_id == self._allowed_user_id
+    async def _reject(self, update: Any) -> None:
+        await update.message.reply_text("Unauthorized.")
 
-    # ── Update dispatcher ─────────────────────────────────────────────────
+    # ── Message sending helpers ────────────────────────────────────────────────
 
-    async def _dispatch(self, update: dict[str, Any]) -> None:
-        """Route a Telegram update to the correct command handler."""
-        message: dict[str, Any] | None = update.get("message")
-        if not message:
+    async def _send_chunked(self, chat_id: int, text: str, context: Any) -> None:
+        """Split text at _MAX_MSG_LEN boundaries and send sequentially."""
+        if not text:
+            text = "(empty response)"
+        chunks = [text[i: i + _MAX_MSG_LEN] for i in range(0, len(text), _MAX_MSG_LEN)]
+        for chunk in chunks:
+            await context.bot.send_message(chat_id=chat_id, text=chunk)
+
+    async def _typing_then_send(self, update: Any, context: Any, text: str) -> None:
+        """Send typing indicator, then deliver chunked response."""
+        await context.bot.send_chat_action(
+            chat_id=update.effective_chat.id, action=ChatAction.TYPING
+        )
+        await self._send_chunked(update.effective_chat.id, text, context)
+
+    # ── Claude chat fallback ───────────────────────────────────────────────────
+
+    def _as_atlas(self, prompt: str, history: deque) -> str:
+        """Call Claude as Atlas CFO for open-ended chat."""
+        if not _ANTHROPIC_AVAILABLE or self._anthropic is None:
+            return "Anthropic client not available. Check ANTHROPIC_API_KEY in .env."
+
+        # Read USER.md excerpt for grounding
+        user_md_path = _ROOT / "brain" / "USER.md"
+        user_excerpt = ""
+        if user_md_path.exists():
+            raw = user_md_path.read_text(encoding="utf-8")
+            user_excerpt = raw[:2000]  # First 2K chars covers identity + assets
+
+        system = _ATLAS_SYSTEM
+        if user_excerpt:
+            system += f"\n\n## CC Profile (from USER.md)\n{user_excerpt}"
+
+        messages = list(history) + [{"role": "user", "content": prompt}]
+
+        resp = self._anthropic.messages.create(
+            model=_MODEL,
+            max_tokens=1024,
+            system=system,
+            messages=messages,
+        )
+        return resp.content[0].text.strip()
+
+    # ── Slash command handlers ─────────────────────────────────────────────────
+
+    async def cmd_start(self, update: Any, _context: Any) -> None:
+        if not self._is_allowed(update):
+            await self._reject(update)
             return
+        chat_id = update.effective_chat.id
+        self._greeted.add(chat_id)
+        await update.message.reply_text(
+            f"Atlas v{_BOT_VERSION} online. Type /help for commands or just talk."
+        )
 
-        chat_id = str(message["chat"]["id"])
-        from_user = message.get("from", {})
-        user_id = str(from_user.get("id", ""))
-        text: str = message.get("text", "").strip()
-
-        # Security check
-        if not self._is_authorized(user_id):
-            logger.warning("Blocked unauthorized user: %s", user_id)
-            await self._send_message("Unauthorized.", chat_id=chat_id)
+    async def cmd_help(self, update: Any, context: Any) -> None:
+        if not self._is_allowed(update):
+            await self._reject(update)
             return
+        await self._send_chunked(update.effective_chat.id, _HELP_TEXT, context)
 
-        # Handle photo messages (receipts)
-        if message.get("photo"):
-            caption = message.get("caption", "").strip()
-            logger.info("Receipt photo from %s (caption: %s)", user_id, caption[:60])
+    async def cmd_networth(self, update: Any, context: Any) -> None:
+        if not self._is_allowed(update):
+            await self._reject(update)
+            return
+        await context.bot.send_chat_action(
+            chat_id=update.effective_chat.id, action=ChatAction.TYPING
+        )
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(None, _run_networth)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("networth handler error")
+            result = f"Atlas hit an issue: {exc!s:.200}. Full details logged."
+        await self._send_chunked(update.effective_chat.id, result, context)
+
+    async def cmd_runway(self, update: Any, context: Any) -> None:
+        if not self._is_allowed(update):
+            await self._reject(update)
+            return
+        await context.bot.send_chat_action(
+            chat_id=update.effective_chat.id, action=ChatAction.TYPING
+        )
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(None, _run_runway)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("runway handler error")
+            result = f"Atlas hit an issue: {exc!s:.200}. Full details logged."
+        await self._send_chunked(update.effective_chat.id, result, context)
+
+    async def cmd_status(self, update: Any, context: Any) -> None:
+        if not self._is_allowed(update):
+            await self._reject(update)
+            return
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(None, _run_status)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("status handler error")
+            result = f"Atlas hit an issue: {exc!s:.200}. Full details logged."
+        await update.message.reply_text(result)
+
+    async def cmd_taxes(self, update: Any, context: Any) -> None:
+        if not self._is_allowed(update):
+            await self._reject(update)
+            return
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(None, _run_taxes)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("taxes handler error")
+            result = f"Atlas hit an issue: {exc!s:.200}. Full details logged."
+        await self._send_chunked(update.effective_chat.id, result, context)
+
+    async def cmd_receipts(self, update: Any, context: Any) -> None:
+        if not self._is_allowed(update):
+            await self._reject(update)
+            return
+        # Parse optional date arg: /receipts 2026-01-01
+        since: date | None = None
+        args = context.args or []
+        if args:
             try:
-                await self._handle_receipt_photo(chat_id, message)
-            except Exception as exc:  # noqa: BLE001
-                logger.error("Receipt handler raised: %s", exc)
-                await self._send_message(f"Error saving receipt: {exc}", chat_id=chat_id)
+                since = date.fromisoformat(args[0])
+            except ValueError:
+                await update.message.reply_text(
+                    f"Bad date format: {args[0]}. Use YYYY-MM-DD."
+                )
+                return
+        await context.bot.send_chat_action(
+            chat_id=update.effective_chat.id, action=ChatAction.TYPING
+        )
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, _run_receipts, since
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("receipts handler error")
+            result = f"Atlas hit an issue: {exc!s:.200}. Full details logged."
+        await self._send_chunked(update.effective_chat.id, result, context)
+
+    async def cmd_picks(self, update: Any, context: Any) -> None:
+        if not self._is_allowed(update):
+            await self._reject(update)
+            return
+        args = context.args or []
+        query = " ".join(args).strip() or "best opportunities right now"
+        await context.bot.send_chat_action(
+            chat_id=update.effective_chat.id, action=ChatAction.TYPING
+        )
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, _run_picks, query, 3
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("picks handler error")
+            result = f"Atlas hit an issue: {exc!s:.200}. Full details logged."
+        await self._send_chunked(update.effective_chat.id, result, context)
+
+    async def cmd_deepdive(self, update: Any, context: Any) -> None:
+        if not self._is_allowed(update):
+            await self._reject(update)
+            return
+        args = context.args or []
+        if not args:
+            await update.message.reply_text("Usage: /deepdive TICKER — e.g. /deepdive NVDA")
+            return
+        ticker = args[0].upper()
+        await context.bot.send_chat_action(
+            chat_id=update.effective_chat.id, action=ChatAction.TYPING
+        )
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, _run_deepdive, ticker
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("deepdive handler error")
+            result = f"Atlas hit an issue: {exc!s:.200}. Full details logged."
+        await self._send_chunked(update.effective_chat.id, result, context)
+
+    async def cmd_news(self, update: Any, context: Any) -> None:
+        if not self._is_allowed(update):
+            await self._reject(update)
+            return
+        args = context.args or []
+        query = " ".join(args).strip() or "financial markets"
+        await context.bot.send_chat_action(
+            chat_id=update.effective_chat.id, action=ChatAction.TYPING
+        )
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, _run_news, query
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("news handler error")
+            result = f"Atlas hit an issue: {exc!s:.200}. Full details logged."
+        await self._send_chunked(update.effective_chat.id, result, context)
+
+    async def cmd_macro(self, update: Any, context: Any) -> None:
+        if not self._is_allowed(update):
+            await self._reject(update)
+            return
+        await context.bot.send_chat_action(
+            chat_id=update.effective_chat.id, action=ChatAction.TYPING
+        )
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(None, _run_macro)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("macro handler error")
+            result = f"Atlas hit an issue: {exc!s:.200}. Full details logged."
+        await self._send_chunked(update.effective_chat.id, result, context)
+
+    async def cmd_brain(self, update: Any, context: Any) -> None:
+        if not self._is_allowed(update):
+            await self._reject(update)
+            return
+        args = context.args or []
+        if not args:
+            available = sorted(p.name for p in (_ROOT / "brain").glob("*.md"))
+            await update.message.reply_text(
+                f"Usage: /brain <filename>\n\nAvailable: {', '.join(available)}"
+            )
+            return
+        filename = args[0]
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, _run_brain, filename
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("brain handler error")
+            result = f"Atlas hit an issue: {exc!s:.200}. Full details logged."
+        await self._send_chunked(update.effective_chat.id, result, context)
+
+    # ── Natural language handler ───────────────────────────────────────────────
+
+    async def on_message(self, update: Any, context: Any) -> None:
+        """Route all non-command messages through intent classifier."""
+        if not self._is_allowed(update):
+            await self._reject(update)
             return
 
+        text = (update.message.text or "").strip()
         if not text:
             return
 
-        logger.info("Command from %s: %s", user_id, text[:80])
+        chat_id = update.effective_chat.id
+        history = self._history[chat_id]
 
-        # Route to handler
-        cmd_parts = text.split(maxsplit=1)
-        cmd = cmd_parts[0].lower().split("@")[0]  # strip @botname suffix
-        arg = cmd_parts[1] if len(cmd_parts) > 1 else ""
+        await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
 
-        handlers: dict[str, Any] = {
-            "/start": self._cmd_help,
-            "/help": self._cmd_help,
-            "/status": self._cmd_status,
-            "/analyze": self._cmd_analyze,
-            "/positions": self._cmd_positions,
-            "/trades": self._cmd_trades,
-            "/pnl": self._cmd_pnl,
-            "/risk": self._cmd_risk,
-            "/watchlist": self._cmd_watchlist,
-            "/scan": self._cmd_scan,
-            "/pause": self._cmd_pause,
-            "/resume": self._cmd_resume,
-            "/kill": self._cmd_kill,
-            "/receipts": self._cmd_receipts,
-            "/expenses": self._cmd_expenses,
-            "/deductions": self._cmd_deductions,
-            "/addexpense": self._cmd_add_expense,
-        }
-
-        handler = handlers.get(cmd)
-        if handler:
-            try:
-                await handler(chat_id, arg)
-            except Exception as exc:  # noqa: BLE001
-                logger.error("Command handler '%s' raised: %s", cmd, exc)
-                await self._send_message(
-                    f"Error processing {cmd}: {exc}", chat_id=chat_id
-                )
-        else:
-            await self._send_message(
-                f"Unknown command: {cmd}\nSend /help to see all commands.",
-                chat_id=chat_id,
-            )
-
-    # ── Command handlers ──────────────────────────────────────────────────
-
-    async def _cmd_help(self, chat_id: str, _arg: str) -> None:
-        await self._send_message(_format_help(), chat_id=chat_id)
-
-    async def _cmd_status(self, chat_id: str, _arg: str) -> None:
         try:
-            await self._send_message(_format_status(), chat_id=chat_id)
-        except Exception as exc:  # noqa: BLE001
-            await self._send_message(f"Could not load status: {exc}", chat_id=chat_id)
-
-    async def _cmd_analyze(self, chat_id: str, arg: str) -> None:
-        symbol = arg.strip().upper() or "BTC/USDT"
-        await self._send_message(
-            f"Running analysis on {symbol}...", chat_id=chat_id
-        )
-        try:
-            # TODO: integrate with multi-agent orchestrator when implemented.
-            # For now, return the last signal for this symbol.
-            with get_session() as session:
-                sig = (
-                    session.query(Signal)
-                    .filter(Signal.symbol == symbol)
-                    .order_by(Signal.timestamp.desc())
-                    .first()
-                )
-            if sig:
-                ts = sig.timestamp.strftime("%Y-%m-%d %H:%M") if sig.timestamp else "?"
-                reply = (
-                    f"Last signal for {symbol}:\n"
-                    f"Direction: {sig.direction.upper()}\n"
-                    f"Conviction: {sig.conviction:.2f}\n"
-                    f"Strategy: {sig.strategy}\n"
-                    f"Agent: {sig.source_agent}\n"
-                    f"Time: {ts} UTC\n"
-                    f"Executed: {'Yes' if sig.executed else 'No'}"
+            # Classify intent
+            if self._classifier is not None:
+                intent_data = await asyncio.get_event_loop().run_in_executor(
+                    None, self._classifier.classify, text
                 )
             else:
-                reply = f"No signals found for {symbol}. The engine may not have scanned it yet."
-            await self._send_message(reply, chat_id=chat_id)
-        except Exception as exc:  # noqa: BLE001
-            await self._send_message(f"Analysis failed: {exc}", chat_id=chat_id)
+                intent_data = {"intent": "chat", "query": text, "n": None, "ticker": None, "since": None}
 
-    async def _cmd_positions(self, chat_id: str, _arg: str) -> None:
-        try:
-            await self._send_message(_format_positions(), chat_id=chat_id)
-        except Exception as exc:  # noqa: BLE001
-            await self._send_message(f"Could not load positions: {exc}", chat_id=chat_id)
-
-    async def _cmd_trades(self, chat_id: str, _arg: str) -> None:
-        try:
-            await self._send_message(_format_trades(), chat_id=chat_id)
-        except Exception as exc:  # noqa: BLE001
-            await self._send_message(f"Could not load trades: {exc}", chat_id=chat_id)
-
-    async def _cmd_pnl(self, chat_id: str, _arg: str) -> None:
-        try:
-            await self._send_message(_format_pnl(), chat_id=chat_id)
-        except Exception as exc:  # noqa: BLE001
-            await self._send_message(f"Could not load P&L: {exc}", chat_id=chat_id)
-
-    async def _cmd_risk(self, chat_id: str, _arg: str) -> None:
-        try:
-            await self._send_message(_format_risk(), chat_id=chat_id)
-        except Exception as exc:  # noqa: BLE001
-            await self._send_message(f"Could not load risk metrics: {exc}", chat_id=chat_id)
-
-    async def _cmd_watchlist(self, chat_id: str, _arg: str) -> None:
-        try:
-            import yaml
-
-            cfg_path = _ROOT / "config" / "strategies.yaml"
-            if not cfg_path.exists():
-                await self._send_message("No strategies.yaml found.", chat_id=chat_id)
-                return
-
-            with open(cfg_path) as fh:
-                raw: dict[str, Any] = yaml.safe_load(fh) or {}
-
-            strategies = raw.get("strategies", {})
-            all_symbols: set[str] = set()
-            for cfg in strategies.values():
-                if cfg.get("enabled", True):
-                    all_symbols.update(cfg.get("symbols", []))
-
-            if not all_symbols:
-                await self._send_message("Watchlist is empty.", chat_id=chat_id)
-                return
-
-            lines = [f"Watchlist ({len(all_symbols)} symbols):"]
-            for sym in sorted(all_symbols):
-                lines.append(f"  {sym}")
-            await self._send_message("\n".join(lines), chat_id=chat_id)
-        except Exception as exc:  # noqa: BLE001
-            await self._send_message(f"Could not load watchlist: {exc}", chat_id=chat_id)
-
-    async def _cmd_scan(self, chat_id: str, _arg: str) -> None:
-        await self._send_message(
-            "Triggering market scan...", chat_id=chat_id
-        )
-        try:
-            from core.engine import TradingEngine, TradingMode  # noqa: PLC0415
-
-            mode = TradingMode.PAPER if settings.is_paper else TradingMode.LIVE
-            engine = TradingEngine(mode=mode, strategy_names=["all"])
-            await engine._setup()
-            for strategy_name, strategy_config in engine._strategies.items():
-                await engine._tick(strategy_name, strategy_config)
-            await engine._teardown()
-            await self._send_message("Market scan complete.", chat_id=chat_id)
-        except Exception as exc:  # noqa: BLE001
-            await self._send_message(f"Scan failed: {exc}", chat_id=chat_id)
-
-    async def _cmd_pause(self, chat_id: str, _arg: str) -> None:
-        global _trading_paused
-        _trading_paused = True
-        logger.info("Trading PAUSED via Telegram command.")
-        await self._send_message(
-            "Trading paused. The agent will continue monitoring but will not place new orders.\n"
-            "Send /resume to restart.",
-            chat_id=chat_id,
-        )
-
-    async def _cmd_resume(self, chat_id: str, _arg: str) -> None:
-        global _trading_paused
-        _trading_paused = False
-        logger.info("Trading RESUMED via Telegram command.")
-        await self._send_message("Trading resumed.", chat_id=chat_id)
-
-    async def _cmd_kill(self, chat_id: str, _arg: str) -> None:
-        global _trading_paused
-        _trading_paused = True
-        logger.warning("KILL SWITCH activated via Telegram.")
-        await self._send_message(
-            "KILL SWITCH ACTIVATED\n"
-            "Trading halted. All open position closures are queued.\n"
-            "Note: automatic position closing requires live exchange connection.\n"
-            "Send /resume to restart when ready.",
-            chat_id=chat_id,
-        )
-        # Signal the main shutdown event to stop the daemon
-        self._shutdown_event.set()
-
-    # ── Receipt & Expense handlers ─────────────────────────────────────────
-
-    async def _handle_receipt_photo(self, chat_id: str, message: dict[str, Any]) -> None:
-        """Download a photo sent to the bot and save it as a receipt."""
-        photos: list[dict[str, Any]] = message["photo"]
-        # Telegram sends multiple sizes — take the largest (last)
-        best_photo = photos[-1]
-        file_id: str = best_photo["file_id"]
-        caption: str = message.get("caption", "").strip()
-
-        # Get file path from Telegram
-        url = f"{_TELEGRAM_API_BASE}{self._token}/getFile"
-        async with self._http.get(url, params={"file_id": file_id}) as resp:
-            if resp.status != 200:
-                await self._send_message("Failed to retrieve photo from Telegram.", chat_id=chat_id)
-                return
-            data = await resp.json()
-            if not data.get("ok"):
-                await self._send_message("Failed to retrieve photo from Telegram.", chat_id=chat_id)
-                return
-            file_path_tg: str = data["result"]["file_path"]
-
-        # Download the file
-        download_url = f"https://api.telegram.org/file/bot{self._token}/{file_path_tg}"
-        async with self._http.get(download_url) as resp:
-            if resp.status != 200:
-                await self._send_message("Failed to download photo.", chat_id=chat_id)
-                return
-            file_bytes = await resp.read()
-
-        # Save to data/receipts/
-        _RECEIPTS_DIR.mkdir(parents=True, exist_ok=True)
-        today = datetime.date.today()
-        ext = Path(file_path_tg).suffix or ".jpg"
-        filename = f"{today.isoformat()}_{file_id[:12]}{ext}"
-        save_path = _RECEIPTS_DIR / filename
-        save_path.write_bytes(file_bytes)
-        logger.info("Receipt saved: %s (%d bytes)", save_path, len(file_bytes))
-
-        # Parse caption for amount and vendor (format: "vendor amount" or just send photo)
-        vendor = None
-        amount = None
-        if caption:
-            parts = caption.rsplit(maxsplit=1)
-            # Try to parse last word as amount
-            if len(parts) >= 2:
+            intent = intent_data.get("intent", "chat")
+            query = intent_data.get("query") or text
+            n = intent_data.get("n") or 3
+            ticker = intent_data.get("ticker") or ""
+            since_raw = intent_data.get("since")
+            since: date | None = None
+            if since_raw:
                 try:
-                    amount = float(parts[-1].replace("$", "").replace(",", ""))
-                    vendor = parts[0]
+                    since = date.fromisoformat(since_raw)
                 except ValueError:
-                    vendor = caption
+                    pass
+
+            # Dispatch to the right function
+            if intent == "runway":
+                result = await asyncio.get_event_loop().run_in_executor(None, _run_runway)
+            elif intent == "networth":
+                result = await asyncio.get_event_loop().run_in_executor(None, _run_networth)
+            elif intent == "status":
+                result = await asyncio.get_event_loop().run_in_executor(None, _run_status)
+            elif intent == "taxes":
+                result = await asyncio.get_event_loop().run_in_executor(None, _run_taxes)
+            elif intent == "receipts":
+                result = await asyncio.get_event_loop().run_in_executor(
+                    None, _run_receipts, since
+                )
+            elif intent == "picks":
+                result = await asyncio.get_event_loop().run_in_executor(
+                    None, _run_picks, query, int(n)
+                )
+            elif intent == "deepdive":
+                if not ticker:
+                    # Try to extract ticker from the text directly
+                    import re
+                    found = re.findall(r"\b[A-Z]{2,5}\b", text)
+                    ticker = found[0] if found else "NVDA"
+                result = await asyncio.get_event_loop().run_in_executor(
+                    None, _run_deepdive, ticker
+                )
+            elif intent == "news":
+                result = await asyncio.get_event_loop().run_in_executor(
+                    None, _run_news, query
+                )
+            elif intent == "macro":
+                result = await asyncio.get_event_loop().run_in_executor(None, _run_macro)
             else:
-                # Single word — try as amount, else treat as vendor
-                try:
-                    amount = float(caption.replace("$", "").replace(",", ""))
-                except ValueError:
-                    vendor = caption
-
-        # Save to database
-        with get_session() as session:
-            receipt = Receipt(
-                date=today,
-                file_path=str(save_path),
-                file_id=file_id,
-                vendor=vendor,
-                amount=amount,
-                is_business_deductible=True,
-            )
-            session.add(receipt)
-            session.commit()
-            receipt_id = receipt.id
-
-        # Confirm to user
-        lines = [f"Receipt #{receipt_id} saved"]
-        if vendor:
-            lines.append(f"Vendor: {vendor}")
-        if amount is not None:
-            lines.append(f"Amount: ${amount:,.2f}")
-        lines.append(f"Date: {today.isoformat()}")
-        lines.append("")
-        lines.append("Tip: send photo with caption like:")
-        lines.append('"Staples 45.99" to auto-fill vendor + amount')
-        await self._send_message("\n".join(lines), chat_id=chat_id)
-
-    async def _cmd_receipts(self, chat_id: str, arg: str) -> None:
-        """Show recent receipts. Usage: /receipts [count]"""
-        count = 10
-        if arg.strip().isdigit():
-            count = min(int(arg.strip()), 50)
-
-        with get_session() as session:
-            receipts = (
-                session.query(Receipt)
-                .order_by(Receipt.date.desc())
-                .limit(count)
-                .all()
-            )
-            if not receipts:
-                await self._send_message("No receipts yet. Send a photo to log one.", chat_id=chat_id)
-                return
-
-            lines = [f"Last {len(receipts)} Receipts:\n"]
-            total = 0.0
-            for r in receipts:
-                amt_str = f"${r.amount:,.2f}" if r.amount else "?"
-                vendor_str = r.vendor or "Unknown"
-                cat_str = f" [{r.category}]" if r.category else ""
-                lines.append(f"#{r.id} | {r.date} | {vendor_str} | {amt_str}{cat_str}")
-                if r.amount:
-                    total += r.amount
-            lines.append(f"\nTotal: ${total:,.2f}")
-        await self._send_message("\n".join(lines), chat_id=chat_id)
-
-    async def _cmd_expenses(self, chat_id: str, arg: str) -> None:
-        """Show expense summary. Usage: /expenses [month] (e.g. /expenses 2026-03)"""
-        today = datetime.date.today()
-        if arg.strip():
-            try:
-                parts = arg.strip().split("-")
-                year, month = int(parts[0]), int(parts[1])
-            except (ValueError, IndexError):
-                await self._send_message("Usage: /expenses 2026-03", chat_id=chat_id)
-                return
-        else:
-            year, month = today.year, today.month
-
-        start_date = datetime.date(year, month, 1)
-        if month == 12:
-            end_date = datetime.date(year + 1, 1, 1)
-        else:
-            end_date = datetime.date(year, month + 1, 1)
-
-        with get_session() as session:
-            # From receipts
-            receipts = (
-                session.query(Receipt)
-                .filter(Receipt.date >= start_date, Receipt.date < end_date)
-                .order_by(Receipt.date.asc())
-                .all()
-            )
-            # From expenses table
-            expenses = (
-                session.query(Expense)
-                .filter(Expense.date >= start_date, Expense.date < end_date)
-                .order_by(Expense.date.asc())
-                .all()
-            )
-
-        receipt_total = sum(r.amount for r in receipts if r.amount)
-        expense_total = sum(e.amount for e in expenses)
-        biz_total = sum(r.amount for r in receipts if r.amount and r.is_business_deductible)
-        biz_total += sum(e.amount for e in expenses if e.is_business_deductible)
-
-        month_name = start_date.strftime("%B %Y")
-        lines = [
-            f"Expense Summary — {month_name}\n",
-            f"Receipts logged: {len(receipts)}",
-            f"Receipt total: ${receipt_total:,.2f}",
-            f"Manual expenses: {len(expenses)}",
-            f"Expense total: ${expense_total:,.2f}",
-            f"Combined: ${receipt_total + expense_total:,.2f}",
-            f"\nBusiness deductible: ${biz_total:,.2f}",
-        ]
-
-        # Category breakdown from receipts
-        cats: dict[str, float] = {}
-        for r in receipts:
-            if r.amount:
-                cat = r.category or "Uncategorized"
-                cats[cat] = cats.get(cat, 0) + r.amount
-        for e in expenses:
-            cats[e.category] = cats.get(e.category, 0) + e.amount
-
-        if cats:
-            lines.append("\nBy Category:")
-            for cat, amt in sorted(cats.items(), key=lambda x: -x[1]):
-                lines.append(f"  {cat}: ${amt:,.2f}")
-
-        await self._send_message("\n".join(lines), chat_id=chat_id)
-
-    async def _cmd_deductions(self, chat_id: str, arg: str) -> None:
-        """Show YTD business deductions for T2125. Usage: /deductions [year]"""
-        today = datetime.date.today()
-        year = int(arg.strip()) if arg.strip().isdigit() else today.year
-        start = datetime.date(year, 1, 1)
-        end = datetime.date(year + 1, 1, 1)
-
-        with get_session() as session:
-            receipts = (
-                session.query(Receipt)
-                .filter(
-                    Receipt.date >= start,
-                    Receipt.date < end,
-                    Receipt.is_business_deductible.is_(True),
+                # chat — Atlas as Claude CFO
+                result = await asyncio.get_event_loop().run_in_executor(
+                    None, self._as_atlas, text, history
                 )
-                .all()
+
+            # Update conversation history
+            history.append({"role": "user", "content": text})
+            history.append({"role": "assistant", "content": result[:500]})  # truncate for memory
+
+        except Exception as exc:  # noqa: BLE001
+            logger.error("on_message error: %s\n%s", exc, traceback.format_exc())
+            result = f"Atlas hit an issue: {exc!s:.200}. Full details logged."
+
+        await self._send_chunked(chat_id, result, context)
+
+    # ── Application builder ────────────────────────────────────────────────────
+
+    def build_app(self) -> Any:
+        """Construct the Application and register all handlers. Returns the app."""
+        if not _PTB_AVAILABLE:
+            raise ImportError(
+                "python-telegram-bot is not installed. "
+                "Run: pip install 'python-telegram-bot>=21.0'"
             )
-            expenses = (
-                session.query(Expense)
-                .filter(
-                    Expense.date >= start,
-                    Expense.date < end,
-                    Expense.is_business_deductible.is_(True),
-                )
-                .all()
-            )
 
-        # Aggregate by T2125 category
-        t2125: dict[str, float] = {}
-        for r in receipts:
-            if r.amount:
-                line = r.t2125_line or r.category or "Other"
-                t2125[line] = t2125.get(line, 0) + r.amount
-        for e in expenses:
-            line = e.category or "Other"
-            t2125[line] = t2125.get(line, 0) + e.amount
+        app = ApplicationBuilder().token(self._token).build()
 
-        total = sum(t2125.values())
-        lines = [
-            f"T2125 Business Deductions — {year}\n",
-        ]
-        for cat, amt in sorted(t2125.items(), key=lambda x: -x[1]):
-            lines.append(f"  {cat}: ${amt:,.2f}")
-        lines.append(f"\nTotal deductions: ${total:,.2f}")
+        # Slash commands
+        app.add_handler(CommandHandler("start", self.cmd_start))
+        app.add_handler(CommandHandler("help", self.cmd_help))
+        app.add_handler(CommandHandler("networth", self.cmd_networth))
+        app.add_handler(CommandHandler("runway", self.cmd_runway))
+        app.add_handler(CommandHandler("status", self.cmd_status))
+        app.add_handler(CommandHandler("taxes", self.cmd_taxes))
+        app.add_handler(CommandHandler("receipts", self.cmd_receipts))
+        app.add_handler(CommandHandler("picks", self.cmd_picks))
+        app.add_handler(CommandHandler("deepdive", self.cmd_deepdive))
+        app.add_handler(CommandHandler("news", self.cmd_news))
+        app.add_handler(CommandHandler("macro", self.cmd_macro))
+        app.add_handler(CommandHandler("brain", self.cmd_brain))
 
-        # Estimate tax savings at marginal rate
-        if total > 0:
-            marginal_rate = 0.2965 if total < 55000 else 0.3348  # ON first/second bracket
-            lines.append(f"Estimated tax savings: ${total * marginal_rate:,.2f}")
-            lines.append(f"(at {marginal_rate*100:.1f}% marginal rate)")
+        # Natural language — catches everything that isn't a command
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.on_message))
 
-        await self._send_message("\n".join(lines), chat_id=chat_id)
-
-    async def _cmd_add_expense(self, chat_id: str, arg: str) -> None:
-        """Manually add an expense. Usage: /addexpense category amount description"""
-        if not arg.strip():
-            await self._send_message(
-                "Usage: /addexpense category amount description\n"
-                "Example: /addexpense Business 29.99 Adobe Creative Cloud subscription\n\n"
-                "Categories: Housing, Food, Transport, Business, Entertainment, "
-                "Subscriptions, Savings, Investing, Other",
-                chat_id=chat_id,
-            )
-            return
-
-        parts = arg.strip().split(maxsplit=2)
-        if len(parts) < 2:
-            await self._send_message("Need at least category and amount.", chat_id=chat_id)
-            return
-
-        category = parts[0].capitalize()
-        try:
-            amount = float(parts[1].replace("$", "").replace(",", ""))
-        except ValueError:
-            await self._send_message(f"Invalid amount: {parts[1]}", chat_id=chat_id)
-            return
-        description = parts[2] if len(parts) > 2 else ""
-
-        is_biz = category.lower() in ("business", "transport", "subscriptions")
-        today = datetime.date.today()
-
-        with get_session() as session:
-            expense = Expense(
-                date=today,
-                amount=amount,
-                category=category,
-                description=description,
-                is_business_deductible=is_biz,
-            )
-            session.add(expense)
-            session.commit()
-            expense_id = expense.id
-
-        biz_tag = " [DEDUCTIBLE]" if is_biz else ""
-        msg = (
-            f"Expense #{expense_id} added\n{category}: ${amount:,.2f}{biz_tag}\n{description}"
-            if description
-            else f"Expense #{expense_id} added\n{category}: ${amount:,.2f}{biz_tag}"
-        )
-        await self._send_message(msg, chat_id=chat_id)
-
-    # ── Public alert API (called by autonomous.py) ─────────────────────────
-
-    async def alert_trade_opened(
-        self,
-        symbol: str,
-        direction: str,
-        size: float,
-        entry_price: float,
-        conviction: float,
-        strategy: str = "",
-    ) -> None:
-        """Send a trade-opened alert. Called by the engine after execution."""
-        emoji = "🟢" if direction.upper() == "LONG" else "🔴"
-        lines = [
-            f"{emoji} Trade Opened",
-            f"{direction.upper()} {symbol} @ ${entry_price:,.2f}",
-            f"Size: {size:.4f} | Conviction: {conviction:.2f}",
-        ]
-        if strategy:
-            lines.append(f"Strategy: {strategy}")
-        await self._send_message("\n".join(lines))
-
-    async def alert_trade_closed(
-        self,
-        symbol: str,
-        direction: str,
-        pnl: float,
-        exit_reason: str,
-    ) -> None:
-        """Send a trade-closed alert."""
-        sign = "+" if pnl >= 0 else ""
-        emoji = "📈" if pnl >= 0 else "📉"
-        await self._send_message(
-            f"{emoji} Trade Closed\n"
-            f"{direction.upper()} {symbol}\n"
-            f"PnL: {sign}${pnl:,.2f} | Reason: {exit_reason}"
-        )
-
-    async def alert_kill_switch(self, reason: str, drawdown_pct: float) -> None:
-        """Send a kill switch alert."""
-        await self._send_message(
-            f"🔴 KILL SWITCH TRIGGERED\n"
-            f"Reason: {reason}\n"
-            f"Drawdown: {drawdown_pct:.1f}%\n"
-            f"All trading halted. Manual review required."
-        )
+        return app
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  Standalone entry point
+#  Entry point
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-async def _standalone_main() -> None:
-    """Run the Telegram bridge in standalone mode (no autonomous trading)."""
-    import signal as _signal
+def main() -> None:
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    user_id = os.environ.get("TELEGRAM_USER_ID", "").strip() or None
 
-    shutdown_event = asyncio.Event()
+    if not token:
+        logger.error(
+            "TELEGRAM_BOT_TOKEN not set in .env. Cannot start."
+        )
+        sys.exit(1)
+    if not anthropic_key:
+        logger.warning(
+            "ANTHROPIC_API_KEY not set — natural language routing will fall back to echo."
+        )
 
-    def _handle_signal(signum: int, frame: object) -> None:
-        logger.info("Signal %d — shutting down bridge.", signum)
-        shutdown_event.set()
+    bot = AtlasTelegram(token=token, user_id=user_id, anthropic_key=anthropic_key)
+    app = bot.build_app()
 
-    _signal.signal(_signal.SIGINT, _handle_signal)
-    _signal.signal(_signal.SIGTERM, _handle_signal)
-
-    bridge = TelegramBridge(shutdown_event=shutdown_event)
-    await bridge.run()
+    logger.info("Atlas Telegram Bridge v%s starting — polling...", _BOT_VERSION)
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s | %(levelname)-8s | %(name)s — %(message)s",
-        handlers=[logging.StreamHandler(sys.stdout)],
-    )
-
-    if sys.platform == "win32":
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-    asyncio.run(_standalone_main())
+    main()
