@@ -3,7 +3,7 @@ import subprocess, sys, time, os, signal
 from pathlib import Path
 
 ROOT = Path(r"C:\Users\User\APPS\trading-agent")
-PYTHON = r"C:\Users\User\AppData\Local\Programs\Python\Python312\python.exe"
+PYTHON = r"C:\Users\User\AppData\Local\Programs\Python\Python312\pythonw.exe"
 LOG = ROOT / "logs" / "paper_trade_live.log"
 WATCHDOG_LOG = ROOT / "logs" / "watchdog.log"
 PID_FILE = ROOT / "logs" / "paper_trade.pid"
@@ -51,6 +51,7 @@ while running:
             cwd=str(ROOT),
             stdout=logf,
             stderr=logf,
+            creationflags=0x08000000,
         )
 
     log(f"paper_trade.py started (PID {proc.pid})")

@@ -72,6 +72,11 @@ alembic/versions/*.pyc
 *.ipynb
 .ipynb_checkpoints/
 
-# ── Backtesting output ────────────────────────
-backtesting/results/
-backtesting/plots/
+# ── Data exceptions (keep manual balances + picks) ─
+!data/manual_balances.json
+!data/picks/
+!data/.gitkeep
+
+# ── Archive (keep trading automation in git, ignore pycache within) ─
+archive/**/__pycache__/
+archive/**/*.pyc

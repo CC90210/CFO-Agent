@@ -1,0 +1,53 @@
+{
+  "as_of": "2026-04-14",
+  "balances": [
+    {
+      "platform": "Wealthsimple",
+      "account": "TFSA",
+      "amount": 155.16,
+      "currency": "CAD",
+      "category": "registered",
+      "notes": "self-directed"
+    },
+    {
+      "platform": "Wealthsimple",
+      "account": "RRSP",
+      "amount": 0,
+      "currency": "CAD",
+      "category": "registered",
+      "notes": ""
+    },
+    {
+      "platform": "Wealthsimple",
+      "account": "FHSA",
+      "amount": 0,
+      "currency": "CAD",
+      "category": "registered",
+      "notes": "opened 2026-03-27"
+    },
+    {
+      "platform": "Wealthsimple",
+      "account": "Crypto",
+      "amount": 206.41,
+      "currency": "CAD",
+      "category": "crypto",
+      "notes": "BTC, ACB $356.39"
+    },
+    {
+      "platform": "RBC",
+      "account": "Checking",
+      "amount": 6419,
+      "currency": "CAD",
+      "category": "cash",
+      "notes": "updated 2026-04-14"
+    },
+    {
+      "platform": "Wise",
+      "account": "USD",
+      "amount": 4658,
+      "currency": "USD",
+      "category": "cash",
+      "notes": "updated 2026-04-14, pending Wise API integration"
+    }
+  ]
+}
