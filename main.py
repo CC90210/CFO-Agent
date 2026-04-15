@@ -37,8 +37,8 @@ if str(_ROOT) not in sys.path:
 
 
 def cmd_runway(args: argparse.Namespace) -> int:
-    from cfo.cashflow import montreal_scenarios
-    montreal_scenarios()
+    from cfo.cashflow import main as cashflow_main
+    cashflow_main()
     return 0
 
 

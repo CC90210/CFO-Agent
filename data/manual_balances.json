@@ -36,10 +36,18 @@
     {
       "platform": "RBC",
       "account": "Checking",
+      "amount": 700,
+      "currency": "CAD",
+      "category": "cash",
+      "notes": "updated 2026-04-14 — CC keeps minimal here, real money in Wise"
+    },
+    {
+      "platform": "Wise",
+      "account": "CAD",
       "amount": 6419,
       "currency": "CAD",
       "category": "cash",
-      "notes": "updated 2026-04-14"
+      "notes": "updated 2026-04-14 — primary cash account"
     },
     {
       "platform": "Wise",
