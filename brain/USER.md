@@ -56,6 +56,19 @@ last_updated: 2026-03-27 (Session 24)
 ### Strategic Implication
 CC is NOT trapped in Canada's tax system. Three passport options + father in Ireland = three jurisdictional strategies + expedited Irish pathway. The optimal structure depends on income level and revenue geography.
 
+### CC's Stated Exit Plan (confirmed 2026-04-14)
+**Canadian tax residency exit window: ages 25-28** (2028-2031).
+
+**Rationale:** Emigrate BEFORE building wealth to minimize departure tax (s.128.1 deemed disposition). Corp at $0 value = departure tax $0. Corp at $5M value = departure tax $1M+.
+
+**Planned ladder:**
+1. **Age 22-25 (NOW — 2028):** Canada base. Incorporate CCPC at $80K+ revenue (mid-2026 expected). Build MRR, keep corp small, accumulate IP.
+2. **Age 25-28 (2028-2031):** Become UK tax-resident. Use FIG regime (Foreign Income and Gains, replaced non-dom as of 2025-04-06): **first 4 years = 100% tax-free on foreign income + gains** if not UK-resident in any of prior 10 years (CC qualifies — only Canadian resident).
+3. **Age 28-32 (2031-2035):** Relocate to Isle of Man (British passport = day-one access). 0% corp, 20% personal CAPPED AT £200K/yr total tax. Effective rate collapses as income scales (£5M income → 4% effective).
+4. **Age 32+ (2035+):** Once Irish passport active, optional Irish holding co (12.5% corp + 6.25% KDB on IP). Enables EU treaty access (Cyprus, Malta, Luxembourg, Netherlands).
+
+**Atlas mandate from CC:** "Keep personalizing this. This is my system." Every financial decision, pick recommendation, and tax move should be evaluated against this ladder — no recommendations that create departure-tax drag or trap assets in Canada.
+
 ## Current Assets (2026-03-27)
 
 | Asset | Amount | Notes |

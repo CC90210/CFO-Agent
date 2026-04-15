@@ -319,7 +319,7 @@ def _run_receipts(since_date: date | None = None) -> str:
 
 
 def _run_picks(query: str, n: int = 3) -> str:
-    """Run stock picker and format results for Telegram."""
+    """Run stock picker and return execution-ready Telegram messages."""
     from research.stock_picker import StockPickerAgent
 
     agent = StockPickerAgent()
@@ -328,19 +328,11 @@ def _run_picks(query: str, n: int = 3) -> str:
     if not picks:
         return f"No picks with conviction >= 6 found for: {query}"
 
-    lines = [f"Picks for: {query}\n"]
-    for i, p in enumerate(picks, 1):
-        sign_u = "+" if p.upside_pct >= 0 else ""
-        sign_d = "-" if p.downside_pct >= 0 else ""
-        lines.append(
-            f"{i}. {p.ticker} — {p.company_name}\n"
-            f"   Conviction: {p.conviction}/10  |  Horizon: {p.time_horizon}\n"
-            f"   Entry: ${p.entry_price:.2f}  Target: ${p.exit_target:.2f} ({sign_u}{p.upside_pct:.1f}%)\n"
-            f"   Stop:  ${p.stop_loss:.2f} ({sign_d}{p.downside_pct:.1f}%)  R/R: {p.risk_reward_ratio:.1f}x\n"
-            f"   Account: {p.account_recommendation}\n"
-            f"   Thesis: {p.thesis[:200]}\n"
-        )
-    return "\n".join(lines)
+    # Each pick renders its own execution-ready block; join with a separator
+    parts = [f"*Atlas Research — {len(picks)} pick(s) for: {query}*\n"]
+    for pick in picks:
+        parts.append(pick.as_telegram_message())
+    return "\n\n---\n\n".join(parts)
 
 
 def _run_deepdive(ticker: str) -> str:
