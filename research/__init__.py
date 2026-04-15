@@ -13,6 +13,8 @@ insider_tracking        SEC Form 4 insider transaction signals (EDGAR, free, no 
 institutional_tracking  SEC Form 13F smart-money holdings (EDGAR, free, no key)
 earnings_calendar       Earnings dates, EPS surprise history, PEAD signal scoring
 options_flow            Short interest, unusual options activity, IV rank, squeeze scoring
+psychology              Behavioral finance: Fear & Greed, VIX regime, AAII, put/call ratio
+historical_patterns     Seasonality, presidential cycle, market regime, historical analogs
 """
 
 from research.news_ingest import NewsItem, Filing, fetch_rss, fetch_google_news, fetch_newsapi, fetch_sec_filings
@@ -46,6 +48,22 @@ from research.options_flow import (
     unusual_activity,
     squeeze_score,
     iv_rank,
+)
+from research.psychology import (
+    behavioral_snapshot,
+    fear_greed_index,
+    vix_signal,
+    aaii_sentiment,
+    naaim_exposure,
+    put_call_ratio_cboe,
+    margin_debt_signal,
+)
+from research.historical_patterns import (
+    cycle_context,
+    market_regime,
+    seasonality,
+    presidential_cycle_phase,
+    historical_analogs,
 )
 
 # stock_picker is imported lazily to avoid the Python runpy re-import warning
@@ -94,4 +112,18 @@ __all__ = [
     "unusual_activity",
     "squeeze_score",
     "iv_rank",
+    # psychology
+    "behavioral_snapshot",
+    "fear_greed_index",
+    "vix_signal",
+    "aaii_sentiment",
+    "naaim_exposure",
+    "put_call_ratio_cboe",
+    "margin_debt_signal",
+    # historical_patterns
+    "cycle_context",
+    "market_regime",
+    "seasonality",
+    "presidential_cycle_phase",
+    "historical_analogs",
 ]
