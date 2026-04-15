@@ -44,9 +44,33 @@ from typing import Optional
 # FX: USD → CAD conversion rate
 USD_TO_CAD: float = 1.37  # Bank of Canada mid-rate, April 2026 approximate
 
-# Current liquid position (as of April 2026 per CC)
-CURRENT_CAD: float = 6_419.00   # CAD in RBC + Wealthsimple
-CURRENT_USD: float = 4_658.00   # USD in Wise
+# Current liquid position — loaded live from data/manual_balances.json
+# Falls back to sensible defaults if the file is missing or malformed.
+def _load_cash_position() -> tuple[float, float]:
+    """Return (cad_cash, usd_cash) from data/manual_balances.json.
+
+    Sums all balances in category == "cash" by currency. Any non-CAD/USD
+    currency is ignored here (add new currencies if they become meaningful).
+    """
+    import json
+    from pathlib import Path
+
+    default_cad, default_usd = 6_419.00, 0.00
+    path = Path(__file__).resolve().parent.parent / "data" / "manual_balances.json"
+    if not path.exists():
+        return default_cad, default_usd
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        cad = sum(b["amount"] for b in data.get("balances", [])
+                  if b.get("category") == "cash" and b.get("currency") == "CAD")
+        usd = sum(b["amount"] for b in data.get("balances", [])
+                  if b.get("category") == "cash" and b.get("currency") == "USD")
+        return cad or default_cad, usd
+    except Exception:
+        return default_cad, default_usd
+
+
+CURRENT_CAD, CURRENT_USD = _load_cash_position()
 
 # Montreal move date — expenses shift at this point
 MONTREAL_MOVE_DATE: date = date(2026, 7, 1)

@@ -49,9 +49,15 @@ _ROOT = Path(__file__).resolve().parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-# Force UTF-8 on Windows consoles (cp1252 chokes on em-dashes, box chars).
-if hasattr(sys.stdout, "buffer"):
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+# UTF-8 forcing moved to _configure_utf8_stdout() — called only from main(),
+# not at import. Doing it at import time broke any module importing this file,
+# because the old stdout reference leaked and the wrapped buffer could close.
+
+
+def _configure_utf8_stdout() -> None:
+    """Force UTF-8 on Windows consoles. Call only when running as a bot, not on import."""
+    if hasattr(sys.stdout, "buffer"):
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  .env load (must be before settings import)
@@ -880,6 +886,7 @@ class AtlasTelegram:
 
 
 def main() -> None:
+    _configure_utf8_stdout()
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     user_id = os.environ.get("TELEGRAM_USER_ID", "").strip() or None

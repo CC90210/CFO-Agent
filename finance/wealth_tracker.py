@@ -20,7 +20,10 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
-from db.models import NetWorthSnapshot as NetWorthSnapshotModel
+try:
+    from db.models import NetWorthSnapshot as NetWorthSnapshotModel
+except ImportError:
+    NetWorthSnapshotModel = None  # db/ archived in CFO pivot; ORM methods now no-op
 
 logger = logging.getLogger(__name__)
 
@@ -202,8 +205,14 @@ class WealthTracker:
             )
             self._snapshots.append(snapshot)
 
-    def to_db_model(self, snapshot: NetWorthSnapshot) -> NetWorthSnapshotModel:
-        """Convert a NetWorthSnapshot dataclass to the ORM model for saving."""
+    def to_db_model(self, snapshot: NetWorthSnapshot):
+        """Convert a NetWorthSnapshot dataclass to the ORM model for saving.
+
+        Requires db/ module (archived in CFO pivot). Returns None if unavailable.
+        """
+        if NetWorthSnapshotModel is None:
+            logger.warning("db.models.NetWorthSnapshot unavailable; db persistence disabled.")
+            return None
         return NetWorthSnapshotModel(
             date=snapshot.date,
             total_assets=snapshot.total_assets,

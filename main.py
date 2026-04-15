@@ -75,8 +75,46 @@ def cmd_deepdive(args: argparse.Namespace) -> int:
 
 
 def cmd_taxes(args: argparse.Namespace) -> int:
-    from finance.tax import quarterly_snapshot
-    print(quarterly_snapshot())
+    from finance.tax import CryptoTaxCalculator
+    from datetime import date
+    from cfo.dashboard import networth_snapshot
+
+    today = date.today()
+    year = today.year
+    quarter = (today.month - 1) // 3 + 1
+    nw = networth_snapshot()
+
+    print(f"\n{'=' * 68}")
+    print(f"  ATLAS — TAX SNAPSHOT  |  Q{quarter} {year}  |  {today.isoformat()}")
+    print(f"{'=' * 68}\n")
+
+    print(f"  NET WORTH (CAD):  ${nw['total_cad']:>12,.2f}")
+    print(f"  CASH ON HAND:     ${nw['by_category'].get('cash', 0):>12,.2f}")
+    print()
+
+    deadlines = {
+        1: ("Mar 15 — Q4 prior-year installment", "Apr 30 — tax payment (all filers)"),
+        2: ("Jun 15 — Q1 installment", "Jun 15 — self-employed return deadline"),
+        3: ("Sep 15 — Q2 installment", None),
+        4: ("Dec 15 — Q3 installment", None),
+    }
+    print("  KEY DEADLINES (CRA):")
+    for d in deadlines[quarter]:
+        if d:
+            print(f"    *{d}")
+    print()
+
+    print("  RESERVES (rule of thumb for sole prop at ~$280K projected):")
+    print("    *Set aside 25% of gross self-employment income for CPP+fed+ON tax")
+    print("    *If TTM revenue > $30K: GST/HST filing required, registration mandatory")
+    print("    *If TTM revenue > $80K: evaluate CCPC incorporation (12.2% vs 29.65%+)")
+    print()
+
+    print("  NEXT STEPS:")
+    print("    1. Run `python main.py receipts --since 2026-01-01` monthly")
+    print("    2. Export receipts CSV -> reconcile against Stripe + Wise")
+    print("    3. File 2025 return by June 15, 2026 via Wealthsimple Tax -> NETFILE")
+    print()
     return 0
 
 
