@@ -74,6 +74,35 @@ def cmd_deepdive(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_setup(args: argparse.Namespace) -> int:
+    from cfo.setup_wizard import SetupWizard
+    SetupWizard(non_interactive=getattr(args, "non_interactive", False)).run()
+    return 0
+
+
+def cmd_crypto_acb(args: argparse.Namespace) -> int:
+    from cfo.crypto_acb import CryptoAcbReporter
+    from pathlib import Path
+    from datetime import date as _date
+
+    reporter = CryptoAcbReporter(
+        csv_path=Path(args.csv) if args.csv else None,
+        year=args.year,
+        export_path=Path(args.export) if args.export else None,
+        summary_only=args.summary,
+    )
+    return reporter.run()
+
+
+def cmd_rebalance(args: argparse.Namespace) -> int:
+    from cfo.rebalance import Rebalancer
+    rebalancer = Rebalancer(
+        threshold_pct=args.threshold,
+        use_live=not args.no_live,
+    )
+    return rebalancer.run()
+
+
 def cmd_taxes(args: argparse.Namespace) -> int:
     from finance.tax import CryptoTaxCalculator
     from datetime import date
@@ -140,6 +169,34 @@ def build_parser() -> argparse.ArgumentParser:
     dd.set_defaults(func=cmd_deepdive)
 
     sub.add_parser("taxes", help="Quarterly tax reserve + installment check").set_defaults(func=cmd_taxes)
+
+    # ── New CFO commands ─────────────────────────────────────────────────────
+    setup_p = sub.add_parser("setup", help="Personalization wizard — writes brain/USER.md, .env, balances")
+    setup_p.add_argument(
+        "--non-interactive", action="store_true",
+        help="Populate with demo data without reading from stdin (for testing)",
+    )
+    setup_p.set_defaults(func=cmd_setup)
+
+    from datetime import date as _today_date
+    acb_p = sub.add_parser("crypto-acb", help="Weighted-average ACB report for CRA T5008 filing")
+    acb_p.add_argument("--year", type=int, default=_today_date.today().year,
+                       help="Tax year to report (default: current year)")
+    acb_p.add_argument("--csv", default=None,
+                       help="Path to trade history CSV (default: data/crypto_trades.csv)")
+    acb_p.add_argument("--export", default=None,
+                       help="Write T5008 data to this CSV path")
+    acb_p.add_argument("--summary", action="store_true",
+                       help="Print totals only, no per-trade detail")
+    acb_p.set_defaults(func=cmd_crypto_acb)
+
+    reb_p = sub.add_parser("rebalance", help="Portfolio rebalancing recommendations")
+    reb_p.add_argument("--threshold", type=float, default=5.0,
+                       help="Minimum drift %% before recommending action (default: 5.0)")
+    reb_p.add_argument("--no-live", action="store_true",
+                       help="Skip live API fetches, use manual_balances.json only")
+    reb_p.set_defaults(func=cmd_rebalance)
+
     return p
 
 
