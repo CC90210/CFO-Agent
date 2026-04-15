@@ -41,3 +41,8 @@ plotly>=5.22.0
 pytest>=8.2.0
 pytest-asyncio>=0.23.0
 pytest-cov>=5.0.0
+
+# Research module
+feedparser>=6.0.0         # RSS/Atom feed parsing (news_ingest)
+requests>=2.32.0          # HTTP client for news/macro APIs
+pandas_ta>=0.3.14b        # Optional: more accurate TA indicators (fundamentals.py)
