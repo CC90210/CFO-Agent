@@ -72,10 +72,18 @@ alembic/versions/*.pyc
 *.ipynb
 .ipynb_checkpoints/
 
-# ── Data exceptions (keep manual balances + picks) ─
+# ── Data exceptions (keep manual balances + picks + pulse state) ─
 !data/manual_balances.json
 !data/picks/
+!data/pulse/
+!data/pulse/*.json
 !data/.gitkeep
+
+# ── Auto-regenerated caches (do not commit — rebuild from source) ─
+data/receipts_cache.json
+
+# ── Claude Code session-local state ─
+.claude/settings.local.json
 
 # ── Archive (keep trading automation in git, ignore pycache within) ─
 archive/**/__pycache__/

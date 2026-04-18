@@ -61,6 +61,10 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
+# -s disables stdout capture. Config/logging imports wrap sys.stdout in a
+# UTF-8 TextIOWrapper that closes pytest's capture tmpfile. Harmless —
+# our tests don't rely on captured output.
+addopts = "-s"
 
 [tool.mypy]
 python_version = "3.11"
