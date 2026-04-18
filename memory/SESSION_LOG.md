@@ -11,6 +11,44 @@ tags: [log, sessions, activity, narrative]
 
 ---
 
+### Session 31 — 2026-04-18 (Antigravity runtime)
+- **File structure audit & optimization** — CC requested full audit after noticing `.claude/skills/` only had 2 files
+- **Critical fixes applied (4):**
+  - `telegram_bridge.py:345` — tax status "BEING PREPARED" → "FILED (Session 24)"
+  - `finance/advisor.py:257` — stale MRR $2,191 → $2,982 in Claude system prompt
+  - `finance/budget.py:122,127` — stale MRR $2,191 → $2,982 in prompt + default constructor
+  - `cfo/accounts.py` — added `get_fx_rates()` for live FX via exchangerate.host (15-min cache, fallback to defaults)
+- **`.claude/skills/` restructured (2 → 7 files):**
+  - Rewrote `tax-strategy.md` — maps to all 7 tax skill playbooks + docs
+  - Rewrote `trading.md` — replaced pre-pivot algo trading refs with current 10-layer research pipeline
+  - NEW: `cfo-operations.md` — net worth, runway, cashflow, accounts
+  - NEW: `compliance-crossborder.md` — CRA deadlines, HST, W-8BEN, foreign reporting
+  - NEW: `accounting-receipts.md` — Gmail receipts, T2125, crypto ACB
+  - NEW: `international-strategy.md` — departure tax, Crown Dependencies, exit ladder
+  - NEW: `financial-planning.md` — budget, FIRE, wealth, incorporation readiness
+  - NEW: `system-multiagent.md` — architecture, pulse protocol, 4-runtime coordination
+- **`.claude/settings.local.json` fixed** — memory path pointed to old `trading-agent` project name
+- **NEW: `brain/STRUCTURE.md`** — file ownership map + multi-agent conventions
+  - Defines SSOT (Single Source of Truth) rules
+  - "Update in-place, don't spawn" convention per CC's directive
+  - Session tracking requirements for all runtimes
+  - Pulse-before-close protocol
+- **CC directive captured:** "Don't make a new file each time you change something — update existing files"
+
+- **Bravo delegation prompt created** — full C-suite architecture handoff (CFO+CEO+CMO)
+  - Inventoried CC's 5 marketing repos: Marketing-Agent, shopify-ad-engine, ig-setter-pro, cc-funnel, Bravo content-studio
+  - Designed 3-way pulse protocol (cmo_pulse.json schema)
+  - Mapped 11 Bravo skills for CMO extraction
+  - Flagged stale Atlas reference in Bravo's brain/AGENTS.md (still says "trading-agent")
+- **Claude Code Maven Handoff Prompt created** — generated specialized artifact for Claude Code to execute the CMO buildout and orchestrate marketing repos.
+- **Updated Atlas orchestrator** to integrate Maven into the 3-agent C-suite structure (`brain/AGENT_ORCHESTRATION.md` and `brain/STRUCTURE.md`).
+- **CC switching to Bravo/Maven runtime** for CMO agent buildout
+
+**Runtime:** Antigravity (via AGENTS.md)
+**Files changed:** 15 (6 edited, 9 created)
+
+---
+
 ### Session 30 — 2026-03-29
 - **Comprehensive system audit** — 5 parallel agents audited engine, finance, brain, tests, infrastructure
 - **4 CRITICAL engine fixes:**
