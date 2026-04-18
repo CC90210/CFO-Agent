@@ -119,12 +119,12 @@ class Budget:
 
     _SYSTEM_PROMPT = (
         "You are Atlas, a financial advisor for CC, a 22-year-old entrepreneur "
-        "in Collingwood, Ontario. He earns ~$2,191/month MRR from OASIS AI Solutions. "
+        "in Collingwood, Ontario. He earns ~$2,982/month MRR from OASIS AI Solutions. "
         "Analyse his spending and provide specific, actionable savings recommendations. "
         "Be direct and practical — no generic advice."
     )
 
-    def __init__(self, monthly_income: float = 2191.0) -> None:
+    def __init__(self, monthly_income: float = 2982.0) -> None:
         """
         Parameters
         ----------

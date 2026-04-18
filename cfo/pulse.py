@@ -40,10 +40,11 @@ logger = logging.getLogger(__name__)
 _ROOT = Path(__file__).resolve().parents[1]
 _PULSE_PATH = _ROOT / "data" / "pulse" / "cfo_pulse.json"
 _BRAVO_PULSE_PATH = Path(r"C:\Users\User\Business-Empire-Agent\data\pulse\ceo_pulse.json")
-# Maven writes cmo_pulse.json at its own path per AGENT_ORCHESTRATION.md Part 2.3.
-# A misplaced copy may temporarily exist at Bravo's path during Maven handoff —
-# try the canonical location first, fall back, graceful if neither exists.
+# Maven (CMO) writes cmo_pulse.json at its own path per C_SUITE_ARCHITECTURE.md.
+# The old Marketing-Agent path + Bravo's path are kept as fallbacks during
+# the 2026-04-18 rebrand transition. Canonical is CMO-Agent.
 _MAVEN_PULSE_PATHS = [
+    Path(r"C:\Users\User\CMO-Agent\data\pulse\cmo_pulse.json"),
     Path(r"C:\Users\User\Marketing-Agent\data\pulse\cmo_pulse.json"),
     Path(r"C:\Users\User\Business-Empire-Agent\data\pulse\cmo_pulse.json"),
 ]
@@ -83,8 +84,9 @@ def _read_bravo_pulse() -> dict:
 def _read_maven_pulse() -> dict:
     """Return Maven's latest cmo_pulse.json, {} if Maven hasn't published yet.
 
-    Checks the canonical Marketing-Agent path first, then falls back to the
-    Business-Empire-Agent path where misplaced copies may sit during handoff.
+    Checks the canonical CMO-Agent path first, then falls back to the old
+    Marketing-Agent path and Business-Empire-Agent path where copies may
+    sit during the 2026-04-18 rebrand transition.
     """
     for path in _MAVEN_PULSE_PATHS:
         if path.exists():
@@ -234,6 +236,9 @@ def publish(extra: dict | None = None) -> Path:
     )
 
     pulse: dict[str, Any] = {
+        # Agent identity — required by the 3-way pulse stress test so readers
+        # can verify the source without inferring from file path.
+        "agent": "atlas",
         "updated_at": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
         "liquid_cad": liquid_cad,
         "liquid_source": liquid_src,

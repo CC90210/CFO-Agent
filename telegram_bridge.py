@@ -342,7 +342,7 @@ def _run_taxes() -> str:
         f"Monthly set aside: ${monthly_reserve:,.0f} CAD",
         f"Q2 reserve target: ${quarterly_reserve:,.0f} CAD",
         "",
-        "2025 taxes: BEING PREPARED — self-employed deadline June 15, 2026.",
+        "2025 taxes: FILED (Session 24, Wealthsimple Tax NETFILE). NOA pending.",
         "Payment due: April 30 even if filing date is later.",
         "QST registration required when Montreal presence is established.",
     ]

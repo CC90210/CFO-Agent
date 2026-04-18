@@ -35,7 +35,6 @@ tool_use → tool_result loop internally and returns the final assistant text.
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import date
 from pathlib import Path
@@ -210,10 +209,12 @@ def _tool_read_agent_pulse(agent: str) -> str:
         "bravo": [Path(r"C:\Users\User\Business-Empire-Agent\data\pulse\ceo_pulse.json")],
         "ceo": [Path(r"C:\Users\User\Business-Empire-Agent\data\pulse\ceo_pulse.json")],
         "maven": [
+            Path(r"C:\Users\User\CMO-Agent\data\pulse\cmo_pulse.json"),
             Path(r"C:\Users\User\Marketing-Agent\data\pulse\cmo_pulse.json"),
             Path(r"C:\Users\User\Business-Empire-Agent\data\pulse\cmo_pulse.json"),
         ],
         "cmo": [
+            Path(r"C:\Users\User\CMO-Agent\data\pulse\cmo_pulse.json"),
             Path(r"C:\Users\User\Marketing-Agent\data\pulse\cmo_pulse.json"),
             Path(r"C:\Users\User\Business-Empire-Agent\data\pulse\cmo_pulse.json"),
         ],

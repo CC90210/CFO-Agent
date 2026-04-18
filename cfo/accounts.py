@@ -114,6 +114,50 @@ DEFAULT_FX: dict[str, float] = {
     "CAD": 1.0,
 }
 
+_FX_CACHE: dict[str, tuple[float, dict[str, float]]] = {}
+_FX_CACHE_TTL = 900  # 15 min
+
+
+def get_fx_rates(base: str = "CAD") -> dict[str, float]:
+    """
+    Fetch live FX rates with CAD as base. Falls back to DEFAULT_FX on failure.
+
+    Uses the free exchangerate.host API (no key required, 250 req/mo).
+    Results are cached for 15 minutes.
+    """
+    entry = _FX_CACHE.get(base)
+    if entry and (time.monotonic() - entry[0]) < _FX_CACHE_TTL:
+        return entry[1]
+
+    if not _HAS_REQUESTS:
+        logger.warning("requests not installed — using hardcoded FX rates")
+        return DEFAULT_FX
+
+    try:
+        resp = _requests.get(
+            "https://api.exchangerate.host/latest",
+            params={"base": base, "symbols": "USD,EUR,GBP,CAD"},
+            timeout=5,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        rates = data.get("rates", {})
+        # API returns how many USD per 1 CAD — we want how many CAD per 1 USD
+        # So we invert: 1 / (rate of USD in CAD terms)
+        fx: dict[str, float] = {"CAD": 1.0}
+        for ccy in ("USD", "EUR", "GBP"):
+            api_rate = rates.get(ccy)
+            if api_rate and float(api_rate) > 0:
+                fx[ccy] = round(1.0 / float(api_rate), 4)
+            else:
+                fx[ccy] = DEFAULT_FX.get(ccy, 1.0)
+        _FX_CACHE[base] = (time.monotonic(), fx)
+        logger.info("Live FX rates fetched: %s", fx)
+        return fx
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("FX rate fetch failed (%s) — using defaults", exc)
+        return DEFAULT_FX
+
 
 # ---------------------------------------------------------------------------
 # Platform fetchers
