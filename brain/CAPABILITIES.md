@@ -6,7 +6,7 @@
 This is Atlas's single source of truth for *what it can do*. Atlas reads this at session start to ground intent routing: given a user question, which capability handles it?
 
 
-**Built:** 2026-04-18  |  Source files: 16 skills, 12 Telegram commands, 7 Claude tools, 8 CFO modules, 10 research modules.
+**Built:** 2026-04-18  |  Source files: 16 skills, 12 Telegram commands, 8 Claude tools, 8 CFO modules, 10 research modules.
 
 ## Layer 1 — User-facing surfaces (how CC talks to Atlas)
 
@@ -51,6 +51,7 @@ These are the tools Atlas calls mid-conversation when a user asks something that
 |---|---|---|
 | `grep` | local | Search the codebase for a regex pattern. Returns matching lines with file:line:content. Case-insensitive. Max 80 matches. |
 | `list_files` | local | Glob project files, e.g. 'brain/*.md' or 'data/picks/*.md'. |
+| `read_agent_pulse` | local | Read another agent's latest pulse file (read-only). Use for cross-agent awareness: check Bravo's client state, Maven's ad-spend request, or Atlas's own published state. Agent argument: 'atlas' | 'bravo' | 'maven' (or cfo/ceo/cmo aliases). |
 | `read_file` | local | Read any file inside the CFO-Agent project by relative path. Use for brain/USER.md, docs/*.md, code files, data/*.json. Files >20K chars are clipped — use grep for huge files. |
 | `read_memory` | local | Read a file from Atlas's auto-memory folder, e.g. 'user_financial_profile.md'. Use this to ground answers in CC's documented state. |
 | `read_pick` | local | Read a saved stock pick from data/picks/, e.g. '2026-04-16_ENB_enbridge.md'. |

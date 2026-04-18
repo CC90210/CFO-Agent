@@ -31,7 +31,6 @@ import json
 import logging
 import os
 import tempfile
-from dataclasses import asdict
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -41,30 +40,59 @@ logger = logging.getLogger(__name__)
 _ROOT = Path(__file__).resolve().parents[1]
 _PULSE_PATH = _ROOT / "data" / "pulse" / "cfo_pulse.json"
 _BRAVO_PULSE_PATH = Path(r"C:\Users\User\Business-Empire-Agent\data\pulse\ceo_pulse.json")
+# Maven writes cmo_pulse.json at its own path per AGENT_ORCHESTRATION.md Part 2.3.
+# A misplaced copy may temporarily exist at Bravo's path during Maven handoff —
+# try the canonical location first, fall back, graceful if neither exists.
+_MAVEN_PULSE_PATHS = [
+    Path(r"C:\Users\User\Marketing-Agent\data\pulse\cmo_pulse.json"),
+    Path(r"C:\Users\User\Business-Empire-Agent\data\pulse\cmo_pulse.json"),
+]
 _MONTREAL_FLOOR_CAD = 10_000.0
 _TAX_RESERVE_RATE = 0.25
 
 
-def _read_bravo_pulse() -> dict:
-    """Return Bravo's latest pulse, or an empty dict if unavailable or stale."""
-    if not _BRAVO_PULSE_PATH.exists():
+def _read_pulse_file(path: Path, agent_name: str) -> dict:
+    """Return a pulse file's contents with staleness annotation, or {} if absent."""
+    if not path.exists():
         return {}
     try:
-        data = json.loads(_BRAVO_PULSE_PATH.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
         updated = data.get("updated_at", "")
         if updated:
             try:
                 when = datetime.fromisoformat(updated)
                 age_days = (datetime.now(when.tzinfo) - when).days
                 if age_days > 7:
-                    logger.warning("Bravo pulse is %d days old — treating as stale", age_days)
-                    data["_stale_days"] = age_days
+                    logger.warning(
+                        "%s pulse is %d days old — treating as stale", agent_name, age_days,
+                    )
+                data["_stale_days"] = max(0, age_days)
             except ValueError:
-                pass
+                data["_stale_days"] = None
         return data
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Could not read Bravo pulse: %s", exc)
+        logger.warning("Could not read %s pulse (%s): %s", agent_name, path, exc)
         return {}
+
+
+def _read_bravo_pulse() -> dict:
+    """Return Bravo's latest ceo_pulse.json, {} if unavailable."""
+    return _read_pulse_file(_BRAVO_PULSE_PATH, "Bravo")
+
+
+def _read_maven_pulse() -> dict:
+    """Return Maven's latest cmo_pulse.json, {} if Maven hasn't published yet.
+
+    Checks the canonical Marketing-Agent path first, then falls back to the
+    Business-Empire-Agent path where misplaced copies may sit during handoff.
+    """
+    for path in _MAVEN_PULSE_PATHS:
+        if path.exists():
+            data = _read_pulse_file(path, "Maven")
+            if data:
+                data["_source_path"] = str(path)
+                return data
+    return {}
 
 
 def _compute_liquid_cad() -> tuple[float, str]:
@@ -133,6 +161,26 @@ def _determine_spend_gate(liquid: float, concentration_pct: float) -> tuple[str,
     return "tight", "; ".join(reasons)
 
 
+def _approved_ad_spend_cad(spend_gate: str, mrr_cad: float) -> dict:
+    """
+    Compute how much monthly ad spend Atlas authorizes for Maven.
+
+    Rules:
+      - frozen: $0 — no discretionary spend of any kind
+      - tight:  hard cap at $100 CAD/mo — experimentation budget only
+      - open:   up to 15% of MRR, floor at $500, ceiling at $2000 until
+                incorporated (post-CCPC the ceiling lifts as ad spend is
+                T2125-deductible and reduces taxable income).
+    """
+    if spend_gate == "frozen":
+        return {"monthly_cap_cad": 0, "rule": "frozen_gate"}
+    if spend_gate == "tight":
+        return {"monthly_cap_cad": 100, "rule": "experimentation_only"}
+    # open
+    target = min(max(0.15 * mrr_cad, 500), 2000)
+    return {"monthly_cap_cad": round(target, 2), "rule": "15pct_mrr_cap_2k"}
+
+
 def publish(extra: dict | None = None) -> Path:
     """
     Rebuild cfo_pulse.json from live data and write it atomically.
@@ -151,15 +199,39 @@ def publish(extra: dict | None = None) -> Path:
     ytd_receipts = _compute_ytd_receipts()
 
     bravo = _read_bravo_pulse()
-    top_client = (bravo.get("clients_top") or [{}])[0]
-    concentration_pct = float(top_client.get("share_pct") or 0)
-    client_name = top_client.get("name") or ""
-    mrr_usd = float(bravo.get("mrr_usd") or 2982)
+    # Bravo's schema evolved — support both old (flat mrr_usd + clients_top[])
+    # and new (nested revenue.{net_mrr_usd, bennett_concentration_pct}) forms.
+    bravo_revenue = bravo.get("revenue") or {}
+    mrr_usd = float(
+        bravo_revenue.get("net_mrr_usd")
+        or bravo.get("mrr_usd")
+        or 2982
+    )
+    mrr_cad = round(mrr_usd * 1.37, 2)
+    concentration_pct = float(
+        bravo_revenue.get("bennett_concentration_pct")
+        or (bravo.get("clients_top") or [{}])[0].get("share_pct")
+        or 0
+    )
+    client_name = (
+        "Bennett" if bravo_revenue.get("bennett_concentration_pct")
+        else (bravo.get("clients_top") or [{}])[0].get("name") or ""
+    )
 
     monthly_reserve_cad = mrr_usd * 1.37 * _TAX_RESERVE_RATE
     quarterly_reserve_cad = round(monthly_reserve_cad * 3, 2)
 
     spend_gate, spend_gate_reason = _determine_spend_gate(liquid_cad, concentration_pct)
+
+    # Read Maven's pulse to reconcile requested vs approved ad spend
+    maven = _read_maven_pulse()
+    maven_spend_request_cad = float(maven.get("spend_request_cad") or 0)
+    ad_authorization = _approved_ad_spend_cad(spend_gate, mrr_cad)
+    # Maven's request is approved only if it sits within Atlas's monthly cap
+    maven_spend_approved = (
+        maven_spend_request_cad > 0
+        and maven_spend_request_cad <= ad_authorization["monthly_cap_cad"]
+    )
 
     pulse: dict[str, Any] = {
         "updated_at": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
@@ -172,6 +244,7 @@ def publish(extra: dict | None = None) -> Path:
         "concentration_risk_single_client_pct": concentration_pct,
         "concentration_risk_client": client_name,
         "mrr_usd_from_bravo": mrr_usd,
+        "mrr_cad_from_bravo": mrr_cad,
         "bravo_pulse_age_days": bravo.get("_stale_days", 0),
         "ytd_2026_receipts": ytd_receipts,
         "integrations_live": {
@@ -187,6 +260,21 @@ def publish(extra: dict | None = None) -> Path:
         },
         "spend_gate": spend_gate,
         "spend_gate_reason": spend_gate_reason,
+        # ── Maven-readable fields (CFO -> CMO handshake) ────────────────
+        # Maven reads these before launching any paid campaign. Per the
+        # 3-way pulse contract, Atlas's cap is authoritative.
+        "approved_ad_spend_monthly_cap_cad": ad_authorization["monthly_cap_cad"],
+        "approved_ad_spend_rule": ad_authorization["rule"],
+        "maven_pulse_found": bool(maven),
+        "maven_pulse_age_days": maven.get("_stale_days") if maven else None,
+        "maven_pulse_source": maven.get("_source_path") if maven else None,
+        "maven_current_spend_request_cad": maven_spend_request_cad,
+        "maven_current_spend_approved": maven_spend_approved,
+        "t2125_ad_deduction_note": (
+            "Ad spend tracked through Maven is a T2125 line 8521 deduction. "
+            "Every $1 of ad spend reduces taxable income dollar-for-dollar. "
+            "Post-CCPC this matters more because the corp deducts at 12.2% bracket."
+        ),
     }
 
     if extra:

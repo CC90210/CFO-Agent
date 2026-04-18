@@ -41,9 +41,10 @@ CC pivoted Atlas away from algorithmic trading toward pure CFO + research. All t
 | Agent | Role | Project | Focus |
 |-------|------|---------|-------|
 | **ATLAS** | **CFO + Analyst** | `CFO-Agent/` | Tax, accounting, research, stock picks, financial literacy |
-| **Bravo** | **CEO** | `Business-Empire-Agent/` | Clients, content, outreach, revenue |
+| **Bravo** | **CEO** | `Business-Empire-Agent/` | Clients, strategy, outreach, pipeline, revenue ops |
+| **Maven** | **CMO** | `Marketing-Agent/` | Brand, content pipeline, ads, funnels, distribution |
 
-Atlas READs from Business-Empire-Agent for CC's profile. Never writes to it.
+Atlas READs from Business-Empire-Agent and Marketing-Agent for CC's profile + agent state. Never writes to either. Cross-agent data flows through the pulse protocol (`data/pulse/*.json`) — one-way writes. See `brain/AGENT_ORCHESTRATION.md` for the full 3-way contract. Atlas has veto on ad spend via `approved_ad_spend_monthly_cap_cad`.
 
 ## First Message Protocol
 

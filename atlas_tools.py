@@ -202,6 +202,37 @@ def _tool_read_pick(filename: str) -> str:
     return target.read_text(encoding="utf-8", errors="replace")[:_MAX_READ_CHARS]
 
 
+def _tool_read_agent_pulse(agent: str) -> str:
+    """Read another agent's latest pulse (read-only). For cross-agent awareness."""
+    import json as _json
+
+    paths = {
+        "bravo": [Path(r"C:\Users\User\Business-Empire-Agent\data\pulse\ceo_pulse.json")],
+        "ceo": [Path(r"C:\Users\User\Business-Empire-Agent\data\pulse\ceo_pulse.json")],
+        "maven": [
+            Path(r"C:\Users\User\Marketing-Agent\data\pulse\cmo_pulse.json"),
+            Path(r"C:\Users\User\Business-Empire-Agent\data\pulse\cmo_pulse.json"),
+        ],
+        "cmo": [
+            Path(r"C:\Users\User\Marketing-Agent\data\pulse\cmo_pulse.json"),
+            Path(r"C:\Users\User\Business-Empire-Agent\data\pulse\cmo_pulse.json"),
+        ],
+        "cfo": [_ROOT / "data" / "pulse" / "cfo_pulse.json"],
+        "atlas": [_ROOT / "data" / "pulse" / "cfo_pulse.json"],
+    }
+    targets = paths.get(agent.lower())
+    if not targets:
+        return f"Unknown agent {agent!r}. Use: atlas|bravo|maven (or cfo|ceo|cmo)."
+    for path in targets:
+        if path.exists():
+            try:
+                data = _json.loads(path.read_text(encoding="utf-8"))
+                return f"Source: {path}\n\n" + _json.dumps(data, indent=2, default=str)
+            except Exception as exc:  # noqa: BLE001
+                return f"Read error on {path}: {exc}"
+    return f"{agent} has not published a pulse yet at any of: " + ", ".join(str(p) for p in targets)
+
+
 def _tool_read_memory(filename: str) -> str:
     if not _MEMORY_ROOT.exists():
         return f"Memory folder not found: {_MEMORY_ROOT}"
@@ -223,6 +254,7 @@ _HANDLERS: dict[str, Callable[..., str]] = {
     "run_cfo": lambda **kw: _tool_run_cfo(kw["command"], kw.get("args")),
     "read_pick": lambda **kw: _tool_read_pick(kw["filename"]),
     "read_memory": lambda **kw: _tool_read_memory(kw["filename"]),
+    "read_agent_pulse": lambda **kw: _tool_read_agent_pulse(kw["agent"]),
 }
 
 
@@ -321,6 +353,25 @@ def tool_schemas() -> list[dict]:
                 "type": "object",
                 "properties": {"filename": {"type": "string"}},
                 "required": ["filename"],
+            },
+        },
+        {
+            "name": "read_agent_pulse",
+            "description": (
+                "Read another agent's latest pulse file (read-only). "
+                "Use for cross-agent awareness: check Bravo's client state, "
+                "Maven's ad-spend request, or Atlas's own published state. "
+                "Agent argument: 'atlas' | 'bravo' | 'maven' (or cfo/ceo/cmo aliases)."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "agent": {
+                        "type": "string",
+                        "enum": ["atlas", "bravo", "maven", "cfo", "ceo", "cmo"],
+                    }
+                },
+                "required": ["agent"],
             },
         },
         # Native Anthropic web search — same tool the IDE uses.
