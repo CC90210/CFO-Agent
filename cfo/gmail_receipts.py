@@ -62,16 +62,24 @@ _TOTAL_KEYWORDS = re.compile(
 # Regex patterns for extracting monetary amounts.
 # Order matters: more-specific patterns first.
 _AMOUNT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
-    # "CAD $12.50", "CAD12.50"
-    ("CAD", re.compile(r"CAD\s*\$?\s*(\d{1,6}(?:[,\s]\d{3})*(?:\.\d{2})?)", re.IGNORECASE)),
-    # "USD 12.50", "USD $12.50"
-    ("USD", re.compile(r"USD\s*\$?\s*(\d{1,6}(?:[,\s]\d{3})*(?:\.\d{2})?)", re.IGNORECASE)),
+    # ─── Currency-prefix formats ───
+    # "CA$158.20" (Stripe/Anthropic shorthand), "CAD $12.50", "CAD12.50"
+    ("CAD", re.compile(r"(?:CAD|CA\$)\s*\$?\s*(\d{1,6}(?:[,\s]\d{3})*(?:\.\d{2})?)", re.IGNORECASE)),
+    # "US$20", "USD 12.50", "USD $12.50"
+    ("USD", re.compile(r"(?:USD|US\$)\s*\$?\s*(\d{1,6}(?:[,\s]\d{3})*(?:\.\d{2})?)", re.IGNORECASE)),
     # "€12.50", "EUR 12.50"
     ("EUR", re.compile(r"(?:€|EUR\s*)\s*(\d{1,6}(?:[,\s]\d{3})*(?:\.\d{2})?)", re.IGNORECASE)),
     # "£12.50", "GBP 12.50"
     ("GBP", re.compile(r"(?:£|GBP\s*)\s*(\d{1,6}(?:[,\s]\d{3})*(?:\.\d{2})?)", re.IGNORECASE)),
     # Plain "$12.50" — assumed CAD unless context says otherwise
     ("CAD", re.compile(r"\$\s*(\d{1,6}(?:[,\s]\d{3})*(?:\.\d{2})?)")),
+    # ─── Currency-suffix formats (table layouts: "17.99\nUSD") ───
+    # Require decimal (.\d{2}) to avoid matching line-numbers or IDs.
+    # \s+ matches newlines so these catch "number on one line, currency on the next".
+    ("CAD", re.compile(r"(\d{1,6}(?:[,\s]\d{3})*\.\d{2})\s+CAD\b", re.IGNORECASE)),
+    ("USD", re.compile(r"(\d{1,6}(?:[,\s]\d{3})*\.\d{2})\s+USD\b", re.IGNORECASE)),
+    ("EUR", re.compile(r"(\d{1,6}(?:[,\s]\d{3})*\.\d{2})\s+EUR\b", re.IGNORECASE)),
+    ("GBP", re.compile(r"(\d{1,6}(?:[,\s]\d{3})*\.\d{2})\s+GBP\b", re.IGNORECASE)),
 ]
 
 # Classifier keyword maps: (regex_pattern -> category_string)
@@ -145,6 +153,38 @@ class GmailReceipts:
                 "Generate an App Password at: myaccount.google.com/apppasswords"
             )
         self._conn: Optional[imaplib.IMAP4_SSL] = None
+        # Persistent parse cache keyed by Gmail Message-ID. Skips the expensive
+        # RFC822 fetch + pdfplumber extraction for receipts we've already parsed.
+        self._cache_path = Path(__file__).resolve().parents[1] / "data" / "receipts_cache.json"
+        self._cache: dict[str, dict] = self._load_cache()
+
+    def _load_cache(self) -> dict[str, dict]:
+        if not self._cache_path.exists():
+            return {}
+        try:
+            import json as _json
+            return _json.loads(self._cache_path.read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Receipt cache unreadable — starting fresh: %s", exc)
+            return {}
+
+    def _save_cache(self) -> None:
+        """Atomic write so a reader never catches a half-written cache."""
+        import json as _json
+        import tempfile
+
+        self._cache_path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(
+            prefix="receipts_", suffix=".json.tmp", dir=str(self._cache_path.parent),
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                _json.dump(self._cache, f, indent=2, default=str)
+            os.replace(tmp, self._cache_path)
+        except Exception:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+            raise
 
     # ── Connection management ─────────────────────────────────────────────────
 
@@ -259,13 +299,78 @@ class GmailReceipts:
         logger.info("Label %r: %d messages found", label, len(message_ids))
 
         receipts: list[Receipt] = []
+        cache_hits = 0
+        cache_misses = 0
         for msg_id in message_ids:
             try:
+                # Cheap header-only fetch to check the dedup cache before paying
+                # for RFC822 body + pdfplumber extraction.
+                hdr_status, hdr_data = conn.fetch(
+                    msg_id, "(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])"
+                )
+                gm_message_id = ""
+                if hdr_status == "OK" and hdr_data and hdr_data[0]:
+                    hdr_bytes = hdr_data[0][1] if isinstance(hdr_data[0], tuple) else b""
+                    if isinstance(hdr_bytes, bytes):
+                        for line in hdr_bytes.decode("utf-8", errors="replace").splitlines():
+                            if line.lower().startswith("message-id:"):
+                                gm_message_id = line.split(":", 1)[1].strip()
+                                break
+
+                if gm_message_id and gm_message_id in self._cache:
+                    cache_hits += 1
+                    c = self._cache[gm_message_id]
+                    # Reconstruct Receipt from cache — skip IMAP body fetch + PDF parse
+                    receipts.append(Receipt(
+                        date=date.fromisoformat(c["date"]),
+                        from_addr=c["from_addr"],
+                        subject=c["subject"],
+                        amount_cad=c.get("amount_cad"),
+                        amount_raw=c.get("amount_raw"),
+                        currency=c.get("currency"),
+                        vendor=c.get("vendor", ""),
+                        category=c.get("category", "unknown"),
+                        attachments=c.get("attachments", []),
+                        raw_body_preview=c.get("raw_body_preview", ""),
+                        gmail_message_id=gm_message_id,
+                    ))
+                    continue
+
+                # Cache miss — do full parse
+                cache_misses += 1
                 receipt = self._fetch_single(conn, msg_id)
                 if receipt:
                     receipts.append(receipt)
+                    # Write to cache only if parse succeeded AND we have a stable ID
+                    if receipt.gmail_message_id:
+                        self._cache[receipt.gmail_message_id] = {
+                            "date": receipt.date.isoformat(),
+                            "from_addr": receipt.from_addr,
+                            "subject": receipt.subject,
+                            "amount_cad": receipt.amount_cad,
+                            "amount_raw": receipt.amount_raw,
+                            "currency": receipt.currency,
+                            "vendor": receipt.vendor,
+                            "category": receipt.category,
+                            "attachments": list(receipt.attachments),
+                            "raw_body_preview": receipt.raw_body_preview,
+                            "cached_at": datetime.now().isoformat(timespec="seconds"),
+                        }
             except Exception as exc:
                 logger.warning("Failed to parse message %s: %s", msg_id, exc)
+
+        # Persist cache at end of label fetch so next run skips already-parsed msgs
+        if cache_misses:
+            try:
+                self._save_cache()
+                logger.info(
+                    "Label %r: %d cache hits, %d fresh parses — cache saved",
+                    label, cache_hits, cache_misses,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Could not save receipt cache: %s", exc)
+        elif cache_hits:
+            logger.info("Label %r: all %d from cache (no fresh parses)", label, cache_hits)
 
         return receipts
 
@@ -299,16 +404,37 @@ class GmailReceipts:
         # ── Subject ───────────────────────────────────────────────────────────
         subject = _decode_header_str(msg.get("Subject", "(no subject)"))
 
-        # ── Body + attachments ────────────────────────────────────────────────
-        body_text, attachments = _extract_body_and_attachments(msg)
+        # ── Body + attachments + per-PDF text ─────────────────────────────────
+        body_text, attachments, pdf_texts = _extract_body_attachments_and_pdfs(msg)
         preview = body_text[:500].strip()
 
         # ── Amount parsing ────────────────────────────────────────────────────
-        amount_raw, currency = self.parse_amount(subject, body_text)
-
-        # Rough CAD conversion for common currencies.
-        # In production CC should swap in real FX rates; this is a filing aid.
-        amount_cad = _to_cad_approx(amount_raw, currency) if amount_raw is not None else None
+        # When an email carries multiple PDFs (forwarded "3 receipts" batches),
+        # parse each PDF separately and sum — otherwise we'd only capture the
+        # largest single amount. Single-PDF / no-PDF emails fall through to the
+        # standard whole-body parse.
+        if len(pdf_texts) > 1:
+            amounts: list[tuple[float, str]] = []
+            for pdf_text in pdf_texts:
+                amt, cur = self.parse_amount(subject, pdf_text)
+                if amt is not None and cur is not None:
+                    amounts.append((amt, cur))
+            if amounts:
+                # All PDFs in one email are typically the same currency;
+                # group by currency, sum each, convert each to CAD, then sum.
+                by_cur: dict[str, float] = defaultdict(float)
+                for amt, cur in amounts:
+                    by_cur[cur] += amt
+                amount_cad = sum(_to_cad_approx(v, c) for c, v in by_cur.items())
+                # Keep amount_raw / currency as the dominant currency's total
+                dominant_cur = max(by_cur, key=by_cur.get)
+                amount_raw = by_cur[dominant_cur]
+                currency = dominant_cur
+            else:
+                amount_raw, currency, amount_cad = None, None, None
+        else:
+            amount_raw, currency = self.parse_amount(subject, body_text)
+            amount_cad = _to_cad_approx(amount_raw, currency) if amount_raw is not None else None
 
         # ── Category ──────────────────────────────────────────────────────────
         category = self.classify(subject, from_addr)
@@ -567,22 +693,77 @@ def _extract_vendor(from_addr: str) -> str:
     return from_addr[:50]  # Last-resort: truncated raw string
 
 
+def _extract_pdf_text(pdf_bytes: bytes) -> str:
+    """Return extracted text from a PDF attachment. Empty string on failure.
+
+    Uses pdfplumber — handles spacing correctly (PyPDF2's text extraction
+    double-spaces every character on many modern PDFs and produces unparseable
+    output; pdfplumber gets it right).
+    """
+    try:
+        import io
+        import pdfplumber  # type: ignore
+
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            return "\n".join(p.extract_text() or "" for p in pdf.pages)
+    except ImportError:
+        logger.warning("pdfplumber not installed — PDF receipts will be skipped. Run: pip install pdfplumber")
+        return ""
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("PDF extraction failed: %s", exc)
+        return ""
+
+
+def _extract_body_attachments_and_pdfs(msg: email_lib.message.Message) -> tuple[str, list[str], list[str]]:
+    """Same as _extract_body_and_attachments but also returns per-PDF text
+    as a separate list. Used to correctly sum amounts when one email carries
+    multiple receipt PDFs (common: forwarded "3 receipts" emails from Claude).
+    """
+    body, attachments = _extract_body_and_attachments(msg)
+    pdf_texts: list[str] = []
+    for part in msg.walk():
+        if part.get_content_type() == "application/pdf":
+            payload = part.get_payload(decode=True)
+            if payload:
+                text = _extract_pdf_text(payload)
+                if text:
+                    pdf_texts.append(text)
+    return body, attachments, pdf_texts
+
+
 def _extract_body_and_attachments(msg: email_lib.message.Message) -> tuple[str, list[str]]:
     """
-    Walk a MIME message tree, collecting plain-text body and attachment filenames.
+    Walk a MIME message tree, collecting plain-text body + PDF receipt text
+    and attachment filenames.
 
     We prefer text/plain over text/html.  If only HTML is available we strip
     tags with a simple regex rather than pulling in BeautifulSoup.
-    Attachments are noted by filename only — content is not downloaded.
+    PDF attachments are text-extracted via pdfplumber so receipt amounts
+    stored in PDFs (common for Anthropic/Stripe auto-generated receipts)
+    become parseable. Other attachment types are noted by filename only.
     """
     text_plain: list[str] = []
     text_html: list[str] = []
+    pdf_text: list[str] = []
     attachments: list[str] = []
 
     for part in msg.walk():
         content_type = part.get_content_type()
         disposition = part.get_content_disposition() or ""
 
+        # PDFs — extract text for amount parsing, record filename
+        if content_type == "application/pdf":
+            fname = part.get_filename()
+            if fname:
+                attachments.append(_decode_header_str(fname))
+            payload = part.get_payload(decode=True)
+            if payload:
+                extracted = _extract_pdf_text(payload)
+                if extracted:
+                    pdf_text.append(extracted)
+            continue
+
+        # Other attachments — record filename only
         if "attachment" in disposition:
             fname = part.get_filename()
             if fname:
@@ -606,7 +787,10 @@ def _extract_body_and_attachments(msg: email_lib.message.Message) -> tuple[str, 
                 stripped = re.sub(r"\s+", " ", stripped)
                 text_html.append(stripped)
 
-    body = "\n".join(text_plain) if text_plain else "\n".join(text_html)
+    body_parts: list[str] = []
+    body_parts.extend(text_plain if text_plain else text_html)
+    body_parts.extend(pdf_text)  # PDF text always included — receipts live there
+    body = "\n".join(body_parts)
     return body, attachments
 
 

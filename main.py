@@ -36,24 +36,96 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 
+def _refresh_pulse_silent() -> None:
+    """Best-effort pulse refresh — never fail the parent command."""
+    try:
+        from cfo.pulse import publish
+        publish()
+    except Exception as exc:  # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).warning("pulse refresh skipped: %s", exc)
+
+
 def cmd_runway(args: argparse.Namespace) -> int:
     from cfo.cashflow import main as cashflow_main
     cashflow_main()
+    _refresh_pulse_silent()
     return 0
 
 
 def cmd_networth(args: argparse.Namespace) -> int:
     from cfo.dashboard import print_dashboard
     print_dashboard()
+    _refresh_pulse_silent()
     return 0
 
 
 def cmd_receipts(args: argparse.Namespace) -> int:
     from cfo.gmail_receipts import GmailReceipts
+    from collections import defaultdict
     from datetime import date
+
     since = date.fromisoformat(args.since) if args.since else date(date.today().year, 1, 1)
-    gr = GmailReceipts()
-    gr.sync_tax_year(since=since)
+    label_prefix = f"Receipts/{since.year}/"
+
+    with GmailReceipts() as gr:
+        # Auto-discover every sub-label under Receipts/<year>/
+        available = gr.list_labels()
+        labels = [lbl for lbl in available if lbl.startswith(label_prefix)]
+        if not labels:
+            print(
+                f"No labels under {label_prefix!r}. Available labels:\n  "
+                + "\n  ".join(available)
+            )
+            return 0
+
+        all_receipts = []
+        for label in labels:
+            try:
+                fetched = gr.fetch_label(label, since=since)
+                all_receipts.extend(fetched)
+                pretty = label.split("/", 2)[-1]  # drop "Receipts/2026/" prefix
+                print(f"[{pretty}] {len(fetched)} receipts")
+            except Exception as exc:  # noqa: BLE001
+                print(f"[{label}] error: {exc}")
+
+    if not all_receipts:
+        print(f"\nNo receipts found since {since}.")
+        return 0
+
+    parsed = [r for r in all_receipts if r.amount_cad is not None and r.amount_cad > 0]
+    unparsed = [r for r in all_receipts if r.amount_cad is None or r.amount_cad == 0]
+
+    by_cat: dict[str, list] = defaultdict(list)
+    for r in parsed:
+        by_cat[r.category].append(r)
+    total_cad = sum(r.amount_cad for r in parsed)
+
+    print(f"\n{'=' * 62}")
+    print(
+        f"  RECEIPTS since {since}  —  "
+        f"{len(parsed)}/{len(all_receipts)} parsed  —  ${total_cad:,.2f} CAD"
+    )
+    print(f"{'=' * 62}\n")
+    for cat, items in sorted(by_cat.items()):
+        cat_total = sum(r.amount_cad for r in items if r.amount_cad is not None)
+        print(f"  {cat:<28} {len(items):>3} items  ${cat_total:>10,.2f} CAD")
+
+    if unparsed:
+        print(f"\n{'-' * 62}")
+        print(f"  {len(unparsed)} receipts need manual review (no $ in body)")
+        print(f"{'-' * 62}")
+        for r in unparsed:
+            sender = r.from_addr[:50]
+            subj = r.subject[:60]
+            print(f"  [{r.date}] {sender}")
+            print(f"             {subj}")
+        print(
+            "\n  These are typically notification emails that link to a dashboard\n"
+            "  for the invoice. Open Gmail + click through to get the amount, or\n"
+            "  forward the actual receipt PDF into the Receipts label."
+        )
+    _refresh_pulse_silent()
     return 0
 
 

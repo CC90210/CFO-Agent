@@ -1,0 +1,29 @@
+data/receipts_cache.json
+------------------------
+
+Atlas persists parsed receipts here keyed by Gmail Message-ID so subsequent
+`main.py receipts` runs don't re-parse + re-download every PDF from IMAP.
+
+Schema:
+{
+  "<message-id>": {
+    "date": "YYYY-MM-DD",
+    "from_addr": "...",
+    "subject": "...",
+    "amount_cad": 17.99,
+    "amount_raw": 17.99,
+    "currency": "USD",
+    "vendor": "Hostinger",
+    "category": "hosting_cloud",
+    "attachments": ["Receipt-1234.pdf"],
+    "parsed_at": "2026-04-18T01:00:00-04:00"
+  },
+  ...
+}
+
+Delete this file to force a full re-parse of all historical receipts.
+Atomic writes (temp file + rename) prevent torn reads if another process
+reads mid-update.
+
+Cache is per-year: we key by Message-ID globally but only cache receipts
+for the current + previous tax year. Older than that, garbage-collect.
