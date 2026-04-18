@@ -50,8 +50,11 @@ logger = logging.getLogger(__name__)
 #  Constants
 # ─────────────────────────────────────────────────────────────────────────────
 
-_MODEL = "claude-opus-4-6"
+_MODEL = "claude-opus-4-7"
 _MAX_TOKENS = 8000
+# When True, the picker gets live web search (same research Atlas did in terminal).
+# Costs ~$0.01/search via Anthropic's native tool — cheaper than any paid data feed.
+_ENABLE_WEB_SEARCH = True
 _PICKS_DIR = Path(__file__).resolve().parent.parent / "data" / "picks"
 _PICKS_DIR.mkdir(parents=True, exist_ok=True)
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
@@ -1259,14 +1262,32 @@ Return ONLY the JSON object. No prose before or after. No markdown fences.
 """
 
     def _call_claude(self, prompt: str) -> str:
-        """Call Claude and return the raw text response."""
+        """
+        Call Claude and return the raw text response.
+
+        With _ENABLE_WEB_SEARCH=True, Claude gets Anthropic's native web_search
+        tool — letting the picker pull live macro/news/analyst data mid-reasoning
+        instead of relying only on pre-fetched structured feeds. This matches
+        the research flow Atlas runs from the Claude Code terminal.
+        """
         try:
-            message = self._client.messages.create(
-                model=_MODEL,
-                max_tokens=_MAX_TOKENS,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return message.content[0].text
+            kwargs: dict = {
+                "model": _MODEL,
+                "max_tokens": _MAX_TOKENS,
+                "messages": [{"role": "user", "content": prompt}],
+            }
+            if _ENABLE_WEB_SEARCH:
+                kwargs["tools"] = [
+                    {"type": "web_search_20250305", "name": "web_search", "max_uses": 8}
+                ]
+            message = self._client.messages.create(**kwargs)
+            # Walk the response blocks: grab the final text output, skipping any
+            # tool-use or tool-result blocks that the web_search tool produces.
+            for block in reversed(message.content):
+                if getattr(block, "type", None) == "text":
+                    return block.text
+            # Fallback for older SDK paths
+            return message.content[0].text if message.content else ""
         except anthropic.APIError as exc:
             logger.error("Claude API error: %s", exc)
             raise

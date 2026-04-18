@@ -12,7 +12,9 @@ ta>=0.11.0
 vectorbt>=0.26.1
 
 # AI / Claude
-anthropic>=0.28.0
+# Need >= 0.40.0 for native web_search_20250305 tool + tool-use loops
+# used by telegram_bridge.py and research/stock_picker.py
+anthropic>=0.40.0
 
 # Config & environment
 python-dotenv>=1.0.0
@@ -47,3 +49,4 @@ feedparser>=6.0.0         # RSS/Atom feed parsing (news_ingest)
 requests>=2.32.0          # HTTP client for news/macro APIs
 pandas_ta>=0.3.14b        # Optional: more accurate TA indicators (fundamentals.py)
 beautifulsoup4>=4.12.0    # HTML scraping for AAII, NAAIM, CBOE (psychology.py)
+pdfplumber>=0.11.0        # Extract text from PDF receipts (Anthropic/Stripe/Claude auto-generated)

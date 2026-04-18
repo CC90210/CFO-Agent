@@ -75,7 +75,21 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(name)-30s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
+    # Route INFO/DEBUG to stdout, WARNING+ to stderr.
+    # Without this, pm2's `out_file` stays empty and every HTTP 200 spam
+    # line ends up in the `error_file`, burying actual errors.
+    stream=sys.stdout,
 )
+# Route WARNING+ to stderr so pm2's error_file only shows actual problems.
+for h in logging.getLogger().handlers:
+    h.addFilter(lambda rec: rec.levelno < logging.WARNING)
+_err_handler = logging.StreamHandler(sys.stderr)
+_err_handler.setLevel(logging.WARNING)
+_err_handler.setFormatter(logging.Formatter(
+    "%(asctime)s | %(levelname)-8s | %(name)-30s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+))
+logging.getLogger().addHandler(_err_handler)
 logger = logging.getLogger("atlas.telegram_bridge")
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -116,26 +130,72 @@ except ImportError:
 #  Constants
 # ─────────────────────────────────────────────────────────────────────────────
 
-_BOT_VERSION = "3.0.0"
+_BOT_VERSION = "3.1.0"  # IDE-parity tool use added 2026-04-16
 _MAX_MSG_LEN = 4000          # Telegram's hard limit is 4096; leave headroom
 _HISTORY_DEPTH = 10          # Turns of conversation memory per chat
-_MODEL = "claude-opus-4-6"
+_MODEL = "claude-opus-4-7"
 _ENV_FILE = _ROOT / ".env"
 
 # System prompt fragment injected into every Claude call
 _ATLAS_SYSTEM = """\
-You are Atlas, CC's CFO agent. CC is 22, Canadian, solo-entrepreneur building \
-OASIS AI Solutions (oasisai.work). Dual citizen (CA+UK, Irish eligible). Aggressive \
-long-horizon investor. Moving to Montreal summer 2026. MRR ~$2,982 USD/mo. \
-Files Canadian taxes via NETFILE annually. Tax residency: Ontario.
+You are Atlas, CC's CFO. CC is 22, Canadian, solo-entrepreneur (OASIS AI \
+Solutions), dual citizen CA+UK, Irish eligible, moving to Montreal summer 2026. \
+MRR ~$2,982 USD/mo, 94% from Bennett. Tax residency Ontario.
 
-You speak plain-English first principles — never jargon-dump. You are calculated, \
-direct, data-driven. Lead with the signal, then the reasoning. You never \
-auto-execute trades; you research and advise. CC clicks the button.
+## Voice (non-negotiable on Telegram)
 
-When responding via Telegram, be punchy. Phones are for short reads. \
-Use plain text — no markdown headers, minimal bullets. Be a senior CFO \
-briefing a client on a 6-inch screen.\
+You are NOT writing a report. You're texting CC on his phone. Match how a \
+smart friend who happens to be a CFO would text him.
+
+Hard rules:
+- **Max 4 sentences per message** unless CC explicitly asks for detail \
+  ("break it down", "explain in full", "give me the whole analysis").
+- **No markdown headers.** No `##`, no `**bold**`, no `---` dividers.
+- **No bullet lists** unless you're listing 3+ distinct items. Even then, \
+  use plain dashes, max 5 items, one line each.
+- **No tables.** Ever. Tables don't render well on phones.
+- **Use contractions.** "you're" not "you are". "can't" not "cannot".
+- **Lead with the answer in the first sentence.** Reasoning is optional and \
+  comes after only if it changes what CC should do.
+- **End with a next step or question when useful.** Not every message needs \
+  a close, but if CC has to decide something, give him the decision to make.
+- **Numbers get rounded** for speech. "$7.5K" not "$7,561.26". Use the exact \
+  figure only if CC asks for precision or it's legally/tax-material.
+- **No emojis.** No sign-offs like "Hope this helps". No "Great question".
+
+Examples of the voice:
+
+CC: "how much do i have"
+Atlas: "$7.5K CAD liquid — $2.5K short of the Montreal floor. Most of it's \
+in Wise USD."
+
+CC: "should i buy enb"
+Atlas: "Yeah, thesis still holds. Limit at $73 CAD, 2 shares in the TFSA. \
+Dividends compound tax-free there. Want me to pull the current price?"
+
+CC: "am i screwed on taxes"
+Atlas: "No. 2025 return's already filed — we're good until April 2027. \
+Current Q2 reserve target is $3K, you're tracking fine."
+
+Counter-examples (do NOT do this):
+
+❌ "## Summary\n\n**Liquid position:** $7,561.26 CAD\n\n**Montreal floor \
+gap:** $2,438.74\n\n**Next steps:** 1. ..."
+
+❌ "Great question! Let me break down your financial position..."
+
+❌ "Based on your current net worth of $7,561.26 CAD, which consists of \
+$6,223 in Wise USD, $700 in RBC..."
+
+## Tools
+You have read_file, grep, list_files, run_cfo, read_pick, read_memory, \
+web_search. Use them silently before answering anything factual. Don't \
+narrate the tool use — just give the answer.
+
+## What you never do
+Auto-execute trades. Claim tax advice is legal advice. Recommend something \
+CC has already done (check memory/project_2025_tax_return_filed.md first). \
+Write more than CC asked for.\
 """
 
 _HELP_TEXT = """\
@@ -160,11 +220,16 @@ BRAIN
 /brain <file>  read brain/ docs
 /help          this message
 
-You can also just TYPE what you want:
-  "am I going to make it in Montreal?"
-  "give me 3 AI plays"
-  "should I hold crypto through summer?"
-  "what's the Fed doing this week?"
+You can also just TYPE what you want. Atlas has IDE-parity tools —
+it can read brain/USER.md, grep docs, run CFO commands, and search
+the web mid-conversation. Same powers as the terminal.
+
+Examples:
+  "am I going to make it in Montreal?"          (runs runway + reads USER.md)
+  "give me 3 AI plays"                          (full research pipeline)
+  "what did I buy last week?"                   (reads data/picks/)
+  "what's my 2026 tax trigger?"                 (reads brain + memory)
+  "what's the Fed doing this week?"             (web search)
 """
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -293,7 +358,10 @@ def _run_receipts(since_date: date | None = None) -> str:
 
     try:
         with GmailReceipts() as gr:
-            labels = ["Business Expenses", "Income & Invoices", "Software & Subscriptions"]
+            # Auto-discover every sub-label under Receipts/<year>/ so new
+            # categories CC adds in Gmail just work without code changes
+            label_prefix = f"Receipts/{since_date.year}/"
+            labels = [lbl for lbl in gr.list_labels() if lbl.startswith(label_prefix)]
             all_receipts = []
             for label in labels:
                 try:
@@ -550,7 +618,16 @@ class AtlasTelegram:
     # ── Claude chat fallback ───────────────────────────────────────────────────
 
     def _as_atlas(self, prompt: str, history: deque) -> str:
-        """Call Claude as Atlas CFO for open-ended chat."""
+        """
+        Call Claude as Atlas CFO for open-ended chat, with IDE-parity tool use.
+
+        Atlas can read project files (USER.md, brain/*, docs/*, data/picks/*),
+        grep the codebase, invoke CFO commands (runway, networth, picks...),
+        and run Anthropic web search — mid-conversation, from Telegram. Same
+        powers as the Claude Code terminal, constrained to read-only ops.
+
+        Falls back to a plain completion if atlas_tools isn't importable.
+        """
         if not _ANTHROPIC_AVAILABLE or self._anthropic is None:
             return "Anthropic client not available. Check ANTHROPIC_API_KEY in .env."
 
@@ -564,16 +641,42 @@ class AtlasTelegram:
         system = _ATLAS_SYSTEM
         if user_excerpt:
             system += f"\n\n## CC Profile (from USER.md)\n{user_excerpt}"
+        system += (
+            "\n\nYou have tools: read_file, grep, list_files, run_cfo, "
+            "read_pick, read_memory, web_search. Use them before answering "
+            "anything factual about CC's state — never guess. Check "
+            "memory/project_2025_tax_return_filed.md before any rundown of "
+            "open items; the 2025 return is already filed."
+        )
 
         messages = list(history) + [{"role": "user", "content": prompt}]
 
-        resp = self._anthropic.messages.create(
-            model=_MODEL,
-            max_tokens=1024,
-            system=system,
-            messages=messages,
-        )
-        return resp.content[0].text.strip()
+        # IDE-parity path: run the Anthropic tool-use loop.
+        try:
+            from atlas_tools import run_with_tools
+
+            return run_with_tools(
+                client=self._anthropic,
+                model=_MODEL,
+                system=system,
+                messages=messages,
+                # Budget cap reinforces the "short text message" voice rules.
+                # ~500 tokens ≈ 375 words, plenty for a CFO briefing reply.
+                # Claude can still write longer when CC explicitly asks for detail.
+                max_tokens=500,
+            ).strip()
+        except ImportError as exc:
+            logger.warning("atlas_tools unavailable (%s) — falling back to plain chat", exc)
+            resp = self._anthropic.messages.create(
+                model=_MODEL,
+                max_tokens=500,
+                system=system,
+                messages=messages,
+            )
+            return resp.content[0].text.strip()
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("tool-use loop failed")
+            return f"Atlas tool-use error: {exc!s:.200}. Falling back — try again."
 
     # ── Slash command handlers ─────────────────────────────────────────────────
 
