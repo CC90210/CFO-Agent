@@ -11,6 +11,38 @@ Atlas is a self-hosted personal CFO agent for Canadian solo-entrepreneurs, freel
 
 ---
 
+## Part of a 3-Agent AI C-Suite
+
+Atlas is the **CFO** of a three-agent executive team running an entire business. Each agent has its own repo, identity, and specialty — together they replicate what would normally take a $500K/yr executive team to handle.
+
+| Agent | Role | What they handle | Repo |
+|-------|------|------------------|------|
+| 🏛️ **Bravo** | CEO | Strategy, clients, revenue, partnerships, decision-making | [`CC90210/CEO-Agent`](https://github.com/CC90210/CEO-Agent) |
+| 💰 **Atlas** | CFO | Money, tax, wealth, research, compliance — **you're here** | [`CC90210/CFO-Agent`](https://github.com/CC90210/CFO-Agent) |
+| 🎨 **Maven** | CMO | Brand, content, ads, funnels, growth | [`CC90210/CMO-Agent`](https://github.com/CC90210/CMO-Agent) |
+
+They talk to each other through shared state files (called "pulses") and a shared Supabase database. Atlas reads the CEO's revenue targets to model runway; Maven reads Atlas's spend gate before launching paid ads; Bravo reads everything to decide the next play.
+
+---
+
+## For non-technical readers: what this actually is
+
+**Think of it like this.** A growing business owner normally has to either (a) do everything themselves — finances, marketing, operations, strategy — or (b) hire three expensive executives. With three agents, you get the third option: a personal C-suite running on your laptop, making real decisions on real data, 24/7, for the cost of a few API calls per month.
+
+- **Atlas** is the financial brain. It knows how much money you have, how much tax you owe, where your runway ends, and what to do about it. Ask it "can I afford to hire someone?" and it actually checks.
+- **Bravo** is the strategic brain. It decides what to build, who to sell to, and when to pivot. It reads customer data, tracks deals, writes briefings.
+- **Maven** is the creative brain. It produces ad copy, edits videos, launches campaigns, manages multi-brand marketing.
+
+**They coordinate automatically.** When Maven wants to spend $500 on Facebook ads, it has to write a request that Atlas approves by checking runway first. No rogue spending. No memory gaps. Every decision is logged.
+
+**They never lose track.** Every action is recorded in the shared database. If you haven't looked at the system for two weeks, you can query: "what happened in marketing while I was away?" and get a precise answer.
+
+This is not ChatGPT. It's not a chatbot. It's three agents with their own skills, memories, and decision rights, running like a real company.
+
+You don't need to understand Python to use it. You talk to it via Telegram ("/networth", "how much runway?"), and it responds in plain English with the answer.
+
+---
+
 ## What Atlas does
 
 **💰 CFO Toolkit** — Net-worth aggregation, Montreal runway modeling, Gmail receipt puller for T2125 tax prep, quarterly tax snapshots, portfolio rebalancing with exit-plan awareness.
@@ -83,7 +115,7 @@ Full guide: **[docs/TELEGRAM_GUIDE.md](docs/TELEGRAM_GUIDE.md)**.
 ## Architecture
 
 ```
-trading-agent/
+CFO-Agent/
 ├── cfo/               # CFO operations
 │   ├── cashflow.py    # Runway modeling
 │   ├── dashboard.py   # Net-worth aggregator
