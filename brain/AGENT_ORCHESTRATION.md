@@ -14,7 +14,7 @@ CC is the CEO+founder. He has deputized three AI agents:
 |---|---|---|---|
 | **Atlas** | `c:\Users\User\APPS\CFO-Agent\` | **CFO + Research Analyst** | Tax, accounting, cashflow, runway, net-worth, stock research, incorporation, exit planning |
 | **Bravo** | `C:\Users\User\Business-Empire-Agent\` | **CEO** | Clients, strategy, outreach, onboarding, pricing, pipeline, revenue ops, partnerships |
-| **Maven** | `C:\Users\User\Marketing-Agent\` | **CMO** | Brand voice, content pipeline, funnel management, ad generation, lead capture, social media distribution |
+| **Maven** | `C:\Users\User\CMO-Agent\` | **CMO** | Brand voice, content pipeline, funnel management, ad generation, lead capture, social media distribution |
 
 **Non-negotiable rule:** no agent writes into another's directory. Cross-agent data flows only through the pulse protocol (Part 2).
 
@@ -79,7 +79,7 @@ Bravo reads this before any spend decision, price change, or aggressive pipeline
 
 Atlas reads this on every session to compute runway, tax reserve, and CCPC triggers. Maven reads this to align content strategies with current business priorities.
 
-### 2.3 Maven publishes → `C:\Users\User\Marketing-Agent\data\pulse\cmo_pulse.json`
+### 2.3 Maven publishes → `C:\Users\User\CMO-Agent\data\pulse\cmo_pulse.json`
 
 ```json
 {

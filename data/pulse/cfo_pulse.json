@@ -1,9 +1,10 @@
 {
-  "updated_at": "2026-04-18T03:24:53-04:00",
-  "liquid_cad": 7025.84,
+  "agent": "atlas",
+  "updated_at": "2026-04-18T08:44:37.260088Z",
+  "liquid_cad": 7023.46,
   "liquid_source": "live API reads (n=6) + manual entries (n=5)",
   "montreal_floor_target_cad": 10000.0,
-  "montreal_floor_gap_cad": 2974.16,
+  "montreal_floor_gap_cad": 2976.54,
   "tax_reserve_required_cad": 3064.01,
   "tax_reserve_rate_pct": 25,
   "concentration_risk_single_client_pct": 94.0,
@@ -29,13 +30,14 @@
     "gmail_receipts": true
   },
   "spend_gate": "tight",
-  "spend_gate_reason": "Below Montreal floor by $2,974; Single-client concentration at 94%",
+  "spend_gate_reason": "Below Montreal floor by $2,977; Single-client concentration at 94%",
   "approved_ad_spend_monthly_cap_cad": 100,
   "approved_ad_spend_rule": "experimentation_only",
   "maven_pulse_found": true,
   "maven_pulse_age_days": 0,
-  "maven_pulse_source": "C:\\Users\\User\\Marketing-Agent\\data\\pulse\\cmo_pulse.json",
+  "maven_pulse_source": "C:\\Users\\User\\CMO-Agent\\data\\pulse\\cmo_pulse.json",
   "maven_current_spend_request_cad": 0.0,
   "maven_current_spend_approved": false,
-  "t2125_ad_deduction_note": "Ad spend tracked through Maven is a T2125 line 8521 deduction. Every $1 of ad spend reduces taxable income dollar-for-dollar. Post-CCPC this matters more because the corp deducts at 12.2% bracket."
+  "t2125_ad_deduction_note": "Ad spend tracked through Maven is a T2125 line 8521 deduction. Every $1 of ad spend reduces taxable income dollar-for-dollar. Post-CCPC this matters more because the corp deducts at 12.2% bracket.",
+  "spend_approvals": []
 }
