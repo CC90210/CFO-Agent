@@ -2,7 +2,7 @@
 name: CC Financial Profile
 description: Conaugh McKenna — complete financial identity, goals, accounts, citizenship
 tags: [user, profile, financial, identity]
-last_updated: 2026-03-27 (Session 24)
+last_updated: 2026-04-15 (total liquid updated to $7,466; 2025 return already filed)
 ---
 
 # CC — Financial Profile
@@ -13,7 +13,7 @@ last_updated: 2026-03-27 (Session 24)
 ## Identity
 
 - **Name:** Conaugh McKenna (CC)
-- **Age:** 22 (born ~2003)
+- **Age:** 22 (born 2003-12-05 — turns 23 on 2026-12-05)
 - **Location:** Collingwood, Ontario, Canada (planning Montreal move summer 2026)
 - **Citizenship:** 🇨🇦 Canadian + 🇬🇧 British (dual passport holder)
 - **Eligible Citizenship:** 🇮🇪 Irish (obtainable through father's Irish residency/citizenship — Foreign Birth Registry application to start within weeks, 6-12 month timeline)
@@ -69,17 +69,20 @@ CC is NOT trapped in Canada's tax system. Three passport options + father in Ire
 
 **Atlas mandate from CC:** "Keep personalizing this. This is my system." Every financial decision, pick recommendation, and tax move should be evaluated against this ladder — no recommendations that create departure-tax drag or trap assets in Canada.
 
-## Current Assets (2026-03-27)
+## Current Assets (2026-04-15, CC calendar recalc)
 
 | Asset | Amount | Notes |
 |-------|--------|-------|
-| Wealthsimple TFSA | $155.16 CAD | Minimal balance |
-| Wealthsimple RRSP | $0 | Untouched |
+| Wealthsimple TFSA | $155.16 CAD | Minimal balance. ENB.TO pick pending (limit $73, 2 shares) |
+| Wealthsimple RRSP | $0 | Slow-deploy per exit plan (25% non-resident withholding at exit) |
 | Wealthsimple Crypto | $206.41 CAD | BTC holdings |
-| Wealthsimple FHSA | $0 | OPENED 2026-03-27, self-directed, room accumulating $8K/year |
-| Kraken | $133.37 USD | 4 positions: BTC, SOL, LTC, ATOM |
-| Wise USD | ~$1,900 USD | Expected $3,000 USD within a week |
-| **Total Liquid** | **~$2,400 USD / ~$3,300 CAD** | Minimal; CC "pretty broke," no savings |
+| Wealthsimple FHSA | $0 | OPENED 2026-03-27, self-directed, room accumulates $8K/year |
+| Kraken | ~$183 CAD | $133.37 USD @ 1.37 FX. 4 positions: BTC, SOL, LTC, ATOM |
+| Wise USD (business, API) | $6,223.53 CAD | $4,542.72 USD × 1.37 FX. Live API read 2026-04-17 |
+| RBC Checking (manual) | $700 CAD | Minimal — real money parked in Wise |
+| **Total liquid (live-verified 2026-04-17)** | **$7,469.60 CAD** | Matches CC's calendar calc ($7,466) within $3 — reconciliation complete |
+
+**Montreal floor target:** $10,000 CAD minimum before lease. **Gap:** ~$2,530 CAD.
 
 **Housing:** Rents from parents (free), no real estate ownership
 

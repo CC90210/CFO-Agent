@@ -1,0 +1,32 @@
+{
+  "updated_at": "2026-04-18T01:20:59-04:00",
+  "liquid_cad": 7025.52,
+  "liquid_source": "live API reads (n=6) + manual entries (n=5)",
+  "montreal_floor_target_cad": 10000.0,
+  "montreal_floor_gap_cad": 2974.48,
+  "tax_reserve_required_cad": 3064.01,
+  "tax_reserve_rate_pct": 25,
+  "concentration_risk_single_client_pct": 94.0,
+  "concentration_risk_client": "Bennett (Skool partnership)",
+  "mrr_usd_from_bravo": 2982.0,
+  "bravo_pulse_age_days": 0,
+  "ytd_2026_receipts": {
+    "total_cad": 491.43,
+    "item_count_parsed": 10,
+    "item_count_needs_review": 1,
+    "by_category": {
+      "ai_tools": 256.65,
+      "hosting_cloud": 40.72,
+      "payment_received": 194.06
+    }
+  },
+  "integrations_live": {
+    "wise_business_usd": true,
+    "stripe": true,
+    "kraken": true,
+    "oanda": true,
+    "gmail_receipts": true
+  },
+  "spend_gate": "tight",
+  "spend_gate_reason": "Below Montreal floor by $2,974; Single-client concentration at 94%"
+}

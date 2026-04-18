@@ -366,11 +366,19 @@ def stripe_balance() -> list[Balance]:
     def _fetch() -> list[Balance]:
         if not _HAS_STRIPE:
             return []
-        if _missing_key("Stripe", "STRIPE_API_KEY"):
+        # Accept any of: STRIPE_RESTRICTED_KEY (preferred, read-only),
+        # STRIPE_SECRET_KEY, or STRIPE_API_KEY (legacy name).
+        key = (
+            os.environ.get("STRIPE_RESTRICTED_KEY", "").strip()
+            or os.environ.get("STRIPE_API_KEY", "").strip()
+            or os.environ.get("STRIPE_SECRET_KEY", "").strip()
+        )
+        if not key:
+            print("[accounts] skipping Stripe (no STRIPE_RESTRICTED_KEY / STRIPE_API_KEY / STRIPE_SECRET_KEY)")
             return []
 
         try:
-            stripe_sdk.api_key = os.environ["STRIPE_API_KEY"]
+            stripe_sdk.api_key = key
             bal = stripe_sdk.Balance.retrieve()
             now = _now()
             balances: list[Balance] = []

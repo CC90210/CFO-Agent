@@ -1,5 +1,6 @@
 {
-  "as_of": "2026-04-14",
+  "as_of": "2026-04-17",
+  "_note": "Wise entry removed 2026-04-17 — API now reads it live. Any manual Wise figure re-added here will double-count against wise_balances().",
   "balances": [
     {
       "platform": "Wealthsimple",
@@ -36,18 +37,10 @@
     {
       "platform": "RBC",
       "account": "Checking",
-      "amount": 700,
+      "amount": 164,
       "currency": "CAD",
       "category": "cash",
-      "notes": "updated 2026-04-14 — CC keeps minimal here, real money in Wise"
-    },
-    {
-      "platform": "Wise",
-      "account": "Primary",
-      "amount": 6419,
-      "currency": "CAD",
-      "category": "cash",
-      "notes": "updated 2026-04-14 — primary cash stash. This is the SAME money whether viewed in CAD ($6,419) or USD (~$4,658). Do not double-count."
+      "notes": "updated 2026-04-18 — gym + convenience-store leak drained it from $700. Budget line item flagged."
     }
   ]
 }
