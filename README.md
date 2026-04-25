@@ -57,7 +57,23 @@ You don't need to understand Python to use it. You talk to it via Telegram ("/ne
 
 ---
 
-## 30-second quickstart
+## Quick Install (One Line) ⭐ Recommended
+
+**macOS / Linux / WSL:**
+```bash
+curl -sSL https://raw.githubusercontent.com/CC90210/CFO-Agent/main/install/quickstart.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/CC90210/CFO-Agent/main/install/quickstart.ps1 | iex
+```
+
+What it does: auto-installs missing prereqs (python ≥3.10, git, node, npm), clones this repo into `~/atlas-repo`, walks you through an interactive wizard (Anthropic key required, everything else optional), and writes your config. Total time: ~5 minutes. Full details: [`install/README.md`](install/README.md).
+
+---
+
+## 30-second manual install (alternative)
 
 ```bash
 git clone https://github.com/CC90210/CFO-Agent.git atlas && cd atlas
