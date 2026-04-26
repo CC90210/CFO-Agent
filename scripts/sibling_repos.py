@@ -20,13 +20,34 @@ Public API:
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
+
+def _platform_defaults() -> dict[str, str]:
+    """Per-machine sibling repo defaults. Env vars in .env.agents override."""
+    if sys.platform == "darwin":
+        home = str(Path.home())
+        return {
+            "bravo": f"{home}/CEO-Agent",
+            "maven": f"{home}/CMO-Agent",
+            "atlas": f"{home}/Desktop/CFO-Agent",
+            "aura":  f"{home}/AURA",
+        }
+    return {
+        "bravo": r"C:\Users\User\Business-Empire-Agent",
+        "maven": r"C:\Users\User\CMO-Agent",
+        "atlas": r"C:\Users\User\APPS\CFO-Agent",
+        "aura":  r"C:\Users\User\AURA",
+    }
+
+
+_DEFAULTS = _platform_defaults()
 SIBLING_REPOS: dict[str, Path] = {
-    "bravo": Path(os.environ.get("BRAVO_REPO", r"C:\Users\User\Business-Empire-Agent")),
-    "maven": Path(os.environ.get("MAVEN_REPO", r"C:\Users\User\CMO-Agent")),
-    "atlas": Path(os.environ.get("ATLAS_REPO", r"C:\Users\User\APPS\CFO-Agent")),
-    "aura":  Path(os.environ.get("AURA_REPO",  r"C:\Users\User\AURA")),
+    "bravo": Path(os.environ.get("BRAVO_REPO", _DEFAULTS["bravo"])),
+    "maven": Path(os.environ.get("MAVEN_REPO", _DEFAULTS["maven"])),
+    "atlas": Path(os.environ.get("ATLAS_REPO", _DEFAULTS["atlas"])),
+    "aura":  Path(os.environ.get("AURA_REPO",  _DEFAULTS["aura"])),
 }
 
 

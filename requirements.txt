@@ -28,6 +28,7 @@ yfinance>=0.2.40
 # Async networking
 aiohttp>=3.9.0
 websockets>=12.0
+tenacity>=8.2.0           # Retry/backoff for SEC EDGAR + provider clients (research/_sec_client.py)
 
 # Database
 sqlalchemy>=2.0.0

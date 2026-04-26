@@ -39,15 +39,31 @@ logger = logging.getLogger(__name__)
 
 _ROOT = Path(__file__).resolve().parents[1]
 _PULSE_PATH = _ROOT / "data" / "pulse" / "cfo_pulse.json"
-_BRAVO_PULSE_PATH = Path(r"C:\Users\User\Business-Empire-Agent\data\pulse\ceo_pulse.json")
-# Maven (CMO) writes cmo_pulse.json at its own path per C_SUITE_ARCHITECTURE.md.
-# The old Marketing-Agent path + Bravo's path are kept as fallbacks during
-# the 2026-04-18 rebrand transition. Canonical is CMO-Agent.
-_MAVEN_PULSE_PATHS = [
-    Path(r"C:\Users\User\CMO-Agent\data\pulse\cmo_pulse.json"),
-    Path(r"C:\Users\User\Marketing-Agent\data\pulse\cmo_pulse.json"),
-    Path(r"C:\Users\User\Business-Empire-Agent\data\pulse\cmo_pulse.json"),
-]
+
+
+def _sibling_pulse_paths() -> tuple[Path, list[Path]]:
+    """Resolve Bravo + Maven pulse paths via the sibling_repos abstraction.
+
+    Why: avoids hardcoding Windows paths so the same code runs on
+    Conaugh's Mac twin. Per-machine override via BRAVO_REPO / MAVEN_REPO
+    in .env.agents.
+    """
+    from scripts.sibling_repos import SIBLING_REPOS
+
+    bravo = SIBLING_REPOS["bravo"] / "data" / "pulse" / "ceo_pulse.json"
+    # Maven (CMO) writes cmo_pulse.json at its own path per C_SUITE_ARCHITECTURE.md.
+    # Old Marketing-Agent path + Bravo's path are kept as transition fallbacks.
+    maven_repo = SIBLING_REPOS["maven"]
+    bravo_repo = SIBLING_REPOS["bravo"]
+    maven_paths = [
+        maven_repo / "data" / "pulse" / "cmo_pulse.json",
+        maven_repo.parent / "Marketing-Agent" / "data" / "pulse" / "cmo_pulse.json",
+        bravo_repo / "data" / "pulse" / "cmo_pulse.json",
+    ]
+    return bravo, maven_paths
+
+
+_BRAVO_PULSE_PATH, _MAVEN_PULSE_PATHS = _sibling_pulse_paths()
 _MONTREAL_FLOOR_CAD = 10_000.0
 _TAX_RESERVE_RATE = 0.25
 

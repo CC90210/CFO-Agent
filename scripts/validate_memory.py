@@ -24,15 +24,36 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-_MEMORY_ROOT = Path(
-    r"C:\Users\User\.claude\projects\c--Users-User-APPS-CFO-Agent\memory"
-)
+
+def _resolve_memory_root() -> Path:
+    """Memory root is per-machine. Override via ATLAS_MEMORY_ROOT in .env.agents.
+
+    Why: auto-memory lives outside the repo at a Claude-Code-managed path
+    that differs by OS + install path. Hardcoding the Windows path broke
+    validation on Conaugh's Mac twin.
+    """
+    override = os.environ.get("ATLAS_MEMORY_ROOT")
+    if override:
+        return Path(override).expanduser()
+    # Fallbacks by platform — Windows default first, then Mac default.
+    candidates = [
+        Path(r"C:\Users\User\.claude\projects\c--Users-User-APPS-CFO-Agent\memory"),
+        Path.home() / ".claude" / "projects" / "-Users-conaugh-Desktop-CFO-Agent" / "memory",
+    ]
+    for cand in candidates:
+        if cand.exists():
+            return cand
+    return candidates[0]
+
+
+_MEMORY_ROOT = _resolve_memory_root()
 _STALE_DAYS = 90
 _VALID_TYPES = {"user", "feedback", "project", "reference"}
 
