@@ -158,6 +158,43 @@ When CC asks for picks, Atlas runs:
 - Never commit `.env` or secrets
 - Never claim tax advice is legal advice
 
+## Data Integrity (NON-NEGOTIABLE — applies to every runtime)
+
+> Codified after the 2026-04-25 incident: SEC EDGAR returned 503, the runtime
+> filled the gap with hallucinated 2024 prices, and CC caught it. This rule
+> prevents recurrence across Claude Code, Codex, Antigravity, and Gemini.
+
+**The rule:** When a live data feed (yfinance, EDGAR, ccxt, Finnhub, FMP,
+Alpha Vantage, Wise, Stripe, Kraken, OANDA) is unavailable, NO runtime may
+substitute training-memory data, recall prior conversation numbers, or guess.
+
+**The required behavior:**
+1. Fail loudly with the canonical banner: `API DOWN - CANNOT GENERATE PICK. Please fix the data feed.`
+2. Surface the failed source, ticker (if applicable), and detail.
+3. Do NOT proceed with a degraded analysis that looks complete.
+
+**Enforcement in code:** `research/_data_integrity.py` exposes `DataFeedError`
+plus `require_live_price_data`, `require_live_fundamentals`, `require_live_quote`.
+Every research entry point (`StockPickerAgent.pick`, `deep_dive`) catches the
+exception at the top level and returns the canonical error to CC. Mid-stack
+silent fallbacks are forbidden — the whole point is refusal, not graceful
+degradation into fiction.
+
+**SEC EDGAR contract:** `research/_sec_client.py` is the only allowed path
+to data.sec.gov / www.sec.gov / efts.sec.gov. It enforces:
+- the SEC-required User-Agent (`Atlas CFO Agent (Conaugh McKenna) conaugh@oasisai.work`)
+- 9 req/s ceiling (process-wide token bucket)
+- exponential-jittered retries on 429/503/connection errors
+
+Adding a new SEC call via raw `requests.get` is a defect — route it through
+`_sec_client.get` so the contract holds.
+
+**Provider redundancy:** When one feed is down, fall through the waterfall in
+priority order, but ONLY using live data. The fundamentals waterfall is:
+yfinance → FMP → Alpha Vantage → Finnhub. If all four return None, the guard
+trips. Provider keys live in `.env`: `ALPHA_VANTAGE_KEY`, `FINNHUB_KEY`,
+`NEWSAPI_KEY`, `FMP_KEY`.
+
 ## Development Rules
 
 - Read files before editing. No guessing.

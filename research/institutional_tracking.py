@@ -53,6 +53,8 @@ from typing import Optional
 
 import requests
 
+from research._sec_client import get as sec_get
+
 logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -62,23 +64,17 @@ logger = logging.getLogger(__name__)
 _EDGAR_BASE = "https://data.sec.gov"
 _SEC_ARCHIVES = "https://www.sec.gov/Archives/edgar/data"
 
-_HEADERS = {
-    "User-Agent": "Atlas CFO Agent contact@oasisai.work",
-    "Accept-Encoding": "gzip, deflate",
-    "Host": "data.sec.gov",
-}
-_HEADERS_SEC = {
-    "User-Agent": "Atlas CFO Agent contact@oasisai.work",
-    "Accept-Encoding": "gzip, deflate",
-}
+# SEC HTTP details (User-Agent, rate limit, retries) live in _sec_client.py.
+# Sentinel values kept here only so the legacy `headers=_HEADERS_SEC` callers
+# continue to work — _sec_client picks the real headers based on use_data_host.
+_HEADERS = object()
+_HEADERS_SEC = object()
 
 _CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "cache" / "edgar"
 _CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 _TTL_24H = 86400    # 24 hours — 13F data is quarterly, 24h cache is fine
 _TTL_1H = 3600      # For submission indexes (filing list)
-
-_RATE_SLEEP = 0.11  # 10 req/s max per SEC policy
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -191,20 +187,26 @@ def _cache_write(path: Path, data: dict | list) -> None:
 #  HTTP helper — rate-limited
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _get(url: str, headers: Optional[dict] = None, timeout: int = 20) -> Optional[requests.Response]:
+def _get(url: str, headers=None, timeout: int = 20) -> Optional[requests.Response]:
     """
-    Rate-limited GET with graceful failure.  Returns None on any error so
-    callers can return [] without crashing the whole research pipeline.
+    Rate-limited, retry-wrapped GET against an SEC endpoint.
+
+    Delegates to research._sec_client.get, which enforces:
+      - the SEC-required User-Agent (Atlas CFO Agent / conaugh@oasisai.work)
+      - 9 req/s ceiling (process-wide token bucket)
+      - 4-attempt exponential-jittered retry on 429/503/connection errors
+
+    The `headers` argument is interpreted only as a host-selector:
+      headers=_HEADERS  → data.sec.gov host
+      headers=_HEADERS_SEC or None → www.sec.gov / efts.sec.gov host
+
+    Custom dict headers are passed through unchanged for backwards compatibility.
     """
-    time.sleep(_RATE_SLEEP)
-    _h = headers or _HEADERS
-    try:
-        resp = requests.get(url, headers=_h, timeout=timeout)
-        resp.raise_for_status()
-        return resp
-    except requests.RequestException as exc:
-        logger.warning("EDGAR 13F request failed for %s: %s", url, exc)
-        return None
+    if headers is _HEADERS:
+        return sec_get(url, timeout=timeout, use_data_host=True)
+    if headers is _HEADERS_SEC or headers is None:
+        return sec_get(url, timeout=timeout, use_data_host=False)
+    return sec_get(url, headers=headers, timeout=timeout)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -456,6 +458,9 @@ def _get_filing_document_names(accession: str) -> list[str]:
     return filenames
 
 
+_TTL_NEGATIVE = 900  # 15 min — short enough to retry transient 503s, long enough to not loop
+
+
 def _fetch_13f_document(cik: str, accession: str, primary_doc: str) -> Optional[str]:
     """
     Fetch the 13F information table XML text.
@@ -468,12 +473,23 @@ def _fetch_13f_document(cik: str, accession: str, primary_doc: str) -> Optional[
          This avoids the www.sec.gov/Archives index page (503-prone).
       3. Fall back to the .htm index page on www.sec.gov if EFTS fails.
 
+    Negative caching: if all three strategies fail, we cache the failure for
+    _TTL_NEGATIVE seconds. This stops a single broken fund (e.g. Bridgewater's
+    consistently-503 index.htm on 2026-04-25) from chewing up SEC retries on
+    every subsequent ticker lookup within the same picker run.
+
     The 13F information table uses namespace declarations like:
       xmlns:ns1="http://www.sec.gov/edgar/document/thirteenf/informationtable"
     These are stripped before parsing via _strip_namespaces().
     """
     acc_clean = accession.replace("-", "")
     cik_int = int(cik)
+
+    # ── Negative cache check ──
+    neg_cache_path = _cache_path(f"13f_doc_failed_{cik}_{acc_clean}")
+    if _cache_read(neg_cache_path, _TTL_NEGATIVE) is not None:
+        # We already know this filing's documents are unreachable. Skip silently.
+        return None
 
     def _is_info_table(text: str) -> bool:
         return "<informationTable" in text or "<infoTable" in text
@@ -524,6 +540,9 @@ def _fetch_13f_document(cik: str, accession: str, primary_doc: str) -> Optional[
                 return xml_resp.text
 
     logger.warning("Could not locate 13F information table XML for CIK %s acc %s", cik, accession)
+    # Write negative cache so subsequent calls in the next 15 minutes skip the
+    # whole 3-strategy / 12-retry dance for this same accession.
+    _cache_write(neg_cache_path, {"failed_at": time.time(), "cik": cik, "accession": accession})
     return None
 
 

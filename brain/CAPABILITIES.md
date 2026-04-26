@@ -6,7 +6,7 @@
 This is Atlas's single source of truth for *what it can do*. Atlas reads this at session start to ground intent routing: given a user question, which capability handles it?
 
 
-**Built:** 2026-04-18  |  Source files: 16 skills, 12 Telegram commands, 8 Claude tools, 8 CFO modules, 10 research modules.
+**Built:** 2026-04-25  |  Source files: 19 skills, 13 Telegram commands, 8 Claude tools, 8 CFO modules, 14 research modules.
 
 ## Layer 1 — User-facing surfaces (how CC talks to Atlas)
 
@@ -18,6 +18,7 @@ Direct function dispatch — no Claude classifier, no tokens burned.
 |---|---|---|
 | `/brain` | read brain/ docs | `cmd_brain` |
 | `/deepdive` | full bull/bear/base analysis | `cmd_deepdive` |
+| `/health` | (no description) | `cmd_health` |
 | `/help` | this message | `cmd_help` |
 | `/macro` | current geopolitical flashpoints | `cmd_macro` |
 | `/networth` | live net-worth snapshot | `cmd_networth` |
@@ -37,9 +38,11 @@ Direct function dispatch — no Claude classifier, no tokens burned.
 | `python main.py deepdive` | Deep dive on a single ticker |
 | `python main.py networth` | Live net-worth snapshot |
 | `python main.py picks` | Generate stock picks with entry/exit/why |
+| `python main.py provider-health` | Health-check every research data provider (yfinance/Finnhub/FMP/AV/NewsAPI/SEC/Anthropic) |
 | `python main.py rebalance` | Portfolio rebalancing recommendations |
 | `python main.py receipts` | Pull Gmail receipts for T2125 |
 | `python main.py runway` | Montreal cashflow + runway scenarios |
+| `python main.py self-test` | End-to-end smoke test of every entry point (imports / CLI / providers / graph / memory) |
 | `python main.py setup` | Personalization wizard — writes brain/USER.md, .env, balances |
 | `python main.py taxes` | Quarterly tax reserve + installment check |
 
@@ -65,6 +68,7 @@ Each skill is a focused playbook. When CC's question matches a skill's `triggers
 | Skill | Tier | Triggers | Description |
 |---|---|---|---|
 | `accounting-advisor` | core | tax, accounting, CRA, T2125, T4, deduction… | Full-service Canadian accounting and tax advisory. CRA filing preparation, T2125 self-employment, Schedule 3 capital gai |
+| `behavioral-finance-guard` | unspecified | check-bias, behavioral-review, loss-aversion-check, anchoring-check, sunk-cost-check, mental-accounting-check… | "Catches behavioral biases in the operator's financial decisions BEFORE Atlas endorses them. Runs a 9-bias checklist on  |
 | `cash-flow-invoicing` | core | invoice, cash flow, accounts receivable, payment, billing, forecast… | Invoice tracking, accounts receivable, cash flow forecasting, and payment optimization for CC's multi-income structure.  |
 | `compliance-monitor` | core | compliance, deadline, filing, CRA, HST, installment… | Proactive compliance monitoring — deadlines, thresholds, red flags, and regulatory changes |
 | `cross-border-compliance` | core | W-8BEN, withholding, 1099, cross-border, US tax, foreign tax… | US/international payment compliance for Canadian sole proprietors and corporations. W-8BEN management (individual + enti |
@@ -77,9 +81,11 @@ Each skill is a focused playbook. When CC's question matches a skill's `triggers
 | `portfolio-rebalancing` | core | rebalance, allocation, portfolio review, asset allocation, overweight, underweight… | Tax-aware portfolio rebalancing — asset allocation, registered account placement, tax-efficient transitions |
 | `position-sizing` | core | position size, lot size, how much, risk per trade, Kelly, sizing… | Risk-budget position sizing — Kelly criterion adaptation, micro account rules, per-strategy calibration |
 | `quarterly-tax-review` | core | quarterly, tax review, Q1, Q2, Q3, Q4… | Proactive quarterly tax optimization — income tracking, deduction timing, registered account management, installment pla |
+| `self-improvement-protocol` | unspecified | self-heal, self-optimize, self-develop, self-improve, retrospective, reflexion… | "The 4-protocol loop every C-Suite agent runs to stay sharp: self-heal (detect+fix broken state), self-optimize (track+t |
 | `tax-loss-harvesting` | core | tax-loss, harvest, unrealized loss, superficial, capital loss, loss selling… | Systematic identification and execution of tax-loss harvesting opportunities — superficial loss detection, Q4 automation |
 | `tax-optimization` | core | TFSA, RRSP, FHSA, tax-loss, harvest, incorporate… | 25-strategy Canadian tax optimization: registered accounts (TFSA, RRSP, FHSA), tax-loss harvesting, incorporation planni |
 | `trade-protocol` | core | trade, signal, entry, exit, should I buy, should I sell… | 10-step trade decision framework — from signal generation through post-mortem analysis |
+| `unit-economics-validation` | unspecified | validate-unit-economics, check-ltv-cac, ad-spend-gate, spend-approval, maven-request, review-campaign-math | "CFO-side gate for CMO ad-spend requests. Validates a proposed campaign on CAC, LTV, contribution margin, payback period |
 
 ## Layer 4 — Python modules (engines under the hood)
 
@@ -100,7 +106,10 @@ Each skill is a focused playbook. When CC's question matches a skill's `triggers
 
 | Module | Purpose |
 |---|---|
+| `research/_data_integrity.py` | Hard anti-hallucination guard for the research pipeline. |
+| `research/_sec_client.py` | Centralized HTTP client for the SEC EDGAR family of APIs (data.sec.gov, |
 | `research/earnings_calendar.py` | Earnings dates, EPS/revenue surprise history, and post-earnings drift signals. |
+| `research/finnhub_client.py` | Finnhub.io client for real-time quotes, company profile, news, and metrics. |
 | `research/fundamentals.py` | Company fundamentals, price history, and technical indicators for Atlas Research. |
 | `research/historical_patterns.py` | Historical analog matching and seasonal pattern analysis for Atlas Research. |
 | `research/insider_tracking.py` | SEC Form 4 insider transaction tracker via EDGAR's free JSON API. |
@@ -108,6 +117,7 @@ Each skill is a focused playbook. When CC's question matches a skill's `triggers
 | `research/macro_watch.py` | Macro environment awareness for Atlas Research. |
 | `research/news_ingest.py` | Multi-source news aggregation for Atlas Research. |
 | `research/options_flow.py` | Short interest, options chain analysis, unusual activity detection, squeeze |
+| `research/provider_health.py` | Health-check every research data provider Atlas depends on. |
 | `research/psychology.py` | Behavioral finance indicators for Atlas Research. |
 | `research/stock_picker.py` | StockPickerAgent — Atlas's on-demand equity research and stock picking engine. |
 

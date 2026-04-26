@@ -1,26 +1,30 @@
 ---
 tags: [state, ephemeral]
-last_updated: 2026-04-18 (post C-suite reorg)
+last_updated: 2026-04-19 (self-improvement cycle 1)
 ---
 
 # STATE — Current Operational State
 
 > Live snapshot. Refresh with `python scripts/refresh.py` to rebuild `cfo_pulse.json` from actual APIs. The pulse file is the authoritative machine-readable form; this doc is the human-readable companion.
+>
+> Neighbors: [[SOUL]] · [[USER]] · [[CFO_CANON]] · [[AGENT_ORCHESTRATION]] · [[INDEX]].
 
 ## Operational Status
 
 | Dimension | Level | Notes |
 |-----------|-------|-------|
-| Atlas identity | V3.0 (post-pivot) | CFO + Research Analyst. Trading archived at `archive/trading-automation/`. |
+| Atlas identity | V3.1 | CFO + Research Analyst. Trading residue scrubbed from SOUL in this cycle. |
 | C-suite | ACTIVE (3 agents) | Atlas (CFO) / Bravo (CEO) / Maven (CMO). 3-way pulse protocol 15/15 PASS. |
 | Telegram bot | LIVE | Running under pm2 as `atlas-telegram`, auto-restart on Windows login. |
 | Tax strategy | ELITE (v6.0) | 25-strategy core + 46 supplementary docs. ~57,787 lines total. |
 | Financial knowledge base | ELITE+ | 53 docs — tax, international, crypto, compliance, investing, wealth, estate. |
-| Brain files | 12 | SOUL, USER, STATE, CAPABILITIES, DASHBOARD, GROWTH, RISKS, TAX_PLAYBOOK_INDEX, AGENT_ORCHESTRATION, HEARTBEAT, STRUCTURE, INTERACTION_PROTOCOL |
-| Skills | 16 CFO skills + 8 Claude Code auto-routing skills | Post-pivot skillset. `trading.md` removed. |
-| Operational memory | 23 files | user (4) / project (4) / reference (5) / feedback (10) — auto-indexed by `scripts/validate_memory.py` |
+| Brain files | 13 | SOUL, USER, STATE, CAPABILITIES, DASHBOARD, GROWTH, RISKS, TAX_PLAYBOOK_INDEX, AGENT_ORCHESTRATION, HEARTBEAT, STRUCTURE, INTERACTION_PROTOCOL, CFO_CANON (new 2026-04-19) |
+| Skills | 17 CFO skills + 8 Claude Code auto-routing skills | Added `unit-economics-validation` (2026-04-19) for Maven ad-spend gate. |
+| Operational memory | 25 files | user (4) / project (4) / reference (5) / feedback (10) + MISTAKES.md + PATTERNS.md (new 2026-04-19) |
 | Live integrations | 5/5 green | Wise business USD, Stripe (restricted key), Kraken, OANDA, Gmail receipts |
 | Manual balances | 2 | Wealthsimple registered accounts + RBC checking |
+| Pre-commit guard | LIVE | `.git/hooks/pre-commit` blocks `.env*` from ever being staged (installed 2026-04-19) |
+| .env git history | CLEAN | `git log --all --diff-filter=A -- .env*` returns only `.env.example`. Zero leak. |
 
 ## Current Money (live-verified 2026-04-18)
 
@@ -112,3 +116,14 @@ Project: `phctllmtsogkovoilwos`. Every row any agent writes must include `agent:
 - **Dec 2026 projection:** $15K-$20K USD/mo ($205K-$275K CAD annualized)
 - **Total 2026 income projection:** $280K-$480K+ CAD (MRR + implementation + consulting + software builds)
 - **Atlas role:** manage capital, minimize tax, compound gains, prepare for FIRE, guide incorporation + international structuring.
+
+## Last Self-Improvement Cycle (2026-04-19)
+
+Full 4-protocol pass per [[skills/self-improvement-protocol/SKILL|self-improvement-protocol]].
+- **HEAL:** [[SOUL]] → V3.1 (trading residue removed). [[STATE]] refreshed. Pre-commit `.env*` guard installed. Git history confirmed zero secret leaks.
+- **OPTIMIZE:** Trace telemetry not yet instrumented (Supabase `agent_traces` not emitting). Surfaced as gap; inferred top activity from pulse session notes + memory recency. Recommendation logged in [[CAPABILITY_GAPS]].
+- **DEVELOP:** Built [[skills/unit-economics-validation/SKILL|unit-economics-validation]] (CAC/LTV/contribution-margin validator for Maven spend). Extended `cfo_pulse.json` with `brand_economics` object (per-brand margin). Wrote [[CFO_CANON]] — 10 pillars + anti-canon, mirroring Maven's MARKETING_CANON pattern.
+- **IMPROVE:** Added CFO-era sections to [[MISTAKES]] (5 trading-era mistakes + CFO prevention rules) and [[PATTERNS]] (4 probationary patterns).
+- **GRAPH:** Built [[INDEX]] hub. Wired wikilinks across [[SOUL]], [[STATE]], [[CFO_CANON]], [[AGENT_ORCHESTRATION]], and memory files so Obsidian graph renders real connections.
+
+Summary in `data/pulse/cfo_pulse.json:last_self_improvement`.

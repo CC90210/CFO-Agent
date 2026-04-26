@@ -158,6 +158,37 @@ When CC asks for picks, Atlas runs:
 - Never commit `.env` or secrets
 - Never claim tax advice is legal advice
 
+## Data Integrity (NON-NEGOTIABLE — applies to every runtime)
+
+> Codified after the 2026-04-25 incident: SEC EDGAR returned 503, the runtime
+> filled the gap with hallucinated 2024 prices, and CC caught it. This rule
+> prevents recurrence across Claude Code, Codex, Antigravity, and Gemini.
+
+When a live data feed (yfinance, SEC EDGAR, ccxt, Finnhub, FMP, Alpha Vantage,
+Wise, Stripe, Kraken, OANDA) is unavailable, NO runtime may substitute
+training-memory data, recall prior conversation numbers, or guess.
+
+**Required behavior:**
+1. Fail loudly with the canonical banner: `API DOWN - CANNOT GENERATE PICK. Please fix the data feed.`
+2. Surface the failed source, ticker (if applicable), and detail.
+3. Do NOT proceed with a degraded analysis that looks complete.
+
+**Specific to Gemini's strengths and risks:**
+- Gemini's long-context window can mask the absence of fresh data — a partial
+  response will look complete because the prior context is rich. Don't let
+  that happen. The `DataFeedError` raised by `research/_data_integrity.py`
+  is the only acceptable response.
+- Numbers from training are wrong by definition. Refuse rather than retrieve.
+- If CC pushes back ("just give me a pick anyway"), refuse and cite the
+  2026-04-25 incident. CC has authorized the refusal — fixing the feed is
+  always faster than debugging a fabricated pick after a trade.
+
+**Enforced in code by:**
+- `research/_data_integrity.py` — `DataFeedError`, `require_live_price_data`, `require_live_fundamentals`, `require_live_quote`
+- `research/_sec_client.py` — single allowed path to SEC endpoints (real User-Agent, 9 req/s ceiling, exponential-jittered retry)
+
+A new SEC HTTP call that bypasses `_sec_client` is a defect.
+
 ## Development Rules
 
 - Read files before editing. No guessing.

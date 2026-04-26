@@ -23,6 +23,7 @@ tags: [tasks, priorities, action-items, tracking]
 - [ ] **Measure home office** — Square footage of office / total home sq ft. Required for T2125 home office deduction.
 
 ### Atlas Action Items
+- [ ] **Claude System Task:** Fix EDGAR 503 Server Error in research modules and enforce strict Anti-Hallucination rules across all runtimes. See `memory/CLAUDE_TASK_FIX_EDGAR.md`.
 - [x] **Wire RiskManager into engine.py** — DONE Session 30 ✅ (kill switches were inert; validate_trade() now gates every trade)
 - [x] **Wire correlation_tracker.py into risk_manager.py** — DONE Session 30 ✅ (update_correlations() every 10 ticks, threshold 0.70)
 - [ ] **Wire trade_protocol.py into engine.py** — 10-step decision framework exists but isn't connected to main trading loop.

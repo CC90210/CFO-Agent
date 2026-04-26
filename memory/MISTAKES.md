@@ -1,6 +1,6 @@
 ---
 name: ATLAS Mistakes Log
-description: Root cause analysis of every significant error — trading, tax, system — with prevention strategies
+description: Root cause analysis of every significant error — trading-era, CFO-era, tax, system — with prevention strategies
 tags: [mistakes, errors, prevention, learning]
 ---
 
@@ -8,10 +8,50 @@ tags: [mistakes, errors, prevention, learning]
 
 > Every mistake gets: what happened, root cause, prevention strategy.
 > Read this BEFORE repeating a task type. Learn once, not twice.
+>
+> Neighbors: [[PATTERNS]] · [[CAPABILITY_GAPS]] · [[SOUL]] · [[CFO_CANON]] · [[skills/self-improvement-protocol/SKILL|self-improvement-protocol]] · [[INDEX]].
 
 ---
 
-## Trading Mistakes
+## CFO-Era Mistakes (added 2026-04-19 via self-improvement cycle 1)
+
+Five mistakes from the trading-era (and early CFO-era) root-caused with the CFO-era prevention rule for each. Meta-pattern: trading-era Atlas optimized for execution velocity; CFO-era Atlas optimizes for diagnostic rigor. [[CFO_CANON]] is the structural fix.
+
+### 2026-04-19 (backlog) — Autonomous trading daemon as "product"
+**What happened**: Atlas v1 (2026-03-16) launched a 24/7 trading daemon on cron against live Kraken and OANDA. The architecture assumed algorithmic edge would be discovered post-launch. CC pivoted 2026-04-14 — 29 days later.
+**Root cause (5 Whys)**: (1) brief was "build a trading agent"; (2) CC believed algo-trading was the fastest compounding path; (3) pattern-matched from finance YouTube, not from his own edge; (4) Atlas optimized for execution over diagnosis; (5) no canonical framework to challenge the brief.
+**Prevention rule (CFO-era)**: Before any major build, Atlas runs the diagnostic checklist from [[CFO_CANON]] § Graham + Marks — (1) what's the edge? (2) is it durable? (3) probability-weighted return vs alternative allocation? (4) what kills this? If any answer is "we'll figure it out post-launch," ship research not system.
+**Pattern**: `execution-before-diagnosis` → see [[PATTERNS]] § canon-backed decisions.
+
+### 2026-04-19 (backlog) — Live execution on zero-backtest strategies
+**What happened**: Several strategies (gold trend, London breakout, gold pullback) wired to OANDA live with no walk-forward validation and no Monte Carlo. Paper-trading was referenced in architecture but not enforced as a gate.
+**Root cause (5 Whys)**: (1) config cut for speed; (2) "ship it and iterate" software mindset; (3) finance wasn't distinguished from software; (4) no CFO canon, no Taleb presence, no "ruin is irreversible" frame; (5) Atlas was still "trading agent," not "CFO." Identity drove doctrine.
+**Prevention rule (CFO-era)**: No capital deployment without a documented thesis that passes [[CFO_CANON]] § Buffett (moat/edge), § Graham (margin of safety), § Taleb (tail risk survival); explicit kill-conditions written before entry; position size per [[skills/position-sizing/SKILL|position-sizing]]. Atlas advises — operator clicks — but REFUSES to advise a position that fails these three gates.
+**Pattern**: `no-thesis-no-trade`.
+
+### 2026-04-19 (backlog) — Over-concentration tolerated
+**What happened**: CC's MRR is 94% from a single client (Bennett). Atlas only surfaced it reactively (via pulse protocol once Bravo was installed, 2026-04-18). The risk existed for months with informal awareness only.
+**Root cause (5 Whys)**: (1) no concentration metric in cfo_pulse until Bravo handshake; (2) CFO skills focused on tax, not revenue-book risk; (3) CC's immediate pain was 2025 filing; concentration was slower-moving; (4) heartbeat cadence was event-driven not scheduled; (5) no weekly CFO review cron.
+**Prevention rule (CFO-era)**: `cfo_pulse.json` always exposes concentration metrics (single-client %, HHI index). Atlas surfaces any concentration > 70% on every session-start brief until the operator acknowledges it. Added `brand_economics.portfolio_summary.hhi_concentration_index` on 2026-04-19.
+**Pattern**: `quantify-the-slow-risks`.
+
+### 2026-04-19 (backlog) — Receipt parser declared "done" at 5/10 emails
+**What happened** (Session 100, 2026-04-18): Gmail receipt parser processed 5 of 10 emails and reported success. Real cause: no PDF extraction for Anthropic receipts, no email-body fallback for Apple receipts. Caught only because CC asked "why only 5?"
+**Root cause (5 Whys)**: (1) aggregate count "5/10" looked like partial success; (2) success threshold never defined pre-run; (3) no completeness contract for data parsers; (4) parsers treated as best-effort utilities; (5) bookkeeping was downstream of trading in v1.
+**Prevention rule (CFO-era)**: Per `feedback_parser_completeness.md` — every parser run reports total input count, parsed count, unparsed count with reason per item, and confirms every input channel (HTML, plaintext, PDF attachment, email body) was attempted. No success report until every channel tried.
+**Pattern**: `exhaustive-channels-before-success`.
+
+### 2026-04-19 (backlog) — Suggesting already-done actions
+**What happened** (recurring sessions 22-26): Atlas suggested opening the FHSA, filing 2025 taxes, retrying CRA My Account — all already done. Each re-suggestion cost trust.
+**Root cause (5 Whys)**: (1) Atlas skipped memory files before responding; (2) under time pressure, brain-file reads were deprioritized; (3) no hard gate enforced; (4) CLAUDE.md rule lived as prose, not a checkpoint; (5) agent design treated instructions as soft norms.
+**Prevention rule (CFO-era)**: Per `feedback_no_redundant_questions.md` + CLAUDE.md MANDATORY section. Before answering ANY question, Atlas reads [[CAPABILITIES]], [[USER]], [[STATE]], and `memory/MEMORY.md` (auto-memory index). The "Things CC has already done" list in CLAUDE.md is checked against every suggestion before surfacing. Treated as a gate, not a guideline.
+**Pattern**: `pre-response-reads`.
+
+---
+
+## Archive — Trading-Era Mistakes
+
+> Kept for pattern recognition. The trading stack was archived 2026-04-14 at `archive/trading-automation/`. These remain load-bearing lessons for any future strategy execution (stock-pick sizing, crypto ACB handling) even though the daemon is retired.
 
 ### [2026-03-26] Ichimoku Relaxation — Catastrophic Loss
 **What happened:** Changed Ichimoku from 5/5 conditions to 4/5. Result: -91% drawdown.

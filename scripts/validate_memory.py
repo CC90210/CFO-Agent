@@ -174,7 +174,12 @@ def main() -> int:
         print(f"[memory] root not found: {_MEMORY_ROOT}")
         return 1
 
-    files = sorted(p for p in _MEMORY_ROOT.glob("*.md") if p.name != "MEMORY.md")
+    # Skip MEMORY.md (auto-generated index) plus the self-improvement-protocol
+    # artifacts (MISTAKES.md, PATTERNS.md, CAPABILITY_GAPS.md). Those use a
+    # different schema (tags + created + originSessionId) and are owned by
+    # skills/self-improvement-protocol — not by this validator.
+    _SKIP = {"MEMORY.md", "MISTAKES.md", "PATTERNS.md", "CAPABILITY_GAPS.md"}
+    files = sorted(p for p in _MEMORY_ROOT.glob("*.md") if p.name not in _SKIP)
     problems = 0
     valid_files: list[tuple[Path, dict]] = []
 
@@ -190,7 +195,7 @@ def main() -> int:
             problems += 1
             print(f"  [FAIL]{path.name}")
             for issue in issues:
-                print(f"       → {issue}")
+                print(f"       -> {issue}")
 
     if args.check:
         if problems:

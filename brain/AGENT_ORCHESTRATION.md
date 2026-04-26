@@ -1,8 +1,10 @@
 # AGENT_ORCHESTRATION — Atlas ↔ Bravo ↔ Maven Contract + Multi-Runtime Unification
 
 > Canonical spec for how CC's three agents (Atlas = CFO, Bravo = CEO, Maven = CMO) depend on each other, and how the four AI runtimes (Claude Code, Antigravity, Codex, Gemini) all embody Atlas consistently in this repo.
+>
+> Neighbors: [[SOUL]] · [[STATE]] · [[CFO_CANON]] · [[skills/unit-economics-validation/SKILL|unit-economics-validation]] · [[INDEX]].
 
-Last updated: 2026-04-18
+Last updated: 2026-04-19
 
 ---
 

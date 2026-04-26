@@ -43,6 +43,11 @@ from research.macro_watch import macro_context_summary
 from research.fundamentals import get_fundamentals, get_price_history, technicals
 from research.psychology import behavioral_snapshot
 from research.historical_patterns import cycle_context
+from research._data_integrity import (
+    DataFeedError,
+    require_live_price_data,
+    require_live_fundamentals,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +89,89 @@ _SECTOR_DEFAULTS: dict[str, list[str]] = {
     "reits": ["EQIX", "DLR", "AMT", "O", "PLD"],
     "default": ["NVDA", "MSFT", "GOOGL", "AMZN", "META", "AAPL", "BRK-B"],
 }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Acronym blocklist + SEC manifest filter
+#  Prevents the integrity guard from being tripped by query acronyms that
+#  parse as tickers (TFSA, RRSP, FHSA, USD, CAD, RBC, etc.).
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Common Canadian/US financial acronyms that look like tickers but aren't.
+_TICKER_BLOCKLIST: set[str] = {
+    # Canadian registered accounts + tax
+    "TFSA", "RRSP", "FHSA", "RESP", "RRIF", "LIRA", "LIF", "RDSP",
+    "CRA", "CCPC", "OSAP", "GST", "HST", "PST", "ITA", "NETFILE", "NOA", "T1", "T2", "T3",
+    "T4", "T5", "T2125", "T1135", "RAP",
+    # Currencies
+    "CAD", "USD", "EUR", "GBP", "JPY", "CHF", "AUD", "NZD",
+    # Banks / brokers / platforms (CC's vendors, not tickers we'd buy)
+    "RBC", "BMO", "CIBC", "TD", "BNS", "WS",
+    "OASIS", "BENNETT", "ATLAS", "BRAVO", "MAVEN",
+    # Generic finance terms
+    "MRR", "ARR", "LTV", "CAC", "ROI", "ROE", "EBIT", "EBITDA", "FCF", "DCF",
+    "GAAP", "IFRS", "AUM", "IPO", "ETF", "ESG", "PE", "PEG",
+    # Time / quantity
+    "Q1", "Q2", "Q3", "Q4", "YOY", "TTM", "YTD", "MTD",
+    # Macro / regulatory
+    "FED", "ECB", "BOC", "BOE", "DOJ", "FTC", "SEC", "FINRA", "FOMC",
+    "AI", "ML", "API", "SDK", "CLI",
+}
+
+
+_SEC_TICKER_SET: Optional[set[str]] = None  # populated lazily
+
+
+def _load_sec_ticker_set() -> set[str]:
+    """
+    Lazy-load the SEC company_tickers manifest into a set of valid tickers.
+    Cached at module level for the process lifetime. Returns an empty set if
+    SEC is unreachable — in that case _filter_real_tickers falls back to
+    blocklist-only filtering.
+    """
+    global _SEC_TICKER_SET
+    if _SEC_TICKER_SET is not None:
+        return _SEC_TICKER_SET
+    try:
+        from research._sec_client import get as sec_get
+        resp = sec_get("https://www.sec.gov/files/company_tickers.json", timeout=10)
+        if resp is None:
+            _SEC_TICKER_SET = set()
+            return _SEC_TICKER_SET
+        data = resp.json()
+        _SEC_TICKER_SET = {
+            (entry.get("ticker") or "").upper()
+            for entry in data.values()
+            if entry.get("ticker")
+        }
+    except Exception as exc:
+        logger.warning("SEC ticker manifest preload failed: %s", exc)
+        _SEC_TICKER_SET = set()
+    return _SEC_TICKER_SET
+
+
+def _filter_real_tickers(candidates: list[str]) -> list[str]:
+    """
+    Drop blocklisted acronyms and keep only candidates that appear in the
+    SEC company_tickers manifest. If the SEC manifest is unavailable, fall
+    back to blocklist-only filtering.
+
+    Preserves order, deduplicates.
+    """
+    seen: set[str] = set()
+    result: list[str] = []
+    sec_set = _load_sec_ticker_set()
+
+    for raw in candidates:
+        t = (raw or "").upper().strip()
+        if not t or t in seen or t in _TICKER_BLOCKLIST:
+            continue
+        # If SEC manifest is available, require membership; otherwise accept.
+        if sec_set and t not in sec_set:
+            continue
+        seen.add(t)
+        result.append(t)
+    return result
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -590,13 +678,14 @@ def _fetch_options_signals(ticker: str) -> tuple[dict, dict, Optional[float]]:
     try:
         from research.options_flow import get_options_snapshot as _snap
         s = _snap(ticker)
+        # Field names match research.options_flow.OptionsSnapshot dataclass.
         snap = {
-            "put_call_oi_ratio": s.put_call_oi_ratio,
+            "put_call_oi_ratio": s.put_call_ratio,
             "total_call_oi": s.total_call_oi,
             "total_put_oi": s.total_put_oi,
-            "atm_iv_pct": s.atm_iv_pct,
+            "atm_iv_pct": s.implied_volatility_30d,
             "short_interest_pct": s.short_interest_pct,
-            "days_to_cover": s.days_to_cover,
+            "days_to_cover": s.short_interest_ratio_days_to_cover,
             "iv_rank": s.iv_rank,
         }
     except Exception as exc:
@@ -773,6 +862,31 @@ class StockPickerAgent:
         macro_ctx = macro_context_summary(news)
         ticker_data = self._gather_ticker_data(tickers)
 
+        # ── Data Integrity gate ──────────────────────────────────────────────
+        # If every candidate ticker has feed_down=True, the pipeline cannot
+        # generate an honest pick. Per CLAUDE.md / AGENTS.md / GEMINI.md
+        # Data Integrity section, refuse rather than hallucinate.
+        live_tickers = [
+            t for t, d in ticker_data.items() if not d.get("feed_down")
+        ]
+        if not live_tickers:
+            down_sources = sorted({
+                d.get("error", "unknown").split("source=")[-1].split(",")[0].rstrip("]")
+                for d in ticker_data.values() if d.get("feed_down")
+            })
+            raise DataFeedError(
+                ticker=",".join(tickers),
+                source=",".join(down_sources) or "all",
+                detail=f"every candidate ticker failed live-data validation ({len(tickers)} tickers)",
+            )
+        if len(live_tickers) < len(tickers):
+            dead = [t for t in tickers if t not in live_tickers]
+            logger.warning(
+                "Dropping %d tickers with dead feeds: %s. Continuing with %s.",
+                len(dead), dead, live_tickers,
+            )
+            tickers = live_tickers
+
         # Wisdom layer — behavioral psychology + historical cycle context
         try:
             psych_snap = behavioral_snapshot()
@@ -787,7 +901,10 @@ class StockPickerAgent:
 
         # Extended signal layer — insider, institutional, earnings, options
         # Fetched per-ticker; failures are non-fatal.
+        # `sources_per_ticker` tracks which feeds genuinely contributed data —
+        # used to overwrite Claude-generated sources_used (which hallucinates).
         extended_signals: dict[str, dict] = {}
+        sources_per_ticker: dict[str, list[str]] = {}
         for ticker in tickers:
             insider = _fetch_insider_signal(ticker)
             institutions = _fetch_institutional_signal(ticker)
@@ -813,6 +930,28 @@ class StockPickerAgent:
                 "signal_conflicts": conflicts,
             }
 
+            # ── Deterministic source attribution ──
+            srcs: list[str] = []
+            td = ticker_data.get(ticker, {})
+            fund_src = td.get("fundamentals", {}).get("data_source", "") if isinstance(td, dict) else ""
+            for s in (fund_src or "").split("+"):
+                if s and s != "stub":
+                    srcs.append(s)
+            if td.get("technicals"):
+                if "yfinance" not in srcs:
+                    srcs.append("yfinance")
+            if insider:
+                srcs.append("SEC Form 4")
+            if institutions:
+                srcs.append("SEC 13F")
+            if days_to_earn is not None or surprise:
+                srcs.append("earnings_calendar")
+            if opt_snap or opt_squeeze or opt_ivr is not None:
+                srcs.append("options_flow")
+            if news:
+                srcs.append("news_aggregator")
+            sources_per_ticker[ticker] = srcs
+
         # Position sizing context
         available_cad = _load_available_cash_cad()
 
@@ -837,6 +976,14 @@ class StockPickerAgent:
             extended_signals=extended_signals,
             available_cad=available_cad,
         )
+
+        # Overwrite Claude-generated sources_used with the deterministic list.
+        # Claude was citing sources that silently failed (e.g. SEC 13F when it
+        # 503'd). Honesty about provenance > prose flourish.
+        for p in picks:
+            real = sources_per_ticker.get(p.ticker)
+            if real:
+                p.sources_used = real
 
         picks.sort(key=lambda p: p.conviction, reverse=True)
         return picks[:n]
@@ -888,15 +1035,33 @@ class StockPickerAgent:
     # ── Private helpers ───────────────────────────────────────────────────────
 
     def _infer_tickers(self, query: str) -> list[str]:
-        """Map a natural language query to a candidate ticker list."""
+        """
+        Map a natural language query to a candidate ticker list.
+
+        Order of resolution:
+          1. Sector keyword match (returns curated bucket from _SECTOR_DEFAULTS).
+          2. Uppercase-acronym extraction, filtered by:
+             - account/financial-non-ticker blocklist (TFSA, RRSP, FHSA, RBC, etc.)
+             - SEC company_tickers manifest membership (only real US-listed
+               equities pass through).
+          3. Fallback to _SECTOR_DEFAULTS["default"].
+
+        This prevents the integrity guard from tripping on account-name
+        acronyms parsed from the query — observed in the 2026-04-25 picks run
+        where "TFSA" was treated as a ticker.
+        """
         q = query.lower()
         for keyword, tickers in _SECTOR_DEFAULTS.items():
             if keyword in q:
                 return tickers
+
         import re
         extracted = re.findall(r'\b[A-Z]{2,5}\b', query)
         if extracted:
-            return extracted[:8]
+            valid = _filter_real_tickers(extracted)
+            if valid:
+                return valid[:8]
+
         return _SECTOR_DEFAULTS["default"]
 
     def _gather_news(self, query: str, tickers: list[str]) -> list[NewsItem]:
@@ -919,21 +1084,40 @@ class StockPickerAgent:
         return news[:50]
 
     def _gather_ticker_data(self, tickers: list[str]) -> dict[str, dict]:
-        """Fetch fundamentals + technicals for each ticker."""
+        """
+        Fetch fundamentals + technicals for each ticker.
+
+        Per the Data Integrity rule (CLAUDE.md / AGENTS.md / GEMINI.md), every
+        ticker is validated against research._data_integrity. Tickers whose
+        feeds are down get marked with feed_down=True so pick() can refuse
+        to generate a pick rather than letting Claude hallucinate prices.
+        """
         results: dict[str, dict] = {}
         for ticker in tickers:
             try:
                 fund = get_fundamentals(ticker)
                 df = get_price_history(ticker, period="1y")
                 tech = technicals(df)
+
+                # Anti-hallucination guard — refuse to populate if feeds are down.
+                require_live_price_data(df, ticker)
+                require_live_fundamentals(fund, ticker)
+
                 results[ticker] = {
                     "fundamentals": fund.to_dict(),
                     "technicals": tech,
                     "valuation": fund.valuation_summary(),
                 }
+            except DataFeedError as exc:
+                logger.error("Data integrity guard tripped for %s: %s", ticker, exc)
+                results[ticker] = {
+                    "error": str(exc),
+                    "feed_down": True,
+                    "ticker": ticker,
+                }
             except Exception as exc:
                 logger.warning("Data fetch failed for %s: %s", ticker, exc)
-                results[ticker] = {"error": str(exc)}
+                results[ticker] = {"error": str(exc), "feed_down": True, "ticker": ticker}
         return results
 
     def _filings_summary(self, ticker: str) -> str:

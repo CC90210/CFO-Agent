@@ -158,6 +158,29 @@ When CC asks for picks, Atlas runs:
 - Never commit `.env` or secrets
 - Never claim tax advice is legal advice
 
+## Data Integrity (NON-NEGOTIABLE — applies to every runtime)
+
+> Codified after the 2026-04-25 incident: SEC EDGAR returned 503, the runtime
+> filled the gap with hallucinated 2024 prices, and CC caught it. This rule
+> prevents recurrence across Claude Code, Codex, Antigravity, and Gemini.
+
+When a live data feed (yfinance, SEC EDGAR, ccxt, Finnhub, FMP, Alpha Vantage,
+Wise, Stripe, Kraken, OANDA) is unavailable, NO runtime may substitute
+training-memory data, recall prior conversation numbers, or guess.
+
+**Required behavior:**
+1. Fail loudly with the canonical banner: `API DOWN - CANNOT GENERATE PICK. Please fix the data feed.`
+2. Surface the failed source, ticker (if applicable), and detail.
+3. Do NOT proceed with a degraded analysis that looks complete.
+
+**Enforced in code by:**
+- `research/_data_integrity.py` — `DataFeedError`, `require_live_price_data`, `require_live_fundamentals`, `require_live_quote`
+- `research/_sec_client.py` — single allowed path to SEC endpoints (real User-Agent: `Atlas CFO Agent (Conaugh McKenna) conaugh@oasisai.work`, 9 req/s ceiling, exponential-jittered retry)
+
+A new SEC HTTP call that bypasses `_sec_client` is a defect.
+
+**Provider waterfall:** When one feed is down, fall through the priority list, but ONLY using live data. Fundamentals: yfinance → FMP → Alpha Vantage → Finnhub. News: Google News → NewsAPI → Finnhub → FMP. If all return None, the guard trips. Provider keys live in `.env`: `ALPHA_VANTAGE_KEY`, `FINNHUB_KEY`, `NEWSAPI_KEY`, `FMP_KEY`.
+
 ## Development Rules
 
 - Read files before editing. No guessing.

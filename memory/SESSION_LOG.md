@@ -11,6 +11,38 @@ tags: [log, sessions, activity, narrative]
 
 ---
 
+### Session 33 — 2026-04-25 evening (Claude Code runtime) — Deep system audit & hardening
+- CC requested full deep-audit. Inventoried 35 Python modules across cfo/, research/, finance/, utils/, scripts/. Every module compiles + imports clean.
+- **Bug fixes (5 real defects found and fixed):**
+  - `OptionsSnapshot` attribute mismatch in `research/stock_picker._fetch_options_signals` — was reading `put_call_oi_ratio` / `atm_iv_pct` / `days_to_cover` (don't exist); real fields are `put_call_ratio` / `implied_volatility_30d` / `short_interest_ratio_days_to_cover`. Caused `AttributeError` per ticker on every picks run.
+  - `_infer_tickers` regex extracted account acronyms (TFSA / RRSP / FHSA / USD / CAD / RBC / CCPC / ETF / PE / Q1 etc.) as candidate tickers, tripping the integrity guard. Fixed with explicit `_TICKER_BLOCKLIST` + SEC company_tickers manifest membership check via new `_filter_real_tickers` helper. Tested across 5 cases.
+  - SEC 13F `/Archives/edgar/data/.../index.htm` 503-loop in `_fetch_13f_document` retried up to 12× per fund × 12 tracked funds × every ticker, burning minutes. Added 15-min negative cache so a single broken accession is recorded once and skipped instead of re-attempted.
+  - `Pick.sources_used` was hallucinated by Claude (cited SEC 13F as source even when 13F retries had exhausted). Now computed deterministically in `pick()` from actual contributing modules and written over Claude's value after parsing.
+  - `research/insider_tracking.py` had its OWN local SEC HTTP helper with the bad generic User-Agent and no retry — same pre-fix pattern. Refactored to delegate to `research/_sec_client.get` like `institutional_tracking` and `news_ingest`.
+- **New tooling:**
+  - `scripts/audit_imports.py` — imports every project module, reports failures with traceback. Repo-root sys.path setup so it works from any cwd.
+  - `scripts/self_test.py` + `python main.py self-test [categories...]` — CI-style end-to-end smoke test: imports / cli / modules_dry / provider_health / graph / memory. Each category runs independently and reports per-test pass/fail.
+  - `/health` Telegram command + `_run_provider_health` executor in `telegram_bridge.py` — CC can now check provider status from his phone without going to the CLI.
+- **Hygiene:**
+  - Fixed 17 broken wikilinks in `brain/AGENTS.md` and `memory/CLAUDE_TASK_FIX_EDGAR.md` — relative-path links into `.py` source files that the validator (correctly) couldn't resolve as vault notes. Replaced with plain backtick code refs.
+  - Final graph state: **0 orphans, 0 broken wikilinks, 422 total wikilinks**.
+- **CAPABILITIES.md regenerated**: 19 skills, 13 Telegram commands (was 12), 11 CLI commands (was 9), 8 Claude tools, 8 CFO modules, 14 research modules.
+
+### Session 32 — 2026-04-25 (Claude Code runtime)
+- **EDGAR 503 fix + anti-hallucination guard + new providers** — completed CC's three-task brief in [[CLAUDE_TASK_FIX_EDGAR]].
+- Built `research/_sec_client.py` (real SEC User-Agent `Atlas CFO Agent (Conaugh McKenna) conaugh@oasisai.work`, 9 req/s ceiling, tenacity retry on 429/503).
+- Built `research/_data_integrity.py` (`DataFeedError` + `require_live_*` validators) — every research entry point now refuses to generate a pick if live feeds are down. Canonical banner: `API DOWN - CANNOT GENERATE PICK. Please fix the data feed.`
+- Built `research/finnhub_client.py` (quote / profile / company_news / basic_financials).
+- Extended `research/fundamentals.py` waterfall: yfinance → FMP → Alpha Vantage → Finnhub.
+- Extended `research/news_ingest.py` with `fetch_finnhub_news`, `fetch_fmp_news`, unified `fetch_ticker_news` aggregator.
+- Refactored `research/institutional_tracking.py` and the SEC paths in `news_ingest.py` to delegate every SEC HTTP call through `_sec_client`.
+- Added Data Integrity section to project-root `CLAUDE.md`, `AGENTS.md`, `GEMINI.md` (the actual files runtimes read).
+- Rewrote `brain/AGENTS.md` — removed pre-pivot trading agents (`technical_analyst`, `risk_analyst`, `debate_agent`, `orchestrator`, `darwinian` etc., all archived) and added CFO-era routing matrix with Data Integrity rule.
+- Patched Windows charmap encoding bug in `scripts/validate_memory.py` (`→` → `->`) and added skip list for self-improvement-protocol artifacts (MISTAKES, PATTERNS, CAPABILITY_GAPS).
+- Smoke tests: SEC company_tickers manifest 200 OK (10,341 entries); NVDA 8-K filings 10/10; Berkshire 13F 110/110 holdings; NVDA Finnhub quote $208.29; NVDA news aggregator 341 articles (Finnhub 249 + Google 92).
+
+---
+
 ### Session 31 — 2026-04-18 (Antigravity runtime)
 - **File structure audit & optimization** — CC requested full audit after noticing `.claude/skills/` only had 2 files
 - **Critical fixes applied (4):**

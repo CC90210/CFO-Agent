@@ -125,6 +125,12 @@ def cmd_receipts(args: argparse.Namespace) -> int:
             "  for the invoice. Open Gmail + click through to get the amount, or\n"
             "  forward the actual receipt PDF into the Receipts label."
         )
+
+    # Export to CSV automatically
+    export_path = Path("data") / f"receipts_export_{since.year}.csv"
+    GmailReceipts.export_csv(all_receipts, str(export_path))
+    print(f"\n[+] Finalized: Exported all {len(all_receipts)} receipts to {export_path}")
+
     _refresh_pulse_silent()
     return 0
 
@@ -173,6 +179,19 @@ def cmd_rebalance(args: argparse.Namespace) -> int:
         use_live=not args.no_live,
     )
     return rebalancer.run()
+
+
+def cmd_provider_health(args: argparse.Namespace) -> int:
+    """Probe every research data provider against an endpoint we actually use."""
+    from research.provider_health import main as ph_main
+    return ph_main()
+
+
+def cmd_self_test(args: argparse.Namespace) -> int:
+    """End-to-end smoke test of every entry point. Pass --category to scope."""
+    from scripts.self_test import main as st_main
+    extra = list(args.categories or [])
+    return st_main(extra)
 
 
 def cmd_taxes(args: argparse.Namespace) -> int:
@@ -241,6 +260,18 @@ def build_parser() -> argparse.ArgumentParser:
     dd.set_defaults(func=cmd_deepdive)
 
     sub.add_parser("taxes", help="Quarterly tax reserve + installment check").set_defaults(func=cmd_taxes)
+    sub.add_parser(
+        "provider-health",
+        help="Health-check every research data provider (yfinance/Finnhub/FMP/AV/NewsAPI/SEC/Anthropic)",
+    ).set_defaults(func=cmd_provider_health)
+
+    st = sub.add_parser(
+        "self-test",
+        help="End-to-end smoke test of every entry point (imports / CLI / providers / graph / memory)",
+    )
+    st.add_argument("categories", nargs="*",
+        help="Optional categories: imports cli modules_dry provider_health graph memory")
+    st.set_defaults(func=cmd_self_test)
 
     # ── New CFO commands ─────────────────────────────────────────────────────
     setup_p = sub.add_parser("setup", help="Personalization wizard — writes brain/USER.md, .env, balances")

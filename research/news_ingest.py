@@ -28,6 +28,7 @@ from typing import Optional
 from urllib.parse import quote_plus
 
 import requests
+from dotenv import load_dotenv
 
 try:
     import feedparser  # type: ignore[import-untyped]
@@ -35,7 +36,10 @@ try:
 except ImportError:
     _FEEDPARSER_AVAILABLE = False
 
-from config.settings import settings
+# Belt-and-suspenders: load .env at import time so NEWSAPI_KEY / FMP_KEY /
+# ALPHA_VANTAGE_KEY / FINNHUB_KEY are visible even when callers bypass
+# config.settings (smoke tests, ad-hoc scripts).
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 logger = logging.getLogger(__name__)
 
@@ -321,21 +325,23 @@ def fetch_newsapi(query: str, days: int = 7) -> list[NewsItem]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _get_cik(ticker: str) -> Optional[str]:
-    """Resolve ticker to SEC CIK using the EDGAR company search API."""
+    """Resolve ticker to SEC CIK using the EDGAR company_tickers manifest."""
+    from research._sec_client import get as sec_get
+
     cache_path = _cache_key(f"cik:{ticker.upper()}")
     cached = _cache_read(cache_path, ttl=86400)  # cache CIK mappings for 24h
     if cached:
         return cached[0].get("cik") if cached else None
 
-    url = f"https://efts.sec.gov/LATEST/search-index?q=%22{ticker.upper()}%22&dateRange=custom&startdt=2020-01-01&forms=10-K"
+    tickers_url = "https://www.sec.gov/files/company_tickers.json"
+    resp = sec_get(tickers_url, timeout=10)
+    if resp is None:
+        logger.warning("SEC CIK lookup failed for %s — feed unavailable", ticker)
+        return None
     try:
-        # Use EDGAR full-text search to find the ticker's CIK
-        tickers_url = "https://www.sec.gov/files/company_tickers.json"
-        resp = requests.get(tickers_url, timeout=10, headers={"User-Agent": "Atlas/1.0 atlas@oasisai.work"})
-        resp.raise_for_status()
         data = resp.json()
-    except Exception as exc:
-        logger.warning("SEC CIK lookup failed for %s: %s", ticker, exc)
+    except ValueError as exc:
+        logger.warning("SEC CIK manifest unparseable for %s: %s", ticker, exc)
         return None
 
     ticker_upper = ticker.upper()
@@ -353,7 +359,10 @@ def fetch_sec_filings(ticker: str, form: str = "8-K") -> list[Filing]:
     Fetch recent SEC EDGAR filings for a ticker using the EDGAR REST API.
 
     No API key required. Returns up to 10 recent filings of the specified form type.
+    Uses research._sec_client for proper User-Agent + retry/backoff.
     """
+    from research._sec_client import get as sec_get
+
     cache_path = _cache_key(f"sec:{ticker.upper()}:{form}")
     cached = _cache_read(cache_path, ttl=_NEWS_TTL_SECONDS)
     if cached is not None:
@@ -378,16 +387,14 @@ def fetch_sec_filings(ticker: str, form: str = "8-K") -> list[Filing]:
         return []
 
     submissions_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
+    resp = sec_get(submissions_url, timeout=15, use_data_host=True)
+    if resp is None:
+        logger.warning("SEC filings fetch failed for %s (feed unavailable)", ticker)
+        return []
     try:
-        resp = requests.get(
-            submissions_url,
-            timeout=15,
-            headers={"User-Agent": "Atlas/1.0 atlas@oasisai.work"},
-        )
-        resp.raise_for_status()
         data = resp.json()
-    except Exception as exc:
-        logger.warning("SEC filings fetch failed for %s: %s", ticker, exc)
+    except ValueError as exc:
+        logger.warning("SEC submissions JSON unparseable for %s: %s", ticker, exc)
         return []
 
     recent = data.get("filings", {}).get("recent", {})
@@ -424,3 +431,221 @@ def fetch_sec_filings(ticker: str, form: str = "8-K") -> list[Filing]:
     _cache_write(cache_path, [r.to_dict() for r in results])
     logger.info("SEC EDGAR returned %d %s filings for %s", len(results), form, ticker)
     return results
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Finnhub company news (60 req/min free)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def fetch_finnhub_news(ticker: str, days: int = 14) -> list[NewsItem]:
+    """
+    Per-ticker news from Finnhub. Requires FINNHUB_KEY in .env.
+    Adds source redundancy when EDGAR / Google News / NewsAPI degrade.
+    """
+    cache_path = _cache_key(f"finnhub_news:{ticker.upper()}:{days}")
+    cached = _cache_read(cache_path, _NEWS_TTL_SECONDS)
+    if cached is not None:
+        return [NewsItem.from_dict(d) for d in cached]
+
+    try:
+        from research import finnhub_client
+    except ImportError:
+        return []
+
+    raw = finnhub_client.company_news(ticker, days=days)
+    items: list[NewsItem] = []
+    for art in raw:
+        ts = art.get("datetime", 0) or 0
+        try:
+            dt = datetime.fromtimestamp(int(ts), tz=timezone.utc)
+        except (ValueError, OSError):
+            dt = datetime.now(timezone.utc)
+        title = (art.get("headline") or "").strip()
+        if not title:
+            continue
+        items.append(NewsItem(
+            date=dt,
+            source=f"finnhub:{art.get('source', 'unknown')}",
+            title=title,
+            url=art.get("url", ""),
+            summary=(art.get("summary") or "")[:500],
+            tickers_mentioned=[ticker.upper()],
+        ))
+
+    _cache_write(cache_path, [i.to_dict() for i in items])
+    logger.info("Finnhub returned %d news items for %s", len(items), ticker)
+    return items
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  FMP stock-news (250 req/day free)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def fetch_fmp_news(tickers: list[str], limit: int = 50) -> list[NewsItem]:
+    """
+    Stock news from Financial Modeling Prep stable API. Multi-ticker per request.
+    Requires FMP_KEY in .env.
+
+    Endpoint: /stable/news/stock?symbols=A,B,C (replaces legacy /api/v3/stock_news
+    which now returns 403 "Legacy Endpoint" on free keys).
+
+    /stable/news/stock returns articles with field names: symbol, publishedDate,
+    publisher, title, url, text, image. Date format "YYYY-MM-DD HH:MM:SS".
+    """
+    api_key = os.environ.get("FMP_KEY", "")
+    if not api_key or not tickers:
+        return []
+
+    tickers = [t.upper() for t in tickers]
+    cache_path = _cache_key(f"fmp_news_stable:{','.join(sorted(tickers))}:{limit}")
+    cached = _cache_read(cache_path, _NEWS_TTL_SECONDS)
+    if cached is not None:
+        return [NewsItem.from_dict(d) for d in cached]
+
+    try:
+        resp = requests.get(
+            "https://financialmodelingprep.com/stable/news/stock",
+            params={"symbols": ",".join(tickers), "limit": limit, "apikey": api_key},
+            timeout=12,
+        )
+        resp.raise_for_status()
+        articles = resp.json()
+    except Exception as exc:
+        logger.warning("FMP stable/news/stock fetch failed: %s", exc)
+        return []
+
+    if not isinstance(articles, list):
+        return []
+
+    items: list[NewsItem] = []
+    for art in articles:
+        pub = art.get("publishedDate", "") or ""
+        # /stable/news returns "YYYY-MM-DD HH:MM:SS" — convert to ISO.
+        try:
+            iso = pub.replace(" ", "T") if "T" not in pub else pub
+            dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            dt = datetime.now(timezone.utc)
+
+        publisher = art.get("publisher") or art.get("site") or "unknown"
+        items.append(NewsItem(
+            date=dt,
+            source=f"fmp:{publisher}",
+            title=(art.get("title") or "").strip(),
+            url=art.get("url", ""),
+            summary=(art.get("text") or "")[:500],
+            tickers_mentioned=[(art.get("symbol") or "").upper()] if art.get("symbol") else list(tickers),
+        ))
+
+    _cache_write(cache_path, [i.to_dict() for i in items])
+    logger.info("FMP /stable/news/stock returned %d items for %s", len(items), tickers)
+    return items
+
+
+def fetch_alpha_vantage_news_sentiment(tickers: list[str], limit: int = 50) -> list[NewsItem]:
+    """
+    Alpha Vantage NEWS_SENTIMENT — free-tier endpoint that returns ticker-tagged
+    articles with sentiment scores per ticker. Replaces the (now paid-only)
+    OVERVIEW endpoint as Atlas's primary AV consumption.
+
+    Each item carries a sentiment score in [-1, +1] derived from AV's
+    `ticker_sentiment_score` for the matching ticker.
+    """
+    api_key = os.environ.get("ALPHA_VANTAGE_KEY", "")
+    if not api_key or not tickers:
+        return []
+
+    tickers = [t.upper() for t in tickers]
+    cache_path = _cache_key(f"av_news_sent:{','.join(sorted(tickers))}:{limit}")
+    cached = _cache_read(cache_path, _NEWS_TTL_SECONDS)
+    if cached is not None:
+        return [NewsItem.from_dict(d) for d in cached]
+
+    try:
+        resp = requests.get(
+            "https://www.alphavantage.co/query",
+            params={
+                "function": "NEWS_SENTIMENT",
+                "tickers": ",".join(tickers),
+                "limit": limit,
+                "apikey": api_key,
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        logger.warning("Alpha Vantage NEWS_SENTIMENT failed: %s", exc)
+        return []
+
+    feed = data.get("feed") if isinstance(data, dict) else None
+    if not isinstance(feed, list):
+        # AV soft-rate-limit response: {"Information": "..."}
+        return []
+
+    items: list[NewsItem] = []
+    for art in feed:
+        # AV time format: "20260425T133045"
+        ts = art.get("time_published", "")
+        try:
+            dt = datetime.strptime(ts, "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc)
+        except ValueError:
+            dt = datetime.now(timezone.utc)
+
+        # Per-ticker sentiment: pick the score for the first matching ticker.
+        sentiment: Optional[float] = None
+        for ts_block in art.get("ticker_sentiment", []):
+            if (ts_block.get("ticker") or "").upper() in tickers:
+                try:
+                    sentiment = float(ts_block.get("ticker_sentiment_score", 0))
+                except (ValueError, TypeError):
+                    sentiment = None
+                break
+
+        items.append(NewsItem(
+            date=dt,
+            source=f"alpha_vantage:{art.get('source', 'unknown')}",
+            title=(art.get("title") or "").strip(),
+            url=art.get("url", ""),
+            summary=(art.get("summary") or "")[:500],
+            sentiment=sentiment,
+            tickers_mentioned=tickers,
+        ))
+
+    _cache_write(cache_path, [i.to_dict() for i in items])
+    logger.info("AV NEWS_SENTIMENT returned %d items for %s", len(items), tickers)
+    return items
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Unified ticker-news aggregator (used by stock_picker)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def fetch_ticker_news(ticker: str, days: int = 14) -> list[NewsItem]:
+    """
+    Aggregate news for a single ticker across every available provider.
+
+    Order: Google News (always), NewsAPI (if key), Finnhub (if key), FMP (if key).
+    Deduplicates by URL. Sorts by date desc.
+    """
+    seen: set[str] = set()
+    out: list[NewsItem] = []
+
+    def _add(items: list[NewsItem]) -> None:
+        for it in items:
+            key = it.url or f"{it.source}:{it.title}"
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(it)
+
+    _add(fetch_google_news(ticker, days=days))
+    _add(fetch_newsapi(ticker, days=days))
+    _add(fetch_finnhub_news(ticker, days=days))
+    _add(fetch_fmp_news([ticker], limit=30))
+    _add(fetch_alpha_vantage_news_sentiment([ticker], limit=20))
+
+    out.sort(key=lambda x: x.date, reverse=True)
+    return out

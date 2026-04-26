@@ -59,24 +59,17 @@ logger = logging.getLogger(__name__)
 _EDGAR_BASE = "https://data.sec.gov"
 _COMPANY_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 
-# SEC requires a descriptive User-Agent.  Using Atlas's contact address.
-_HEADERS = {
-    "User-Agent": "Atlas CFO Agent contact@oasisai.work",
-    "Accept-Encoding": "gzip, deflate",
-    "Host": "data.sec.gov",
-}
-_HEADERS_SEC = {
-    "User-Agent": "Atlas CFO Agent contact@oasisai.work",
-    "Accept-Encoding": "gzip, deflate",
-}
+# SEC HTTP details (User-Agent, rate limit, retries) live in _sec_client.py.
+# Sentinels preserved so the existing call-site signature `_get(url, headers=_HEADERS_SEC)`
+# keeps working — _sec_client picks the real headers based on use_data_host.
+_HEADERS = object()
+_HEADERS_SEC = object()
 
 _CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "cache" / "edgar"
 _CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 _TTL_24H = 86400    # 24 hours in seconds
 _TTL_1H = 3600      # 1 hour — for recent filing lists (more volatile)
-
-_RATE_SLEEP = 0.11  # 10 req/s max per SEC policy
 
 # Transaction codes from SEC Form 4 non-derivative table
 # Full list: https://www.sec.gov/cgi-bin/viewer?action=view&cik=0001234567&type=4
@@ -205,21 +198,22 @@ def _cache_write(path: Path, data: dict | list) -> None:
 #  HTTP helper — rate-limited, graceful on failure
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _get(url: str, headers: Optional[dict] = None, timeout: int = 15) -> Optional[requests.Response]:
+def _get(url: str, headers=None, timeout: int = 15) -> Optional[requests.Response]:
     """
-    GET a URL with the SEC-required User-Agent and a small sleep to respect the
-    10 req/s rate limit.  Returns None on any error so callers can gracefully
-    return [].
+    Rate-limited, retry-wrapped GET against an SEC endpoint.
+
+    Delegates to research._sec_client.get for the SEC-required User-Agent
+    (`Atlas CFO Agent (Conaugh McKenna) conaugh@oasisai.work`), the 9 req/s
+    process-wide token bucket, and 4-attempt exponential-jittered retry on
+    429/503/connection errors. The legacy `headers=_HEADERS` / `_HEADERS_SEC`
+    sentinels are interpreted as host-selectors for backwards compatibility.
     """
-    time.sleep(_RATE_SLEEP)
-    _h = headers or _HEADERS
-    try:
-        resp = requests.get(url, headers=_h, timeout=timeout)
-        resp.raise_for_status()
-        return resp
-    except requests.RequestException as exc:
-        logger.warning("EDGAR request failed for %s: %s", url, exc)
-        return None
+    from research._sec_client import get as sec_get
+    if headers is _HEADERS:
+        return sec_get(url, timeout=timeout, use_data_host=True)
+    if headers is _HEADERS_SEC or headers is None:
+        return sec_get(url, timeout=timeout, use_data_host=False)
+    return sec_get(url, headers=headers, timeout=timeout)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

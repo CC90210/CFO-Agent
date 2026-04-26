@@ -1,10 +1,12 @@
 # STRUCTURE.md — File Ownership & Multi-Agent Convention
 
 > **Purpose:** Every file in this repo is touched by up to 4 AI runtimes (Claude Code, Antigravity, Codex, Gemini) plus CC directly. This document defines who owns what, preventing write conflicts and ensuring all runtimes find things the same way.
-> 
+>
 > **Rule:** If you're about to create a NEW file, check this map first. If the data belongs in an existing file, update it in-place — don't spawn a new one.
+>
+> Neighbors: [[INDEX]] · [[SOUL]] · [[STATE]] · [[AGENT_ORCHESTRATION]].
 
-Last updated: 2026-04-18
+Last updated: 2026-04-19
 
 ---
 

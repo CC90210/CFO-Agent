@@ -32,6 +32,11 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 import requests
+from dotenv import load_dotenv
+
+# Load .env at import time so FMP_KEY / ALPHA_VANTAGE_KEY are visible to callers
+# that don't go through config.settings (e.g. ad-hoc scripts, smoke tests).
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 try:
     import yfinance as yf
@@ -220,7 +225,16 @@ def _fetch_yfinance(ticker: str) -> Optional[Fundamentals]:
 
 
 def _fetch_alpha_vantage_overview(ticker: str) -> Optional[dict]:
-    """Pull company overview from Alpha Vantage (25 req/day free)."""
+    """
+    Pull company overview from Alpha Vantage.
+
+    NOTE: As of 2026, the OVERVIEW endpoint returns the soft-rate-limit message
+    (`{"Information": "..."}`) on free-tier keys — Alpha Vantage moved it to
+    paid tiers. We still try it (in case CC upgrades the key) but expect None
+    on free tier. The free-tier-friendly AV alternative is GLOBAL_QUOTE for
+    price (used by GLOBAL_QUOTE waterfall, not here). For news + sentiment
+    use _fetch_alpha_vantage_news_sentiment which IS free-tier-supported.
+    """
     api_key = os.environ.get("ALPHA_VANTAGE_KEY", "")
     if not api_key:
         return None
@@ -242,28 +256,69 @@ def _fetch_alpha_vantage_overview(ticker: str) -> Optional[dict]:
         logger.warning("Alpha Vantage overview failed for %s: %s", ticker, exc)
         return None
 
-    if "Symbol" not in data:
+    # AV "Information" key = soft rate limit / endpoint gated to paid.
+    # AV "Note" key = soft rate limit on free tier.
+    if not isinstance(data, dict) or "Symbol" not in data:
         return None
 
     _cache_write(cache_path, data)
     return data
 
 
+def _fetch_alpha_vantage_global_quote(ticker: str) -> Optional[dict]:
+    """
+    AV GLOBAL_QUOTE — works on free tier. Returns {price, volume, change, change_pct}.
+    Used as a price-cross-check when yfinance is dry.
+    """
+    api_key = os.environ.get("ALPHA_VANTAGE_KEY", "")
+    if not api_key:
+        return None
+
+    cache_path = _cache_key(f"av_quote:{ticker.upper()}")
+    cached = _cache_read(cache_path, _PRICE_TTL)
+    if cached:
+        return cached
+
+    try:
+        resp = requests.get(
+            "https://www.alphavantage.co/query",
+            params={"function": "GLOBAL_QUOTE", "symbol": ticker.upper(), "apikey": api_key},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        logger.warning("Alpha Vantage GLOBAL_QUOTE failed for %s: %s", ticker, exc)
+        return None
+
+    quote = data.get("Global Quote") if isinstance(data, dict) else None
+    if not quote or not quote.get("01. symbol"):
+        return None
+
+    _cache_write(cache_path, quote)
+    return quote
+
+
 def _fetch_fmp_profile(ticker: str) -> Optional[dict]:
-    """Pull company profile from Financial Modeling Prep (250 req/day free)."""
+    """
+    Pull company profile from Financial Modeling Prep stable API (250 req/day free).
+
+    Endpoint: /stable/profile?symbol=TICKER (replaces legacy /api/v3/profile/TICKER
+    which now returns 403 "Legacy Endpoint" on the free key as of 2026).
+    """
     api_key = os.environ.get("FMP_KEY", "")
     if not api_key:
         return None
 
-    cache_path = _cache_key(f"fmp_profile:{ticker.upper()}")
+    cache_path = _cache_key(f"fmp_profile_v2:{ticker.upper()}")
     cached = _cache_read(cache_path, _FUNDAMENTALS_TTL)
     if cached:
         return cached
 
     try:
         resp = requests.get(
-            f"https://financialmodelingprep.com/api/v3/profile/{ticker.upper()}",
-            params={"apikey": api_key},
+            "https://financialmodelingprep.com/stable/profile",
+            params={"symbol": ticker.upper(), "apikey": api_key},
             timeout=15,
         )
         resp.raise_for_status()
@@ -279,16 +334,128 @@ def _fetch_fmp_profile(ticker: str) -> Optional[dict]:
     return data[0]
 
 
+def _fetch_fmp_key_metrics_ttm(ticker: str) -> Optional[dict]:
+    """
+    FMP /stable/key-metrics-ttm — TTM market cap, EV, ROE, FCF yield, debt/equity, etc.
+    Free-tier endpoint, free of legacy gating.
+    """
+    api_key = os.environ.get("FMP_KEY", "")
+    if not api_key:
+        return None
+
+    cache_path = _cache_key(f"fmp_keymetrics_ttm:{ticker.upper()}")
+    cached = _cache_read(cache_path, _FUNDAMENTALS_TTL)
+    if cached:
+        return cached
+
+    try:
+        resp = requests.get(
+            "https://financialmodelingprep.com/stable/key-metrics-ttm",
+            params={"symbol": ticker.upper(), "apikey": api_key},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        logger.warning("FMP key-metrics-ttm failed for %s: %s", ticker, exc)
+        return None
+
+    if not data or not isinstance(data, list):
+        return None
+    _cache_write(cache_path, data[0])
+    return data[0]
+
+
+def _fetch_fmp_ratios_ttm(ticker: str) -> Optional[dict]:
+    """FMP /stable/ratios-ttm — margins, current ratio, debt/equity (TTM)."""
+    api_key = os.environ.get("FMP_KEY", "")
+    if not api_key:
+        return None
+
+    cache_path = _cache_key(f"fmp_ratios_ttm:{ticker.upper()}")
+    cached = _cache_read(cache_path, _FUNDAMENTALS_TTL)
+    if cached:
+        return cached
+
+    try:
+        resp = requests.get(
+            "https://financialmodelingprep.com/stable/ratios-ttm",
+            params={"symbol": ticker.upper(), "apikey": api_key},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        logger.warning("FMP ratios-ttm failed for %s: %s", ticker, exc)
+        return None
+
+    if not data or not isinstance(data, list):
+        return None
+    _cache_write(cache_path, data[0])
+    return data[0]
+
+
+def _fetch_fmp_grades_consensus(ticker: str) -> Optional[dict]:
+    """
+    FMP /stable/grades-consensus — analyst rating distribution (strongBuy/buy/hold/sell/strongSell).
+    Useful for filling Fundamentals.analyst_rating when yfinance returns None.
+    """
+    api_key = os.environ.get("FMP_KEY", "")
+    if not api_key:
+        return None
+
+    cache_path = _cache_key(f"fmp_grades:{ticker.upper()}")
+    cached = _cache_read(cache_path, _FUNDAMENTALS_TTL)
+    if cached:
+        return cached
+
+    try:
+        resp = requests.get(
+            "https://financialmodelingprep.com/stable/grades-consensus",
+            params={"symbol": ticker.upper(), "apikey": api_key},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        logger.warning("FMP grades-consensus failed for %s: %s", ticker, exc)
+        return None
+
+    if not data or not isinstance(data, list):
+        return None
+    _cache_write(cache_path, data[0])
+    return data[0]
+
+
+def _fetch_finnhub_metrics(ticker: str) -> Optional[dict]:
+    """Pull Finnhub's basic financials (P/E, P/B, ROE, margins, beta, etc.)."""
+    try:
+        from research import finnhub_client
+    except ImportError:
+        return None
+    data = finnhub_client.basic_financials(ticker)
+    if not data or not isinstance(data, dict):
+        return None
+    metric = data.get("metric")
+    if not isinstance(metric, dict):
+        return None
+    return metric
+
+
 def get_fundamentals(ticker: str) -> Fundamentals:
     """
     Fetch fundamental metrics for a ticker.
 
     Waterfall:
     1. yfinance (always tried first — no quota)
-    2. Alpha Vantage enrichment if ALPHA_VANTAGE_KEY is set
-    3. FMP enrichment if FMP_KEY is set
+    2. FMP profile enrichment if FMP_KEY is set
+    3. Alpha Vantage enrichment if ALPHA_VANTAGE_KEY is set
+    4. Finnhub basic_financials enrichment if FINNHUB_KEY is set
 
-    Results cached 24 hours.
+    Each enrichment fills only the gaps left by earlier sources — first non-None
+    wins. Results cached 24 hours. Returns a stub with data_source="stub" if all
+    providers fail; the anti-hallucination guard in research._data_integrity
+    inspects this field before allowing a pick.
     """
     cache_path = _cache_key(f"fundamentals:{ticker.upper()}")
     cached = _cache_read(cache_path, _FUNDAMENTALS_TTL)
@@ -300,8 +467,7 @@ def get_fundamentals(ticker: str) -> Fundamentals:
 
     fund = _fetch_yfinance(ticker)
     if fund is None:
-        # Return a stub rather than crashing the pipeline
-        logger.warning("All fundamentals sources failed for %s — returning stub", ticker)
+        logger.warning("yfinance failed for %s — falling back to FMP/AV/Finnhub", ticker)
         fund = Fundamentals(
             ticker=ticker.upper(),
             name=ticker.upper(),
@@ -310,9 +476,94 @@ def get_fundamentals(ticker: str) -> Fundamentals:
             data_source="stub",
         )
 
-    # Enrich with Alpha Vantage if available and yfinance had gaps
+    sources_used: list[str] = [fund.data_source]
+
+    # ── FMP profile (rich metadata + market cap fallback) ──
+    fmp_data = _fetch_fmp_profile(ticker)
+    if fmp_data:
+        sources_used.append("fmp_profile")
+        # /stable/profile uses field names: marketCap, sector, industry, companyName, beta
+        mcap = fmp_data.get("marketCap") or fmp_data.get("mktCap")
+        if fund.market_cap is None and mcap:
+            try:
+                fund.market_cap = float(mcap)
+            except (ValueError, TypeError):
+                pass
+        if fund.sector in ("Unknown", None) and fmp_data.get("sector"):
+            fund.sector = str(fmp_data["sector"])
+        if fund.industry in ("Unknown", None) and fmp_data.get("industry"):
+            fund.industry = str(fmp_data["industry"])
+        if fund.name == ticker.upper() and fmp_data.get("companyName"):
+            fund.name = str(fmp_data["companyName"])
+
+    # ── FMP key-metrics-ttm (P/E, P/B, EV/EBITDA, ROE, FCF) ──
+    fmp_km = _fetch_fmp_key_metrics_ttm(ticker)
+    if fmp_km:
+        sources_used.append("fmp_keymetrics")
+        if fund.pe_ratio is None and fmp_km.get("peRatioTTM"):
+            try:
+                fund.pe_ratio = float(fmp_km["peRatioTTM"])
+            except (ValueError, TypeError):
+                pass
+        if fund.pb_ratio is None and fmp_km.get("pbRatioTTM"):
+            try:
+                fund.pb_ratio = float(fmp_km["pbRatioTTM"])
+            except (ValueError, TypeError):
+                pass
+        if fund.ev_ebitda is None and fmp_km.get("enterpriseValueOverEBITDATTM"):
+            try:
+                fund.ev_ebitda = float(fmp_km["enterpriseValueOverEBITDATTM"])
+            except (ValueError, TypeError):
+                pass
+        if fund.fcf_yield is None and fmp_km.get("freeCashFlowYieldTTM"):
+            try:
+                fund.fcf_yield = round(float(fmp_km["freeCashFlowYieldTTM"]) * 100, 2)
+            except (ValueError, TypeError):
+                pass
+        if fund.roe is None and fmp_km.get("returnOnEquityTTM"):
+            try:
+                fund.roe = round(float(fmp_km["returnOnEquityTTM"]) * 100, 2)
+            except (ValueError, TypeError):
+                pass
+
+    # ── FMP ratios-ttm (margins, debt/equity) ──
+    fmp_r = _fetch_fmp_ratios_ttm(ticker)
+    if fmp_r:
+        sources_used.append("fmp_ratios")
+        if fund.operating_margin is None and fmp_r.get("operatingProfitMarginTTM"):
+            try:
+                fund.operating_margin = round(float(fmp_r["operatingProfitMarginTTM"]) * 100, 2)
+            except (ValueError, TypeError):
+                pass
+        if fund.net_margin is None and fmp_r.get("netProfitMarginTTM"):
+            try:
+                fund.net_margin = round(float(fmp_r["netProfitMarginTTM"]) * 100, 2)
+            except (ValueError, TypeError):
+                pass
+        if fund.debt_to_equity is None and fmp_r.get("debtEquityRatioTTM"):
+            try:
+                fund.debt_to_equity = float(fmp_r["debtEquityRatioTTM"])
+            except (ValueError, TypeError):
+                pass
+        if fund.current_ratio is None and fmp_r.get("currentRatioTTM"):
+            try:
+                fund.current_ratio = float(fmp_r["currentRatioTTM"])
+            except (ValueError, TypeError):
+                pass
+
+    # ── FMP grades-consensus (analyst rating + count) ──
+    fmp_grades = _fetch_fmp_grades_consensus(ticker)
+    if fmp_grades:
+        sources_used.append("fmp_grades")
+        if fund.analyst_rating is None:
+            consensus = (fmp_grades.get("consensus") or "").strip()
+            if consensus:
+                fund.analyst_rating = consensus.replace("_", " ").title()
+
+    # ── Alpha Vantage overview ──
     av_data = _fetch_alpha_vantage_overview(ticker)
     if av_data:
+        sources_used.append("alpha_vantage")
         if fund.pe_ratio is None and av_data.get("PERatio") not in (None, "None", "-"):
             try:
                 fund.pe_ratio = float(av_data["PERatio"])
@@ -323,6 +574,44 @@ def get_fundamentals(ticker: str) -> Fundamentals:
                 fund.analyst_target_price = float(av_data["AnalystTargetPrice"])
             except (ValueError, TypeError):
                 pass
+        if fund.peg_ratio is None and av_data.get("PEGRatio") not in (None, "None", "-"):
+            try:
+                fund.peg_ratio = float(av_data["PEGRatio"])
+            except (ValueError, TypeError):
+                pass
+        if fund.roe is None and av_data.get("ReturnOnEquityTTM") not in (None, "None", "-"):
+            try:
+                fund.roe = round(float(av_data["ReturnOnEquityTTM"]) * 100, 2)
+            except (ValueError, TypeError):
+                pass
+
+    # ── Finnhub basic_financials ──
+    fh_metric = _fetch_finnhub_metrics(ticker)
+    if fh_metric:
+        sources_used.append("finnhub")
+        if fund.pe_ratio is None and fh_metric.get("peNormalizedAnnual"):
+            try:
+                fund.pe_ratio = float(fh_metric["peNormalizedAnnual"])
+            except (ValueError, TypeError):
+                pass
+        if fund.pb_ratio is None and fh_metric.get("pbAnnual"):
+            try:
+                fund.pb_ratio = float(fh_metric["pbAnnual"])
+            except (ValueError, TypeError):
+                pass
+        if fund.roe is None and fh_metric.get("roeRfy"):
+            try:
+                fund.roe = float(fh_metric["roeRfy"])
+            except (ValueError, TypeError):
+                pass
+        if fund.short_interest_pct is None and fh_metric.get("shortInterestSharePercent"):
+            try:
+                fund.short_interest_pct = float(fh_metric["shortInterestSharePercent"])
+            except (ValueError, TypeError):
+                pass
+
+    # Track every source that contributed
+    fund.data_source = "+".join(s for s in sources_used if s and s != "stub") or "stub"
 
     _cache_write(cache_path, fund.to_dict())
     return fund
