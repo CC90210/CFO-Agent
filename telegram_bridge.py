@@ -324,6 +324,22 @@ def _run_status() -> str:
     return "\n".join(lines)
 
 
+def _run_provider_health() -> str:
+    """Quick status of every research data provider — for /health on Telegram."""
+    from research.provider_health import run_all, GREEN, YELLOW, RED
+    statuses = run_all()
+    lines = ["Provider Health"]
+    for s in statuses:
+        marker = {GREEN: "OK", YELLOW: "WARN", RED: "FAIL"}.get(s.status, "?")
+        lines.append(f"[{marker}] {s.name}: {s.detail[:80]}")
+    n_red = sum(1 for s in statuses if s.status == RED)
+    n_yel = sum(1 for s in statuses if s.status == YELLOW)
+    n_grn = sum(1 for s in statuses if s.status == GREEN)
+    lines.append("")
+    lines.append(f"Summary: {n_grn} green, {n_yel} warn, {n_red} fail")
+    return "\n".join(lines)
+
+
 def _run_taxes() -> str:
     """Estimate current quarter's tax reserve requirement."""
     mrr_usd = 2982.0
@@ -587,12 +603,30 @@ class AtlasTelegram:
     # ── Security firewall ──────────────────────────────────────────────────────
 
     def _is_allowed(self, update: Any) -> bool:
-        """Return True only for CC's user ID. Auto-registers on first contact."""
+        """
+        Return True only for CC's user ID.
+
+        Security model: TELEGRAM_USER_ID MUST be set explicitly in .env
+        before the bot is started. The previous auto-register-on-first-
+        contact behaviour was a remote takeover primitive — anyone who
+        learned the bot username before CC sent /start became permanent
+        owner. Fail closed instead.
+
+        To set up a new bot:
+          1. Send /start to the bot once
+          2. Read the chat update's user.id from the Telegram getUpdates
+             API or the bot logs (`Rejected (no TELEGRAM_USER_ID set)`)
+          3. Add `TELEGRAM_USER_ID=<that-id>` to .env manually
+          4. Restart the bot
+        """
         uid = str(update.effective_user.id)
         if not self._allowed_user_id:
-            _auto_register_user(uid)
-            self._allowed_user_id = uid
-            return True
+            logger.warning(
+                "Rejected message from user_id=%s — TELEGRAM_USER_ID not set "
+                "in .env. To authorize this user, add TELEGRAM_USER_ID=%s and "
+                "restart the bot.", uid, uid,
+            )
+            return False
         return uid == self._allowed_user_id
 
     async def _reject(self, update: Any) -> None:
@@ -744,6 +778,21 @@ class AtlasTelegram:
         except Exception as exc:  # noqa: BLE001
             logger.exception("taxes handler error")
             result = f"Atlas hit an issue: {exc!s:.200}. Full details logged."
+        await self._send_chunked(update.effective_chat.id, result, context)
+
+    async def cmd_health(self, update: Any, context: Any) -> None:
+        """Probe every research data provider. Mirrors `python main.py provider-health`."""
+        if not self._is_allowed(update):
+            await self._reject(update)
+            return
+        await context.bot.send_chat_action(
+            chat_id=update.effective_chat.id, action=ChatAction.TYPING
+        )
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(None, _run_provider_health)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("health handler error")
+            result = f"Atlas hit an issue probing providers: {exc!s:.200}."
         await self._send_chunked(update.effective_chat.id, result, context)
 
     async def cmd_receipts(self, update: Any, context: Any) -> None:
@@ -976,6 +1025,7 @@ class AtlasTelegram:
         app.add_handler(CommandHandler("news", self.cmd_news))
         app.add_handler(CommandHandler("macro", self.cmd_macro))
         app.add_handler(CommandHandler("brain", self.cmd_brain))
+        app.add_handler(CommandHandler("health", self.cmd_health))
 
         # Natural language — catches everything that isn't a command
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.on_message))

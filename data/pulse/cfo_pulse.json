@@ -1,25 +1,28 @@
 {
   "agent": "atlas",
-  "updated_at": "2026-04-18T08:45:56.057154Z",
-  "liquid_cad": 7023.46,
-  "liquid_source": "live API reads (n=6) + manual entries (n=5)",
+  "schema_version": "1.0",
+  "updated_at": "2026-04-26T16:27:01-04:00",
+  "liquid_cad": 7168.49,
+  "liquid_source": "live API reads (n=8) + manual entries (n=5)",
   "montreal_floor_target_cad": 10000.0,
-  "montreal_floor_gap_cad": 2976.54,
+  "montreal_floor_gap_cad": 2831.51,
   "tax_reserve_required_cad": 3064.01,
   "tax_reserve_rate_pct": 25,
   "concentration_risk_single_client_pct": 94.0,
   "concentration_risk_client": "Bennett",
   "mrr_usd_from_bravo": 2982.0,
   "mrr_cad_from_bravo": 4085.34,
-  "bravo_pulse_age_days": 0,
+  "bravo_pulse_age_days": 8,
   "ytd_2026_receipts": {
-    "total_cad": 491.43,
-    "item_count_parsed": 10,
+    "total_cad": 79381.94,
+    "item_count_parsed": 13,
     "item_count_needs_review": 1,
     "by_category": {
       "ai_tools": 256.65,
       "hosting_cloud": 40.72,
-      "payment_received": 194.06
+      "payment_received": 194.06,
+      "other": 78823.72,
+      "payment_processor_fee": 66.79
     }
   },
   "integrations_live": {
@@ -29,8 +32,26 @@
     "oanda": true,
     "gmail_receipts": true
   },
-  "spend_gate": "tight",
-  "spend_gate_reason": "Below Montreal floor by $2,977; Single-client concentration at 94%",
+  "spend_gate": {
+    "status": "tight",
+    "reason": "Below Montreal floor by $2,832; Single-client concentration at 94%",
+    "monthly_cap_cad": 100,
+    "rule": "experimentation_only",
+    "approvals": {
+      "meta_ads": {
+        "*": {
+          "daily_budget_usd": 1.22
+        }
+      },
+      "google_ads": {
+        "*": {
+          "daily_budget_usd": 1.22
+        }
+      }
+    }
+  },
+  "spend_gate_status": "tight",
+  "spend_gate_reason": "Below Montreal floor by $2,832; Single-client concentration at 94%",
   "approved_ad_spend_monthly_cap_cad": 100,
   "approved_ad_spend_rule": "experimentation_only",
   "maven_pulse_found": true,
@@ -38,31 +59,5 @@
   "maven_pulse_source": "C:\\Users\\User\\CMO-Agent\\data\\pulse\\cmo_pulse.json",
   "maven_current_spend_request_cad": 0.0,
   "maven_current_spend_approved": false,
-  "t2125_ad_deduction_note": "Ad spend tracked through Maven is a T2125 line 8521 deduction. Every $1 of ad spend reduces taxable income dollar-for-dollar. Post-CCPC this matters more because the corp deducts at 12.2% bracket.",
-  "spend_approvals": [],
-  "session_note_2026_04_18": {
-    "summary": "Post C-suite reorg sync. Pulled latest, fixed missing agent field, committed 22 in-flight files in 4 grouped commits, ran 3-way pulse stress test.",
-    "stress_test": "15/15 PASS (was 14/15 before 'agent: atlas' field added)",
-    "commits_pushed": [
-      "atlas: feat — Claude Code skill library (7 new + tax-strategy update)",
-      "atlas: feat — code updates (MRR bump, CMO rebrand, agent field, read_agent_pulse)",
-      "atlas: docs — brain/STRUCTURE.md + SESSION_LOG snapshot",
-      "atlas: fix — sync Atlas docs with C-suite reorg (Marketing-Agent → CMO-Agent)"
-    ],
-    "maven_spend_request_reviewed": {
-      "requested_cad": 0,
-      "approved": false,
-      "reason": "Maven has no pending request (spend_request_cad=0, spend_requests=[]). Nothing to approve. When Maven requests the pulse-lead-gen campaign ($1,200/mo budget per Bravo's directive), Atlas will deny or partial-approve to the current $100/mo cap until Montreal floor is met AND Bennett concentration drops below 70%."
-    },
-    "bravo_directive_acknowledged": {
-      "approve_spend_up_to_cad": 200,
-      "runway_check_frequency": "weekly",
-      "note_from_bravo": "Prioritize organic first, paid once PULSE is demonstrably converting"
-    },
-    "cross_agent_reads_verified": [
-      "ceo_pulse.json @ Business-Empire-Agent — live, strategy=pulse-lead-gen, 94% Bennett",
-      "cmo_pulse.json @ CMO-Agent — live, status=INITIALIZING, no spend request",
-      "C_SUITE_ARCHITECTURE.md @ Business-Empire-Agent/brain/ — 274 lines, ingested"
-    ]
-  }
+  "t2125_ad_deduction_note": "Ad spend tracked through Maven is a T2125 line 8521 deduction. Every $1 of ad spend reduces taxable income dollar-for-dollar. Post-CCPC this matters more because the corp deducts at 12.2% bracket."
 }

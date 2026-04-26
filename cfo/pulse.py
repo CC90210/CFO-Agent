@@ -173,14 +173,60 @@ def _approved_ad_spend_cad(spend_gate: str, mrr_cad: float) -> dict:
       - open:   up to 15% of MRR, floor at $500, ceiling at $2000 until
                 incorporated (post-CCPC the ceiling lifts as ad spend is
                 T2125-deductible and reduces taxable income).
+                When MRR is zero or negative the cap collapses to $0
+                regardless of gate state — there is no "spend on hope"
+                authorisation path.
     """
     if spend_gate == "frozen":
         return {"monthly_cap_cad": 0, "rule": "frozen_gate"}
+    if mrr_cad <= 0:
+        # Caught by 2026-04-26 audit: the original min/max formula
+        # returned $500 even at $0 MRR. No revenue ⇒ no discretionary spend.
+        return {"monthly_cap_cad": 0, "rule": "no_revenue"}
     if spend_gate == "tight":
         return {"monthly_cap_cad": 100, "rule": "experimentation_only"}
     # open
     target = min(max(0.15 * mrr_cad, 500), 2000)
     return {"monthly_cap_cad": round(target, 2), "rule": "15pct_mrr_cap_2k"}
+
+
+def _build_spend_gate_object(
+    status: str,
+    reason: str,
+    monthly_cap_cad: float,
+    rule: str,
+    usd_cad: float,
+) -> dict:
+    """
+    Build the nested spend_gate object that Maven's send_gateway.py reads.
+
+    Maven's reader (`scripts/send_gateway.py:check_cfo_spend_gate`) expects:
+        pulse["spend_gate"]["status"]                                  -> "open"/"tight"/"frozen"
+        pulse["spend_gate"]["approvals"][channel][brand]["daily_budget_usd"]
+
+    We translate Atlas's monthly CAD cap into a per-channel per-brand
+    daily USD budget. Two paid channels are pre-authorised today:
+    `meta_ads` and `google_ads`. The "*" brand entry is a wildcard so
+    Maven's reader can consume any brand under the channel.
+
+    Daily USD = (monthly_cap_cad / 30 days) / usd_cad.
+    Equal split across the two channels so the sum matches Atlas's cap.
+    """
+    monthly_cap_usd = monthly_cap_cad / max(usd_cad, 1e-9)
+    # Half to each channel; round down to the cent
+    daily_per_channel_usd = round((monthly_cap_usd / 30.0) / 2.0, 2)
+    if status == "frozen" or monthly_cap_cad <= 0:
+        daily_per_channel_usd = 0.0
+    return {
+        "status": status,
+        "reason": reason,
+        "monthly_cap_cad": monthly_cap_cad,
+        "rule": rule,
+        "approvals": {
+            "meta_ads":   {"*": {"daily_budget_usd": daily_per_channel_usd}},
+            "google_ads": {"*": {"daily_budget_usd": daily_per_channel_usd}},
+        },
+    }
 
 
 def publish(extra: dict | None = None) -> Path:
@@ -235,10 +281,19 @@ def publish(extra: dict | None = None) -> Path:
         and maven_spend_request_cad <= ad_authorization["monthly_cap_cad"]
     )
 
+    spend_gate_object = _build_spend_gate_object(
+        status=spend_gate,
+        reason=spend_gate_reason,
+        monthly_cap_cad=ad_authorization["monthly_cap_cad"],
+        rule=ad_authorization["rule"],
+        usd_cad=1.37,
+    )
+
     pulse: dict[str, Any] = {
         # Agent identity — required by the 3-way pulse stress test so readers
         # can verify the source without inferring from file path.
         "agent": "atlas",
+        "schema_version": "1.0",
         "updated_at": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
         "liquid_cad": liquid_cad,
         "liquid_source": liquid_src,
@@ -263,7 +318,13 @@ def publish(extra: dict | None = None) -> Path:
             "oanda": bool(os.environ.get("OANDA_TOKEN")),
             "gmail_receipts": bool(os.environ.get("GMAIL_APP_PASSWORD")),
         },
-        "spend_gate": spend_gate,
+        # Nested object — what Maven's send_gateway.py reads. See
+        # brain/CFO_PULSE_CONTRACT.md for the full schema.
+        "spend_gate": spend_gate_object,
+        # Flat aliases retained for backward compatibility with anything
+        # that read the v0 string-typed `spend_gate`. New readers should
+        # consume `spend_gate.status` and `spend_gate.reason`.
+        "spend_gate_status": spend_gate,
         "spend_gate_reason": spend_gate_reason,
         # ── Maven-readable fields (CFO -> CMO handshake) ────────────────
         # Maven reads these before launching any paid campaign. Per the
@@ -284,6 +345,21 @@ def publish(extra: dict | None = None) -> Path:
 
     if extra:
         pulse.update(extra)
+
+    # Validate against the cross-agent contract (cfo/pulse_schema.py).
+    # Any drift in field names or types fails LOUDLY here rather than in
+    # Maven's spend gate downstream. This is the load-bearing check Maven's
+    # paid-campaign authorisation depends on.
+    from cfo.pulse_schema import PulseSchemaError, validate_pulse
+
+    try:
+        validate_pulse(pulse)
+    except PulseSchemaError:
+        logger.exception(
+            "cfo_pulse.json failed schema validation BEFORE write — "
+            "Maven would have failed closed. Aborting publish.",
+        )
+        raise
 
     _PULSE_PATH.parent.mkdir(parents=True, exist_ok=True)
     # Atomic write: temp file + rename, so readers never catch a half-written file

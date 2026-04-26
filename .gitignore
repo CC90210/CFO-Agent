@@ -85,6 +85,10 @@ data/receipts_cache.json
 # ── Claude Code session-local state ─
 .claude/settings.local.json
 
+# ── Agent-to-agent inbox + dispatch state (machine-local, regenerated) ─
+tmp/
+data/dispatch/
+
 # ── Archive (keep trading automation in git, ignore pycache within) ─
 archive/**/__pycache__/
 archive/**/*.pyc
