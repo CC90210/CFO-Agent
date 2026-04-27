@@ -168,7 +168,16 @@ _CLAUDE_CLI_TIMEOUT_SECS = 600  # 10 min — same as Bravo's bridge
 #  Constants
 # ─────────────────────────────────────────────────────────────────────────────
 
-_BOT_VERSION = "3.2.0"
+_BOT_VERSION = "3.3.0"
+# V3.3.0 (2026-04-27): Mac twin symbiosis with Bravo bridge V15.7.
+#   - Machine-aware PID lock at tmp/atlas_telegram.lock so the same
+#     box never double-polls; cross-machine arbitration is left to
+#     Telegram's 409 Conflict on getUpdates.
+#   - Runtime sibling reachability probe injected into Atlas's system
+#     prompt so Atlas stops claiming it can't access Maven/Bravo when
+#     their repos are right there on the filesystem.
+#   - Single source of truth for sibling paths: scripts/sibling_repos.py
+#     (multi-candidate, env-var override).
 # V3.2.0 (2026-04-27): main chat path (_as_atlas) refactored from
 #   Anthropic SDK direct calls + atlas_tools.run_with_tools loop to
 #   `claude` CLI subprocess. Subscription-first auth (CC's Claude
@@ -677,6 +686,159 @@ def _run_sibling(target: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+#  Symbiosis with Bravo V15.7 — machine-aware PID lock + sibling probe
+# ─────────────────────────────────────────────────────────────────────────────
+
+_LOCK_FILE = _ROOT / "tmp" / "atlas_telegram.lock"
+
+
+def _machine_name() -> str:
+    """Return a stable hostname for the lock 'machine' field."""
+    import socket
+    try:
+        return socket.gethostname() or "unknown"
+    except OSError:
+        return "unknown"
+
+
+def _is_pid_alive(pid: int) -> bool:
+    """Cross-platform 'is this PID running on THIS box?' check."""
+    if not pid or pid <= 0:
+        return False
+    if sys.platform == "win32":
+        # signal 0 + os.kill works on Win10+ Python; fall back to
+        # tasklist if unavailable.
+        try:
+            import ctypes
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            handle = ctypes.windll.kernel32.OpenProcess(
+                PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid)
+            )
+            if not handle:
+                return False
+            ctypes.windll.kernel32.CloseHandle(handle)
+            return True
+        except Exception:
+            return False
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except (ProcessLookupError, PermissionError):
+        # PermissionError -> process exists but is owned by another
+        # user; treat as alive (still owns the lock).
+        return isinstance(sys.exc_info()[1], PermissionError)
+    except OSError:
+        return False
+
+
+def _acquire_instance_lock() -> None:
+    """Single-instance gate. Mirrors Bravo bridge V15.7 contract.
+
+    - If lock exists with a live PID on THIS machine -> exit 0 cleanly.
+    - If lock is stale or from a different machine -> replace and continue.
+    - Cross-machine arbitration is handled by Telegram's 409 Conflict
+      on getUpdates; first to poll wins, the other side stays warm.
+    """
+    _LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    machine = _machine_name()
+    if _LOCK_FILE.exists():
+        try:
+            existing = json.loads(_LOCK_FILE.read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            logger.info("[LOCK] Could not parse existing lock; replacing it (%s)", exc)
+            existing = {}
+        existing_pid = int(existing.get("pid", 0) or 0)
+        existing_machine = str(existing.get("machine", "") or "")
+        same_machine = existing_machine == machine
+        if (
+            existing_pid
+            and existing_pid != os.getpid()
+            and same_machine
+            and _is_pid_alive(existing_pid)
+        ):
+            logger.info(
+                "[LOCK] Another local bridge owns polling on %s (pid %s). Exiting cleanly.",
+                machine,
+                existing_pid,
+            )
+            sys.exit(0)
+        if existing_pid:
+            logger.info(
+                "[LOCK] Replacing stale/foreign lock (pid %s, machine %s).",
+                existing_pid,
+                existing_machine or "unknown",
+            )
+    payload = {
+        "pid": os.getpid(),
+        "machine": machine,
+        "platform": sys.platform,
+        "started_at": _utc_now_iso(),
+    }
+    _LOCK_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    logger.info(
+        "[LOCK] Acquired %s for pid %s on %s (%s).",
+        _LOCK_FILE.name,
+        os.getpid(),
+        machine,
+        sys.platform,
+    )
+
+
+def _release_instance_lock() -> None:
+    """atexit hook: drop the lock if THIS pid still owns it."""
+    try:
+        if not _LOCK_FILE.exists():
+            return
+        existing = json.loads(_LOCK_FILE.read_text(encoding="utf-8"))
+        if int(existing.get("pid", 0) or 0) == os.getpid():
+            _LOCK_FILE.unlink()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _utc_now_iso() -> str:
+    """ISO-8601 UTC timestamp for lock file."""
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _load_local_sibling_paths() -> str:
+    """Probe the filesystem for sibling agent repos and return a system-prompt
+    block describing reachability on this machine.
+
+    Mirrors Bravo bridge V15.7 loadLocalSiblingPaths() so when CC asks
+    Atlas "can you read Maven's brain?" Atlas answers from runtime truth
+    instead of training-time guesses. First existing candidate wins; the
+    canonical candidate list is in scripts/sibling_repos.py.
+    """
+    machine = _machine_name()
+    try:
+        scripts_dir = str(_ROOT / "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        from sibling_repos import SIBLING_CANDIDATES  # type: ignore[import-not-found]
+    except Exception:  # noqa: BLE001
+        SIBLING_CANDIDATES = {}  # graceful degradation
+    lines: list[str] = []
+    for agent in ("bravo", "maven", "aura"):
+        candidates = SIBLING_CANDIDATES.get(agent, [])
+        found = next((str(c) for c in candidates if Path(c).is_dir()), None)
+        if found:
+            lines.append(f"- {agent.title()}: REACHABLE on this {machine} at {found}")
+        else:
+            lines.append(
+                f"- {agent.title()}: NOT cloned on this {machine} (no candidate path exists)"
+            )
+    return (
+        f"=== SIBLING AGENT REACHABILITY (this {machine}, runtime-detected) ===\n"
+        + "\n".join(lines)
+        + "\nYou CAN read these directories with Read/Bash/Glob/Grep. Do NOT "
+        "tell CC you can't access an agent that shows REACHABLE above — you "
+        "have full filesystem access to those paths."
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 #  Intent classifier
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -844,6 +1006,7 @@ class AtlasTelegram:
             "project_2025_tax_return_filed.md before any rundown of open "
             "items; the 2025 return is already filed."
         )
+        system += "\n\n" + _load_local_sibling_paths()
         return system
 
     def _format_history_for_cli(self, history: deque, prompt: str) -> str:
@@ -1355,6 +1518,15 @@ class AtlasTelegram:
 
 def main() -> None:
     _configure_utf8_stdout()
+    # Acquire single-instance lock BEFORE token check so we exit cleanly
+    # without spamming logs when a sibling pid is already polling.
+    _acquire_instance_lock()
+    import atexit
+    atexit.register(_release_instance_lock)
+    # Log the runtime reachability block immediately so pm2 captures it.
+    for line in _load_local_sibling_paths().splitlines():
+        logger.info("[BOOT] %s", line)
+
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     user_id = os.environ.get("TELEGRAM_USER_ID", "").strip() or None

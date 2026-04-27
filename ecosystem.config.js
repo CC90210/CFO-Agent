@@ -2,13 +2,16 @@
  * PM2 Ecosystem Config — Atlas CFO Agent
  *
  * HARD RULES:
- *   - Windows-only. The bot uses Git Bash paths + Windows-native python.exe.
- *     Don't try to run this on Mac/Linux without a matching venv.
+ *   - Cross-platform (Windows + macOS). Windows uses the system Python 3.12
+ *     install; Mac uses the project's .venv (created via `python3.12 -m venv .venv`).
  *
- *   - Only ONE atlas-telegram process may run at a time. Two processes on
- *     the same TELEGRAM_BOT_TOKEN = random message routing. Atlas and Bravo
- *     use DIFFERENT bot tokens so they can co-exist; never duplicate the
- *     same token across PM2 apps.
+ *   - Per-MACHINE single-instance enforcement is handled inside the bridge
+ *     (telegram_bridge.py V3.3 _acquire_instance_lock at tmp/atlas_telegram.lock).
+ *     Cross-machine arbitration (Mac vs Windows) is left to Telegram's 409
+ *     Conflict on getUpdates — first to poll wins, the loser stays warm.
+ *
+ *   - Atlas and Bravo use DIFFERENT bot tokens so they can co-exist on the
+ *     same machine; never duplicate the same token across PM2 apps.
  *
  *   - Secrets come from .env via python-dotenv in the bot itself. Do NOT
  *     paste API keys into this file. PM2 only sets process-level env vars.
@@ -43,10 +46,11 @@ const IS_WIN = process.platform === 'win32';
 // Project root is this file's directory
 const PROJECT_ROOT = __dirname;
 
-// System Python 3.12 on Windows (no venv — requirements installed globally)
+// Windows uses the system Python 3.12; Mac uses the project venv so all
+// research/CFO deps (tenacity, ccxt, anthropic, etc.) are on the path.
 const PYTHON = IS_WIN
     ? 'C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python312\\python.exe'
-    : '/usr/bin/python3';
+    : path.join(PROJECT_ROOT, '.venv', 'bin', 'python');
 
 module.exports = {
     apps: [
