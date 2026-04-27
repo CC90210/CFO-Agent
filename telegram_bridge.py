@@ -9,13 +9,16 @@ executes the right CFO module.
 
 Security
 --------
-Only responds to TELEGRAM_USER_ID from .env (CC's ID). Auto-registers the
-first user who messages if TELEGRAM_USER_ID is not yet set.
+Only responds to TELEGRAM_USER_ID from .env (CC's ID). Fail-closed if
+TELEGRAM_USER_ID is unset — the previous auto-register-on-first-contact
+behaviour was a remote-takeover primitive (closed 2026-04-26).
 
 Commands
 --------
 /start /help /networth /runway /status /taxes /receipts [YYYY-MM-DD]
 /picks <query> /deepdive <TICKER> /news <topic> /macro /brain <file>
+/pulses                 — 3-agent C-suite snapshot (Atlas+Bravo+Maven)
+/sibling <agent> [file] — read a sibling agent's brain/*.md
 
 Natural language
 ----------------
@@ -32,6 +35,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
 import logging
 import os
 import sys
@@ -134,7 +138,7 @@ _BOT_VERSION = "3.1.0"  # IDE-parity tool use added 2026-04-16
 _MAX_MSG_LEN = 4000          # Telegram's hard limit is 4096; leave headroom
 _HISTORY_DEPTH = 10          # Turns of conversation memory per chat
 _MODEL = "claude-opus-4-7"
-_ENV_FILE = _ROOT / ".env"
+_ENV_FILE = _ROOT / ".env"  # retained for ops scripts; not written to anymore
 
 # System prompt fragment injected into every Claude call
 _ATLAS_SYSTEM = """\
@@ -220,6 +224,12 @@ BRAIN
 /brain <file>  read brain/ docs
 /help          this message
 
+3-AGENT C-SUITE
+/pulses        snapshot of Atlas + Bravo + Maven pulses
+/sibling <agent> [file]   read brain/ from a sibling
+                          agent <agent>=bravo|maven|aura
+                          e.g. /sibling bravo SOUL
+
 You can also just TYPE what you want. Atlas has IDE-parity tools —
 it can read brain/USER.md, grep docs, run CFO commands, and search
 the web mid-conversation. Same powers as the terminal.
@@ -241,25 +251,11 @@ def _load_allowed_user_id() -> str | None:
     return os.environ.get("TELEGRAM_USER_ID", "").strip() or None
 
 
-def _auto_register_user(user_id: str) -> None:
-    """Write user_id to .env on first contact so subsequent users are blocked."""
-    try:
-        content = _ENV_FILE.read_text(encoding="utf-8") if _ENV_FILE.exists() else ""
-        if "TELEGRAM_USER_ID=" in content:
-            lines = [
-                f"TELEGRAM_USER_ID={user_id}"
-                if line.startswith("TELEGRAM_USER_ID=")
-                else line
-                for line in content.splitlines()
-            ]
-            _ENV_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        else:
-            with _ENV_FILE.open("a", encoding="utf-8") as fh:
-                fh.write(f"\nTELEGRAM_USER_ID={user_id}\n")
-        os.environ["TELEGRAM_USER_ID"] = user_id
-        logger.info("Auto-registered owner user ID: %s", user_id)
-    except Exception as exc:  # noqa: BLE001
-        logger.error("Failed to save TELEGRAM_USER_ID to .env: %s", exc)
+# NOTE: the legacy `_auto_register_user` helper was removed in the
+# 2026-04-26 finalization pass after the security audit flagged it as a
+# remote-takeover primitive: anyone who learned the bot username before
+# CC sent /start could become permanent owner. The bot now fails closed
+# when TELEGRAM_USER_ID is unset (see Atlas._is_allowed).
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -506,6 +502,139 @@ def _run_brain(filename: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+#  Cross-agent helpers — read sibling agent state (Bravo, Maven, Aura)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _sibling_repos() -> dict[str, Path]:
+    """
+    Resolve sibling agent repo paths. Single source of truth lives in
+    scripts/sibling_repos.py — this wrapper handles the case where the
+    script isn't importable (older Atlas deploys) by falling back to
+    hardcoded defaults that match the C-suite layout.
+    """
+    try:
+        import sys
+        scripts_dir = str(_ROOT / "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        from sibling_repos import SIBLING_REPOS  # type: ignore[import-not-found]
+        return dict(SIBLING_REPOS)
+    except Exception:
+        return {
+            "bravo": Path(os.environ.get("BRAVO_REPO", r"C:\Users\User\Business-Empire-Agent")),
+            "maven": Path(os.environ.get("MAVEN_REPO", r"C:\Users\User\CMO-Agent")),
+            "atlas": _ROOT,
+            "aura":  Path(os.environ.get("AURA_REPO",  r"C:\Users\User\AURA")),
+        }
+
+
+def _short_age(iso_ts: str) -> str:
+    """Return a short human age like '4h ago' or '3d ago' from an ISO ts."""
+    if not iso_ts:
+        return "n/a"
+    try:
+        from datetime import datetime as _dt
+        when = _dt.fromisoformat(str(iso_ts).replace("Z", "+00:00"))
+        delta = _dt.now(when.tzinfo) - when
+        secs = int(delta.total_seconds())
+        if secs < 3600:
+            return f"{secs // 60}m ago"
+        if secs < 86400:
+            return f"{secs // 3600}h ago"
+        return f"{secs // 86400}d ago"
+    except Exception:
+        return iso_ts[:16] if isinstance(iso_ts, str) else "n/a"
+
+
+def _run_pulses() -> str:
+    """
+    Read Atlas's, Bravo's, and Maven's pulse files and return a short
+    one-screen summary. Tells CC at a glance whether the 3-agent
+    contract is healthy.
+    """
+    repos = _sibling_repos()
+    paths = {
+        "Atlas (CFO)": _ROOT / "data" / "pulse" / "cfo_pulse.json",
+        "Bravo (CEO)": repos["bravo"] / "data" / "pulse" / "ceo_pulse.json",
+        "Maven (CMO)": repos["maven"] / "data" / "pulse" / "cmo_pulse.json",
+    }
+    lines: list[str] = ["3-Agent Pulse Snapshot"]
+    for label, path in paths.items():
+        if not path.exists():
+            lines.append(f"  {label}: MISSING ({path})")
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            lines.append(f"  {label}: PARSE ERROR ({exc})")
+            continue
+        ts = data.get("updated_at", "")
+        age = _short_age(ts)
+        # Per-agent headline
+        if label.startswith("Atlas"):
+            sg = data.get("spend_gate") or {}
+            status = sg.get("status") if isinstance(sg, dict) else sg
+            cap = data.get("approved_ad_spend_monthly_cap_cad", 0)
+            liquid = data.get("liquid_cad", 0)
+            lines.append(
+                f"  {label}: gate={status} | cap=${cap}/mo | "
+                f"liquid=${liquid:,.0f} | {age}"
+            )
+        elif label.startswith("Bravo"):
+            rev = data.get("revenue") or {}
+            mrr = rev.get("net_mrr_usd") or data.get("mrr_usd", 0)
+            conc = rev.get("bennett_concentration_pct") or "?"
+            lines.append(f"  {label}: MRR=${mrr} USD | conc={conc}% | {age}")
+        else:  # Maven
+            req = data.get("spend_request_cad", 0)
+            lines.append(f"  {label}: spend_request=${req} CAD | {age}")
+    return "\n".join(lines)
+
+
+def _run_sibling(target: str) -> str:
+    """
+    Read a sibling agent's brain doc.
+
+    Usage:
+      sibling bravo            -> list Bravo's brain/*.md
+      sibling bravo SOUL       -> read Bravo's brain/SOUL.md (first 3000 chars)
+      sibling maven CMO_PULSE  -> read Maven's brain/CMO_PULSE.md
+    """
+    parts = target.strip().split(maxsplit=1)
+    if not parts:
+        return "Usage: sibling <bravo|maven|aura> [filename]"
+    agent = parts[0].lower()
+    filename = parts[1].strip() if len(parts) > 1 else None
+    repos = _sibling_repos()
+    if agent not in repos:
+        return f"Unknown agent {agent!r}. Try one of: {sorted(repos)}"
+    repo = repos[agent]
+    if not repo.exists():
+        return f"{agent.title()} repo not on this machine: {repo}"
+    brain = repo / "brain"
+    if not brain.exists():
+        return f"{agent.title()} has no brain/ dir at {brain}"
+    if filename is None:
+        names = sorted(p.name for p in brain.glob("*.md"))
+        return f"{agent.title()} brain/ contents:\n  " + "\n  ".join(names)
+    name = filename.replace("/", "").replace("\\", "")
+    if not name.endswith(".md"):
+        name += ".md"
+    target_file = brain / name
+    if not target_file.exists():
+        names = sorted(p.name for p in brain.glob("*.md"))
+        return (
+            f"{agent.title()}/brain/{name} not found.\n"
+            f"Available: {', '.join(names)}"
+        )
+    text = target_file.read_text(encoding="utf-8")
+    if len(text) > 3000:
+        text = text[:3000] + f"\n\n... ({len(text) - 3000} more chars)"
+    return f"=== {agent.title()}/brain/{name} ===\n{text}"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 #  Intent classifier
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -522,6 +651,8 @@ Classify the user's message into exactly one of these intents (output JSON only)
   news      — headlines, news, latest on (extract "query")
   macro     — macro, geopolitics, flashpoints, Fed, global economy
   taxes     — tax reserve, how much tax, CRA, filing, deductions
+  pulses    — 3-agent C-suite state, Bravo / Maven / cross-agent health
+  sibling   — read another agent's brain (extract "query" as "<agent> [file]")
   chat      — anything else (general CFO question or conversation)
 
 Output format (strict JSON, no other text):
@@ -914,6 +1045,46 @@ class AtlasTelegram:
             result = f"Atlas hit an issue: {exc!s:.200}. Full details logged."
         await self._send_chunked(update.effective_chat.id, result, context)
 
+    async def cmd_pulses(self, update: Any, context: Any) -> None:
+        """Snapshot of all 3 agent pulses (Atlas + Bravo + Maven)."""
+        if not self._is_allowed(update):
+            await self._reject(update)
+            return
+        await context.bot.send_chat_action(
+            chat_id=update.effective_chat.id, action=ChatAction.TYPING
+        )
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(None, _run_pulses)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("pulses handler error")
+            result = f"Atlas hit an issue: {exc!s:.200}. Full details logged."
+        await self._send_chunked(update.effective_chat.id, result, context)
+
+    async def cmd_sibling(self, update: Any, context: Any) -> None:
+        """Read a sibling agent's brain doc. Usage: /sibling bravo SOUL"""
+        if not self._is_allowed(update):
+            await self._reject(update)
+            return
+        args = context.args or []
+        if not args:
+            await update.message.reply_text(
+                "Usage: /sibling <bravo|maven|aura> [filename]\n"
+                "Examples:\n"
+                "  /sibling bravo            (list Bravo's brain/)\n"
+                "  /sibling bravo SOUL       (read Bravo's brain/SOUL.md)\n"
+                "  /sibling maven CFO_GATE_CONTRACT"
+            )
+            return
+        target = " ".join(args)
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, _run_sibling, target
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("sibling handler error")
+            result = f"Atlas hit an issue: {exc!s:.200}. Full details logged."
+        await self._send_chunked(update.effective_chat.id, result, context)
+
     # ── Natural language handler ───────────────────────────────────────────────
 
     async def on_message(self, update: Any, context: Any) -> None:
@@ -984,6 +1155,12 @@ class AtlasTelegram:
                 )
             elif intent == "macro":
                 result = await asyncio.get_event_loop().run_in_executor(None, _run_macro)
+            elif intent == "pulses":
+                result = await asyncio.get_event_loop().run_in_executor(None, _run_pulses)
+            elif intent == "sibling":
+                result = await asyncio.get_event_loop().run_in_executor(
+                    None, _run_sibling, query or ""
+                )
             else:
                 # chat — Atlas as Claude CFO
                 result = await asyncio.get_event_loop().run_in_executor(
@@ -1026,6 +1203,8 @@ class AtlasTelegram:
         app.add_handler(CommandHandler("macro", self.cmd_macro))
         app.add_handler(CommandHandler("brain", self.cmd_brain))
         app.add_handler(CommandHandler("health", self.cmd_health))
+        app.add_handler(CommandHandler("pulses", self.cmd_pulses))
+        app.add_handler(CommandHandler("sibling", self.cmd_sibling))
 
         # Natural language — catches everything that isn't a command
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.on_message))
