@@ -11,6 +11,12 @@ tags: [log, sessions, activity, narrative]
 
 ---
 
+### Session 35 — 2026-04-27 (Mac twin, Claude Code runtime) — Bridge V3.3 Mac symbiosis with Bravo V15.7
+
+Shipped `telegram_bridge.py` V3.3 (commit 89a0ea5): machine-aware PID lock at `tmp/atlas_telegram.lock` and a runtime SIBLING REACHABILITY block injected into Atlas's system prompt — both mirroring Bravo bridge V15.7. `scripts/sibling_repos.py` extended with `SIBLING_CANDIDATES` (multi-path, Mac branch tracks Bravo's exact candidate list); `ecosystem.config.js` now cross-platform (Mac uses `.venv/bin/python`); pm2 atlas-telegram online on `Conaughs-MacBook-Air.local` with [LOCK] + [BOOT] reachability confirmed (Bravo + Maven REACHABLE, Aura missing). 156/156 tests pass. Cross-machine arbitration delegated to Telegram's 409 Conflict — first to poll wins, the other side stays warm.
+
+---
+
 ### Session 33 — 2026-04-25 evening (Claude Code runtime) — Deep system audit & hardening
 - CC requested full deep-audit. Inventoried 35 Python modules across cfo/, research/, finance/, utils/, scripts/. Every module compiles + imports clean.
 - **Bug fixes (5 real defects found and fixed):**
