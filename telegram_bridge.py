@@ -131,10 +131,34 @@ except ImportError:
     logger.warning("anthropic not installed. Run: pip install anthropic")
 
 # ─────────────────────────────────────────────────────────────────────────────
+#  Claude Code CLI auth (subscription-first, API-key fallback)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# V3.2 (2026-04-27) — Atlas's main chat path now spawns the `claude`
+# CLI as a subprocess (mirrors Bravo's bridge V15.8) to use CC's
+# Claude Code subscription OAuth token. The Anthropic SDK direct path
+# is kept ONLY for the intent classifier (128-token, latency-sensitive,
+# doesn't benefit from the CLI's tool layer).
+import shutil  # noqa: E402
+import subprocess  # noqa: E402
+
+from cfo.claude_auth import (  # noqa: E402
+    build_claude_spawn_env,
+    is_claude_auth_or_quota_failure,
+    check_claude_auth_paths,
+)
+
+# Resolve the `claude` binary once at import. PATH lookup respects
+# whichever Claude Code install CC has registered — typically the npm
+# global from `npm install -g @anthropic-ai/claude-code`.
+_CLAUDE_CLI = shutil.which("claude") or shutil.which("claude.cmd") or "claude"
+_CLAUDE_CLI_TIMEOUT_SECS = 600  # 10 min — same as Bravo's bridge
+
+# ─────────────────────────────────────────────────────────────────────────────
 #  Constants
 # ─────────────────────────────────────────────────────────────────────────────
 
-_BOT_VERSION = "3.1.0"  # IDE-parity tool use added 2026-04-16
+_BOT_VERSION = "3.2.0"  # CLI subprocess auth path 2026-04-27
 _MAX_MSG_LEN = 4000          # Telegram's hard limit is 4096; leave headroom
 _HISTORY_DEPTH = 10          # Turns of conversation memory per chat
 _MODEL = "claude-opus-4-7"
@@ -780,68 +804,162 @@ class AtlasTelegram:
         )
         await self._send_chunked(update.effective_chat.id, text, context)
 
-    # ── Claude chat fallback ───────────────────────────────────────────────────
+    # ── Claude CLI chat path (V3.2 — subprocess, subscription-first) ─────────
 
-    def _as_atlas(self, prompt: str, history: deque) -> str:
-        """
-        Call Claude as Atlas CFO for open-ended chat, with IDE-parity tool use.
-
-        Atlas can read project files (USER.md, brain/*, docs/*, data/picks/*),
-        grep the codebase, invoke CFO commands (runway, networth, picks...),
-        and run Anthropic web search — mid-conversation, from Telegram. Same
-        powers as the Claude Code terminal, constrained to read-only ops.
-
-        Falls back to a plain completion if atlas_tools isn't importable.
-        """
-        if not _ANTHROPIC_AVAILABLE or self._anthropic is None:
-            return "Anthropic client not available. Check ANTHROPIC_API_KEY in .env."
-
-        # Read USER.md excerpt for grounding
+    def _build_atlas_system(self) -> str:
+        """Compose Atlas's system prompt with USER.md excerpt + tool hints."""
         user_md_path = _ROOT / "brain" / "USER.md"
         user_excerpt = ""
         if user_md_path.exists():
-            raw = user_md_path.read_text(encoding="utf-8")
-            user_excerpt = raw[:2000]  # First 2K chars covers identity + assets
+            try:
+                user_excerpt = user_md_path.read_text(encoding="utf-8")[:2000]
+            except OSError:
+                user_excerpt = ""
 
         system = _ATLAS_SYSTEM
         if user_excerpt:
             system += f"\n\n## CC Profile (from USER.md)\n{user_excerpt}"
         system += (
-            "\n\nYou have tools: read_file, grep, list_files, run_cfo, "
-            "read_pick, read_memory, web_search. Use them before answering "
-            "anything factual about CC's state — never guess. Check "
-            "memory/project_2025_tax_return_filed.md before any rundown of "
-            "open items; the 2025 return is already filed."
+            "\n\nYou have full Claude Code tool access (Read, Grep, Glob, "
+            "Bash). Use them silently before answering anything factual "
+            "about CC's state — never guess. Check memory/"
+            "project_2025_tax_return_filed.md before any rundown of open "
+            "items; the 2025 return is already filed."
+        )
+        return system
+
+    def _format_history_for_cli(self, history: deque, prompt: str) -> str:
+        """Render conversation history + new prompt into a single CLI input.
+
+        The claude CLI takes one prompt string. We flatten history as
+        explicit role markers so Atlas keeps multi-turn context.
+        """
+        parts: list[str] = []
+        for turn in history:
+            role = turn.get("role", "user").upper()
+            content = turn.get("content", "")
+            if isinstance(content, list):  # tool-use blocks from old SDK history
+                content = " ".join(
+                    str(b.get("text", "")) if isinstance(b, dict) else str(b)
+                    for b in content
+                )
+            parts.append(f"[{role}] {content}")
+        parts.append(f"[USER] {prompt}")
+        return "\n\n".join(parts)
+
+    def _spawn_claude_cli(
+        self,
+        system: str,
+        flat_prompt: str,
+        force_api_key: bool = False,
+    ) -> tuple[int, str, str]:
+        """Spawn `claude` CLI once. Returns (exit_code, stdout, stderr).
+
+        Subscription-first: env strips ANTHROPIC_API_KEY by default. On
+        retry (force_api_key=True), the key is preserved so claude CLI
+        uses paid metered billing as fallback.
+        """
+        # Combine system into the prompt — claude CLI takes a single -p
+        # flag. Wrap system in an explicit instruction block so it's
+        # processed as the role-shaping context.
+        full_prompt = (
+            f"<system_prompt>\n{system}\n</system_prompt>\n\n"
+            f"<conversation>\n{flat_prompt}\n</conversation>\n\n"
+            "Reply as Atlas. Keep the voice rules (text-message length, "
+            "no markdown headers, no emojis, contractions, lead with the "
+            "answer)."
         )
 
-        messages = list(history) + [{"role": "user", "content": prompt}]
+        args = [
+            _CLAUDE_CLI,
+            "-p", full_prompt,
+            "--permission-mode", "acceptEdits",
+            "--output-format", "text",
+            "--max-turns", "20",  # enough for tool-use loops
+            "--setting-sources", "project,local",
+            "--model", _MODEL,
+        ]
+        env = build_claude_spawn_env(
+            force_api_key=force_api_key,
+            extras={
+                "CI": "true",
+                "NONINTERACTIVE": "true",
+                "PAGER": "cat",
+                "NO_COLOR": "1",
+                "FORCE_COLOR": "0",
+            },
+        )
 
-        # IDE-parity path: run the Anthropic tool-use loop.
+        if force_api_key:
+            logger.info("[AUTH FALLBACK] Atlas using ANTHROPIC_API_KEY for this call")
+
         try:
-            from atlas_tools import run_with_tools
-
-            return run_with_tools(
-                client=self._anthropic,
-                model=_MODEL,
-                system=system,
-                messages=messages,
-                # Budget cap reinforces the "short text message" voice rules.
-                # ~500 tokens ≈ 375 words, plenty for a CFO briefing reply.
-                # Claude can still write longer when CC explicitly asks for detail.
-                max_tokens=500,
-            ).strip()
-        except ImportError as exc:
-            logger.warning("atlas_tools unavailable (%s) — falling back to plain chat", exc)
-            resp = self._anthropic.messages.create(
-                model=_MODEL,
-                max_tokens=500,
-                system=system,
-                messages=messages,
+            result = subprocess.run(
+                args,
+                env=env,
+                cwd=str(_ROOT),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=_CLAUDE_CLI_TIMEOUT_SECS,
+                # Suppress console window on Windows
+                creationflags=0x08000000 if sys.platform == "win32" else 0,
             )
-            return resp.content[0].text.strip()
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("tool-use loop failed")
-            return f"Atlas tool-use error: {exc!s:.200}. Falling back — try again."
+            return result.returncode, result.stdout or "", result.stderr or ""
+        except subprocess.TimeoutExpired:
+            return 124, "", f"claude CLI timed out after {_CLAUDE_CLI_TIMEOUT_SECS}s"
+        except FileNotFoundError:
+            return 127, "", (
+                f"claude CLI not found on PATH (looked for {_CLAUDE_CLI!r}). "
+                "Install: npm install -g @anthropic-ai/claude-code, then "
+                "register subscription token: claude setup-token"
+            )
+
+    def _as_atlas(self, prompt: str, history: deque) -> str:
+        """Atlas's main chat path — spawns Claude Code CLI as subprocess.
+
+        Mirrors Bravo's executeCli pattern (subscription-first, API-key
+        fallback on quota/auth errors). The CLI gives Atlas full Read/
+        Grep/Glob/Bash tooling — strictly more powerful than the old
+        atlas_tools SDK loop, and uses CC's subscription billing instead
+        of paid API metering.
+
+        Hard-fail message lands in the chat if both auth paths reject.
+        """
+        system = self._build_atlas_system()
+        flat_prompt = self._format_history_for_cli(history, prompt)
+
+        # First attempt: subscription path (no ANTHROPIC_API_KEY in env)
+        code, stdout, stderr = self._spawn_claude_cli(system, flat_prompt, force_api_key=False)
+        raw = (stdout.strip() or stderr.strip())
+
+        # Auth/quota retry — fall back to API key billing
+        if is_claude_auth_or_quota_failure(raw, code):
+            logger.warning(
+                "Atlas subscription path failed (code=%s) — retrying via ANTHROPIC_API_KEY",
+                code,
+            )
+            code, stdout, stderr = self._spawn_claude_cli(
+                system, flat_prompt, force_api_key=True,
+            )
+            raw = (stdout.strip() or stderr.strip())
+            if is_claude_auth_or_quota_failure(raw, code):
+                logger.error("Atlas hard auth fail: both subscription AND API key rejected")
+                return (
+                    "Auth hard-fail. Both Claude Code subscription AND "
+                    "ANTHROPIC_API_KEY rejected. Run `claude setup-token` "
+                    "and check ANTHROPIC_API_KEY in .env, then: pm2 restart atlas-telegram"
+                )
+
+        if code != 0:
+            logger.error("Atlas claude CLI failed (code=%s): %s", code, stderr[:500])
+            return f"Atlas CLI error (code {code}). Try again, or run the query directly."
+
+        text = stdout.strip()
+        if not text:
+            return "Atlas got an empty reply from claude. Try rephrasing."
+        return text
 
     # ── Slash command handlers ─────────────────────────────────────────────────
 
@@ -1233,10 +1351,41 @@ def main() -> None:
             "ANTHROPIC_API_KEY not set — natural language routing will fall back to echo."
         )
 
+    # Boot auth health check — verify BOTH paths before polling starts
+    # so any auth misconfiguration surfaces in pm2 logs immediately
+    # instead of on the first user message.
+    auth = check_claude_auth_paths()
+    if auth["hasOAuth"]:
+        logger.info(
+            "[HEALTH] Claude Code subscription OAuth: present at %s (primary auth path)",
+            auth["oauthPath"],
+        )
+    else:
+        logger.warning(
+            "[HEALTH] Claude Code subscription OAuth: NOT FOUND at %s — "
+            "run `claude setup-token`. Bridge will fall back to ANTHROPIC_API_KEY.",
+            auth["claudeDir"],
+        )
+    if auth["hasApiKey"]:
+        logger.info("[HEALTH] ANTHROPIC_API_KEY fallback path: present")
+    else:
+        logger.warning(
+            "[HEALTH] ANTHROPIC_API_KEY missing — fallback path unavailable. "
+            "If subscription quota hits, Atlas will hard-fail."
+        )
+    if not auth["hasOAuth"] and not auth["hasApiKey"]:
+        logger.error(
+            "Both auth paths are unavailable. Atlas chat WILL fail. "
+            "Run `claude setup-token` AND/OR set ANTHROPIC_API_KEY in .env."
+        )
+
     bot = AtlasTelegram(token=token, user_id=user_id, anthropic_key=anthropic_key)
     app = bot.build_app()
 
-    logger.info("Atlas Telegram Bridge v%s starting — polling...", _BOT_VERSION)
+    logger.info(
+        "Atlas Telegram Bridge v%s starting — polling. Auth: subscription-first, API-key fallback.",
+        _BOT_VERSION,
+    )
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
