@@ -26,6 +26,16 @@ Any non-slash message is routed through Claude intent classifier, then
 dispatched to the right CFO module. "chat" intent falls back to Atlas as
 a Claude-powered CFO advisor.
 
+Auth model (V3.2 — 2026-04-27)
+------------------------------
+The main chat path (_as_atlas) spawns the `claude` CLI as a subprocess
+to use CC's Claude Code subscription OAuth (free under his plan).
+ANTHROPIC_API_KEY is stripped from the spawn env by default and only
+re-introduced on the retry path when the CLI returns auth/quota errors.
+The intent classifier (128-token JSON) intentionally still uses the
+Anthropic SDK directly — latency-sensitive, low-volume, billing impact
+trivial. See cfo/claude_auth.py for the auth helpers.
+
 Usage
 -----
   python telegram_bridge.py
@@ -158,7 +168,15 @@ _CLAUDE_CLI_TIMEOUT_SECS = 600  # 10 min — same as Bravo's bridge
 #  Constants
 # ─────────────────────────────────────────────────────────────────────────────
 
-_BOT_VERSION = "3.2.0"  # CLI subprocess auth path 2026-04-27
+_BOT_VERSION = "3.2.0"
+# V3.2.0 (2026-04-27): main chat path (_as_atlas) refactored from
+#   Anthropic SDK direct calls + atlas_tools.run_with_tools loop to
+#   `claude` CLI subprocess. Subscription-first auth (CC's Claude
+#   Code OAuth), API-key fallback on quota/auth errors. Mirrors
+#   Bravo bridge V15.8. AtlasIntentClassifier (128-token JSON
+#   classifier) intentionally still uses SDK direct — latency-sensitive,
+#   not chat-volume.
+# V3.1.0 (2026-04-16): SDK tool-use IDE parity (now superseded by V3.2).
 _MAX_MSG_LEN = 4000          # Telegram's hard limit is 4096; leave headroom
 _HISTORY_DEPTH = 10          # Turns of conversation memory per chat
 _MODEL = "claude-opus-4-7"

@@ -10,6 +10,17 @@ Auth priority:
      by `claude setup-token`, stored at ~/.claude/.credentials.json)
   2. ANTHROPIC_API_KEY (paid metered, fallback only)
 
+CROSS-LANGUAGE SYNC (CRITICAL):
+This file MUST stay behaviorally identical to:
+  Business-Empire-Agent/scripts/c_suite_context.js
+    (Node module — used by Bravo's bridge + future Bravo CLI tools)
+
+If Anthropic changes the auth-failure or quota-error patterns, the
+regex below MUST be updated in lockstep with that file's
+_AUTH_FAIL_PATTERN. Same applies to the OAuth file path detection.
+The two implementations diverge only in language idiom — Python
+vs Node — never in behavior.
+
 Public API:
     build_claude_spawn_env(force_api_key=False, base=None, extras=None)
         Returns a dict suitable for subprocess.run/Popen env=. Default
